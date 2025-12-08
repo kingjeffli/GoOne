@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ============================================
-# Go SDK 下载管理器 (403 修复版)
+# Go SDK 下载管理器 (403 修复版)  --By Iori
 # 修复内容：
 # 1. 解决 403 Forbidden 错误
 # 2. 使用随机 User-Agent 头
@@ -1203,10 +1203,7 @@ show_help() {
     cat <<EOF
 ${BOLD}Go SDK 下载管理器 (403 修复版) v${SCRIPT_VERSION}${NC}
 
-专门解决 403 Forbidden 错误，使用随机 User-Agent 和请求头。
-
 用法: $0 <command> [version]
-
 命令:
   install <version>   安装指定版本的 Go SDK (如: 1.25.0)
   list                列出所有已安装的版本，并标记当前版本
@@ -1222,11 +1219,6 @@ ${BOLD}Go SDK 下载管理器 (403 修复版) v${SCRIPT_VERSION}${NC}
   $0 current             # 查看当前版本
   $0 use 1.25.0          # 切换到 Go 1.25.0
   $0 uninstall 1.24.0    # 卸载 Go 1.24.0
-
-${BOLD}解决 403 Forbidden 的方法:${NC}
-  1. 脚本会自动使用随机 User-Agent 和请求头
-  2. 会在请求之间添加随机延迟
-  3. 会尝试多个镜像源
 
 ${BOLD}如果仍然失败:${NC}
   1. 在其他设备上手动下载 Go SDK
