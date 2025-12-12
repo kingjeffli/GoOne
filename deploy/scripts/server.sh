@@ -1,26 +1,33 @@
-#!/bin/sh
+#!/bin/bash
 
 #ulimit -c unlimited
 source /etc/profile
 
-SCRIPT_PATH=`pwd`
-#SERVER_PATH=`echo ${SCRIPT_PATH%/*}`
-SERVER_PATH=$SCRIPT_PATH
-SERVER_NAME=`echo ${SERVER_PATH##*/}`
-
-# BASE_PATH=`echo ${SERVER_PATH%/*}`
+# 脚本所在目录，避免依赖当前工作目录
+SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)"
+SERVER_PATH="$SCRIPT_PATH"
+SERVER_NAME="$(basename "$SERVER_PATH")"
 
 SERVER_BIN_PATH="${SERVER_PATH}/"
 SERVER_PARAM="/data/GoOne/commconf/server_conf.yaml"
 SERVER_PARAM_OTHER="${SERVER_PATH}/${SERVER_NAME}_conf2.json"
-echo ${SERVER_BIN_PATH}
-echo ${SERVER_PARAM}
+echo "${SERVER_BIN_PATH}"
+echo "${SERVER_PARAM}"
 
 is_running()
 {
-    #proc_num=$(ps -ef | grep -w "bin/${SERVER_NAME}" | grep -v grep | wc -l)
-    proc_num=$(ps -C  "${SERVER_NAME}" | sed  -e '1d' | wc -l)
-    if [ ${proc_num} -gt 0 ];then
+    # 优先使用 pid 文件，如果存在的话
+    if [ -f "${SERVER_NAME}.pid" ]; then
+        pid=$(cat "${SERVER_NAME}.pid" 2>/dev/null || echo "")
+        if [ -n "$pid" ] && ps -p "$pid" -o comm= 2>/dev/null | grep -qw "$SERVER_NAME"; then
+            echo "Server ${SERVER_NAME} is running with pid ${pid}"
+            return 0
+        fi
+    fi
+
+    # 回退到进程名检测
+    proc_num=$(ps -C "${SERVER_NAME}" 2>/dev/null | sed -e '1d' | wc -l)
+    if [ "${proc_num}" -gt 0 ]; then
         echo "Server ${SERVER_NAME} has already running!"
         return 0
     else
@@ -32,7 +39,12 @@ start()
 {
     is_running
     if [ $? -eq 1 ]; then
-        daemonize -e ./err.log -c ./ ${SERVER_BIN_PATH}${SERVER_NAME} -svr_conf=${SERVER_PARAM}
+        if ! command -v daemonize >/dev/null 2>&1; then
+            echo "Start server ${SERVER_NAME} FAILED: 'daemonize' not found in PATH"
+            return 1
+        fi
+
+        daemonize -e ./err.log -c ./ "${SERVER_BIN_PATH}${SERVER_NAME}" -svr_conf="${SERVER_PARAM}"
         if [ $? -eq 0 ];then
             ps -C "$SERVER_NAME" -o "pid=" > ${SERVER_NAME}.pid
             echo "Start server ${SERVER_NAME} OK"
@@ -48,7 +60,12 @@ start2()
 {
     is_running
     if [ $? -eq 1 ]; then
-        daemonize -e ./err.log -c ./ ${SERVER_BIN_PATH}${SERVER_NAME} -svr_conf=${SERVER_PARAM}  -pay_conf=${SERVER_PARAM_OTHER}
+        if ! command -v daemonize >/dev/null 2>&1; then
+            echo "Start server ${SERVER_NAME} FAILED: 'daemonize' not found in PATH"
+            return 1
+        fi
+
+        daemonize -e ./err.log -c ./ "${SERVER_BIN_PATH}${SERVER_NAME}" -svr_conf="${SERVER_PARAM}" -pay_conf="${SERVER_PARAM_OTHER}"
         if [ $? -eq 0 ];then
             ps -C "$SERVER_NAME" -o "pid=" > ${SERVER_NAME}.pid
             echo "Start server ${SERVER_NAME} OK"
@@ -67,7 +84,7 @@ stop()
     stop_flag=0
     while [ $i -gt 0 ]
     do
-        killall ${SERVER_NAME}
+        killall "${SERVER_NAME}" >/dev/null 2>&1 || true
         sleep 1
 
         is_running
@@ -76,19 +93,20 @@ stop()
             break
         fi
 
-        ((i=$i-1))
+        ((i=i-1))
     done
     if [ ${stop_flag} -eq 0 ] ; then
-        killall -9 ${SERVER_NAME}
+        killall -9 "${SERVER_NAME}" >/dev/null 2>&1 || true
         is_running
-        if [ $? -eq 0 ]; then
+        # is_running 返回 1 表示已经不在运行
+        if [ $? -eq 1 ]; then
             stop_flag=1
         fi
 
     fi
 
     if [ $stop_flag -eq 1 ];then
-        rm ${SERVER_NAME}.pid
+        rm -f "${SERVER_NAME}.pid"
         echo "Stop server ${SERVER_NAME} OK"
     else
         echo "Stop server ${SERVER_NAME} FAILED"
@@ -111,8 +129,16 @@ reload()
     if [ $? -eq 0 ]; then
         echo "server ${SERVER_NAME} is not running"
     else
-        kill -s SIGUSR1 ${SERVER_NAME}
-        #${SERVER_BIN_PATH}/${SERVER_NAME} reload
+        if [ -f "${SERVER_NAME}.pid" ]; then
+            pid=$(cat "${SERVER_NAME}.pid" 2>/dev/null || echo "")
+            if [ -n "$pid" ]; then
+                kill -s SIGUSR1 "$pid"
+            else
+                kill -s SIGUSR1 "${SERVER_NAME}"
+            fi
+        else
+            kill -s SIGUSR1 "${SERVER_NAME}"
+        fi
     fi
 }
 

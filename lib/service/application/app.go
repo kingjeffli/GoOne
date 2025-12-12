@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Iori372552686/GoOne/lib/api/datetime"
+	"github.com/Iori372552686/GoOne/lib/api/logger"
 )
 
 type AppInterface interface {
@@ -33,7 +34,7 @@ func Init(handler AppInterface) *Application {
 	app.appHandler = handler
 	err := app.appHandler.OnInit()
 	if err != nil {
-		fmt.Errorf("Initialized fail | ", err)
+		logger.Fatalf("Initialized fail | %v", err)
 		os.Exit(1)
 		return nil
 	}
