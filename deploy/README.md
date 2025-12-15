@@ -9,11 +9,44 @@
 - **inithost/**：初始化操作系统的 Ansible playbook（如基础依赖、limit、时区等）。
 - **scripts/server.sh**：部署到目标机上后，用于单个服务的启动 / 停止 / 检查 / reload。
 
-### 2. deploy.sh 用法
+### 2. deploy.sh（新版 CLI）用法
 
 ```bash
-./deploy.sh <env> <init|push|start|stop|restart> [role names...]
+./deploy.sh help
+./deploy.sh env list
+./deploy.sh role list
+./deploy.sh run --env <env> --action <init|push|start|stop|restart> [--role <role> ...] [options...] [-- <extra ansible args...>]
 ```
+
+### 2.1 通过主控制台 main.sh（推荐）
+
+```bash
+cd ..
+./main.sh env list
+./main.sh role list
+./main.sh deploy --env dev1 --action restart --role websvr
+./main.sh deploy --env dev1 --action restart --roles websvr,mainsvr --dry-run
+```
+
+- **常用示例**
+  - 列出环境/角色：
+    - `./deploy.sh env list`
+    - `./deploy.sh role list`
+  - 重启某个 role：
+    - `./deploy.sh run --env dev1 --action restart --role websvr`
+  - 多 role + dry-run：
+    - `./deploy.sh run --env dev1 --action restart --roles websvr,mainsvr --dry-run`
+  - 限制主机 + 透传参数：
+    - `./deploy.sh run --env dev1 --action push --limit 113.45.34.170 --role websvr -- -vv`
+  - 指定 inventory：
+    - `./deploy.sh run --env dev1 --action restart -i hosts/host_dev.txt --role websvr`
+
+- **配置文件（可选）**
+  - 若存在 `deploy/.env`，脚本会自动读取作为默认值来源（dotenv 格式）。
+  - 常用 key：
+    - `GOONE_ENV=dev1`
+    - `GOONE_INVENTORY=hosts/host_dev.txt`
+    - `GOONE_LIMIT=113.45.34.170`
 
 - **示例**
   - 初始化所有服务（dev1 环境）  
@@ -56,6 +89,22 @@ cd /data/GoOne/bin/mainsvr
 
 - `inithost/host.txt`：初始化阶段使用的主机列表。
 - `inithost/inithost.yml`：执行基础初始化的 playbook。
+
+推荐使用封装脚本（一致的彩色输出 + 参数校验）：
+
+```bash
+cd deploy
+./init-host.sh help
+./init-host.sh
+./init-host.sh 192.168.50.250
+./init-host.sh host1 host2
+./init-host.sh --hosts 192.168.50.250,192.168.50.251
+./init-host.sh --env dev1
+./init-host.sh --env dev2
+./init-host.sh --adhoc -u root -k ~/.ssh/id_ed25519 113.45.34.170
+./init-host.sh --variant centos 192.168.50.250
+./init-host.sh --dry-run 192.168.50.250
+```
 
 可以在部署机上单独运行初始化（示例命令视你当前 Ansible 版本和路径略有不同，可以根据你们现有习惯调整）：
 

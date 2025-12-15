@@ -1,5 +1,5 @@
 [dst]
-192.168.50.250 ansible_ssh_user=root ansible_ssh_pass=123456 ansible_sudo_pass=123456 ansible_python_interpreter=/usr/bin/python3 ansible_python_path=/usr/lib/python3/dist-packages
+127.0.0.1 ansible_ssh_user=root ansible_ssh_pass=iori0314 ansible_sudo_pass=iori0314 ansible_python_interpreter=/usr/bin/python3 ansible_python_path=/usr/lib/python3/dist-packages
 
 
 
@@ -7,6 +7,7 @@
 #
 #  ansible-playbook -i host.txt inithost.yml
 #
-#  默认使用的是ubuntu版本的yml,centos 可选择对应yml
+#  默认 playbook 会自动识别 Debian/Ubuntu vs RHEL/CentOS（inithost.yml）
+#  如需强制指定，可用: ../init-host.sh --variant centos
 #
 # -------------------------------

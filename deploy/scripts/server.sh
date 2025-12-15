@@ -27,6 +27,46 @@ log_warn()  { echo "${COLOR_YELLOW}[WARN]${COLOR_RESET} $*"; }
 log_error() { echo "${COLOR_RED}[ERROR]${COLOR_RESET} $*" >&2; }
 log_ok()    { echo "${COLOR_GREEN}[OK]${COLOR_RESET} $*"; }
 
+# Try multiple ways to stop a process (target hosts may not have killall)
+kill_process() {
+    local name="$1"
+    if command -v pkill >/dev/null 2>&1; then
+        pkill -TERM -x "$name" >/dev/null 2>&1 || true
+        return 0
+    fi
+    if command -v killall >/dev/null 2>&1; then
+        killall "$name" >/dev/null 2>&1 || true
+        return 0
+    fi
+    # fallback: try pidfile
+    if [ -f "${name}.pid" ]; then
+        local pid
+        pid=$(cat "${name}.pid" 2>/dev/null || echo "")
+        if [ -n "$pid" ]; then
+            kill -TERM "$pid" >/dev/null 2>&1 || true
+        fi
+    fi
+}
+
+kill_process_force() {
+    local name="$1"
+    if command -v pkill >/dev/null 2>&1; then
+        pkill -KILL -x "$name" >/dev/null 2>&1 || true
+        return 0
+    fi
+    if command -v killall >/dev/null 2>&1; then
+        killall -9 "$name" >/dev/null 2>&1 || true
+        return 0
+    fi
+    if [ -f "${name}.pid" ]; then
+        local pid
+        pid=$(cat "${name}.pid" 2>/dev/null || echo "")
+        if [ -n "$pid" ]; then
+            kill -KILL "$pid" >/dev/null 2>&1 || true
+        fi
+    fi
+}
+
 # 脚本所在目录，避免依赖当前工作目录
 SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)"
 SERVER_PATH="$SCRIPT_PATH"
@@ -112,7 +152,7 @@ stop()
     stop_flag=0
     while [ $i -gt 0 ]
     do
-        killall "${SERVER_NAME}" >/dev/null 2>&1 || true
+        kill_process "${SERVER_NAME}"
         sleep 1
 
         is_running
@@ -124,7 +164,7 @@ stop()
         ((i=i-1))
     done
     if [ ${stop_flag} -eq 0 ] ; then
-        killall -9 "${SERVER_NAME}" >/dev/null 2>&1 || true
+        kill_process_force "${SERVER_NAME}"
         is_running
         # is_running 返回 1 表示已经不在运行
         if [ $? -eq 1 ]; then
@@ -154,7 +194,7 @@ stop()
 reload()
 {
     is_running
-    if [ $? -eq 0 ]; then
+    if [ $? -eq 1 ]; then
         log_warn "Server ${SERVER_NAME} is not running"
     else
         if [ -f "${SERVER_NAME}.pid" ]; then

@@ -2,142 +2,254 @@
 #set -x
 
 set -euo pipefail
-export ANSIBLE_HOST_KEY_CHECKING=False
 
-# 颜色支持（如果是非 TTY 或设置了 NO_COLOR，则自动关闭颜色）
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
-  COLOR_RED=$'\033[0;31m'
-  COLOR_GREEN=$'\033[0;32m'
-  COLOR_YELLOW=$'\033[1;33m'
-  COLOR_BLUE=$'\033[0;34m'
-  COLOR_CYAN=$'\033[0;36m'
-  COLOR_BOLD=$'\033[1m'
-  COLOR_RESET=$'\033[0m'
-else
-  COLOR_RED=""
-  COLOR_GREEN=""
-  COLOR_YELLOW=""
-  COLOR_BLUE=""
-  COLOR_CYAN=""
-  COLOR_BOLD=""
-  COLOR_RESET=""
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+source "${SCRIPT_DIR}/common.sh"
 
-ENV=${1:-}
-OPTION=${2:-}
+usage() {
+  cat <<EOF
+${COLOR_BOLD}GoOne Deploy CLI${COLOR_RESET}
 
-usage()
-{
-  echo "Usage: $0 <env> <init|push|start|stop|restart> [role names]..."
-  echo "Example: $0 dev1 push mainsvr connsvr  // push file of mainsvr and connsvr"
-  echo "         $0 dev1 init  // init all server, no role indicated means all roles"
+Usage:
+  $0 help
+  $0 env list
+  $0 role list
+  $0 run --env <name> --action <init|push|start|stop|restart> [--role <role> ...] [options] [-- <extra ansible args...>]
+
+Options:
+  --config <file>        dotenv config (default: ${SCRIPT_DIR}/.env if exists)
+  -i, --inventory <file> ansible inventory file (default: hosts/host_<env>.txt else hosts/host_dev.txt)
+  --limit <pattern>      ansible --limit
+  --check                ansible --check
+  --diff                 ansible --diff
+  --dry-run              same as --check --diff
+  --roles <a,b,c>        comma-separated roles (alternative to repeating --role)
+  --no-hostkey-check     set ANSIBLE_HOST_KEY_CHECKING=False
+
+Examples:
+  $0 env list
+  $0 role list
+  $0 run --env dev1 --action restart --role websvr
+  $0 run --env dev1 --action restart --roles websvr,mainsvr --dry-run
+  $0 run --env dev1 --action push --limit 113.45.34.170 --role websvr -- -vv
+EOF
 }
 
-if [[ $# -lt 2 ]]; then
-  usage
-  exit 1
+list_envs() {
+  (cd "${SCRIPT_DIR}/playbook_dev" && ls -1 *.yml 2>/dev/null | sed -e 's/\.yml$//') || true
+}
+
+list_roles() {
+  (cd "${SCRIPT_DIR}/roles" && ls -1 2>/dev/null) || true
+}
+
+split_csv_roles() {
+  local csv="$1"
+  local old_ifs="$IFS"
+  IFS=',' read -r -a _parts <<< "$csv"
+  IFS="$old_ifs"
+  local r
+  for r in "${_parts[@]}"; do
+    r="$(trim "$r")"
+    [[ -n "$r" ]] && echo "$r"
+  done
+}
+
+cmd="${1:-help}"
+shift || true
+
+case "$cmd" in
+  help|-h|--help)
+    usage
+    exit 0
+    ;;
+
+  env)
+    sub="${1:-}"
+    [[ "$sub" == "list" ]] || die "Unknown: env $sub (use: env list)"
+    list_envs
+    exit 0
+    ;;
+
+  role)
+    sub="${1:-}"
+    [[ "$sub" == "list" ]] || die "Unknown: role $sub (use: role list)"
+    list_roles
+    exit 0
+    ;;
+
+  run)
+    ;;
+
+  *)
+    die "Unknown command: $cmd (use: help)"
+    ;;
+esac
+
+# ---- run command ----
+DEFAULT_CONFIG="${SCRIPT_DIR}/.env"
+CONFIG_FILE=""
+ENV_NAME=""
+ACTION=""
+INVENTORY_FILE=""
+ANSIBLE_LIMIT=""
+ANSIBLE_CHECK=false
+ANSIBLE_DIFF=false
+NO_HOSTKEY_CHECK=false
+ROLES=()
+ANSIBLE_EXTRA_ARGS=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --config)
+      CONFIG_FILE="${2:-}"
+      [[ -n "$CONFIG_FILE" ]] || die "Missing value for --config"
+      shift 2
+      ;;
+    --env)
+      ENV_NAME="${2:-}"
+      [[ -n "$ENV_NAME" ]] || die "Missing value for --env"
+      shift 2
+      ;;
+    --action)
+      ACTION="${2:-}"
+      [[ -n "$ACTION" ]] || die "Missing value for --action"
+      shift 2
+      ;;
+    -i|--inventory)
+      INVENTORY_FILE="${2:-}"
+      [[ -n "$INVENTORY_FILE" ]] || die "Missing value for $1"
+      shift 2
+      ;;
+    --limit)
+      ANSIBLE_LIMIT="${2:-}"
+      [[ -n "$ANSIBLE_LIMIT" ]] || die "Missing value for --limit"
+      shift 2
+      ;;
+    --check)
+      ANSIBLE_CHECK=true
+      shift 1
+      ;;
+    --diff)
+      ANSIBLE_DIFF=true
+      shift 1
+      ;;
+    --dry-run)
+      ANSIBLE_CHECK=true
+      ANSIBLE_DIFF=true
+      shift 1
+      ;;
+    --no-hostkey-check)
+      NO_HOSTKEY_CHECK=true
+      shift 1
+      ;;
+    --role)
+      r="${2:-}"
+      [[ -n "$r" ]] || die "Missing value for --role"
+      ROLES+=("$r")
+      shift 2
+      ;;
+    --roles)
+      csv="${2:-}"
+      [[ -n "$csv" ]] || die "Missing value for --roles"
+      while IFS= read -r rr; do
+        ROLES+=("$rr")
+      done < <(split_csv_roles "$csv")
+      shift 2
+      ;;
+    --)
+      shift 1
+      ANSIBLE_EXTRA_ARGS+=("$@")
+      break
+      ;;
+    *)
+      die "Unknown argument: $1 (use: help)"
+      ;;
+  esac
+done
+
+# load config (explicit first; else default if exists)
+if [[ -n "$CONFIG_FILE" ]]; then
+  load_dotenv "$CONFIG_FILE"
+elif [[ -f "$DEFAULT_CONFIG" ]]; then
+  load_dotenv "$DEFAULT_CONFIG"
 fi
 
-# 所有的 role（请保持与 roles/ 目录同步）
-ALL_TARGET_ROLES=("commconf" "gamedata" "connsvr" "mainsvr" "infosvr" "mysqlsvr" "gamesvr" "mailsvr" "friendsvr" "chatsvr" "websvr" "guildsvr" "roomcentersvr" "texassvr")
+# allow config defaults
+ENV_NAME="${ENV_NAME:-${GOONE_ENV:-}}"
+ACTION="${ACTION:-${GOONE_ACTION:-}}"
+INVENTORY_FILE="${INVENTORY_FILE:-${GOONE_INVENTORY:-}}"
+ANSIBLE_LIMIT="${ANSIBLE_LIMIT:-${GOONE_LIMIT:-}}"
 
-VALID_OPTIONS=("init" "push" "start" "stop" "restart")
+[[ -n "$ENV_NAME" ]] || die "Missing --env (or set GOONE_ENV in deploy/.env)"
+[[ -n "$ACTION" ]] || die "Missing --action (or set GOONE_ACTION in deploy/.env)"
 
-# 校验 OPTION 是否合法，防止 tag 拼错
-is_valid_option=false
-for op in "${VALID_OPTIONS[@]}"; do
-  if [[ "$OPTION" == "$op" ]]; then
-    is_valid_option=true
+VALID_ACTIONS=("init" "push" "start" "stop" "restart")
+is_valid=false
+for a in "${VALID_ACTIONS[@]}"; do
+  if [[ "$ACTION" == "$a" ]]; then
+    is_valid=true
     break
   fi
 done
+[[ "$is_valid" == true ]] || die "Invalid --action '$ACTION'. Supported: ${VALID_ACTIONS[*]}"
 
-if [[ "$is_valid_option" != true ]]; then
-  echo "${COLOR_RED}[ERROR] invalid option '$OPTION'. Supported: ${VALID_OPTIONS[*]}${COLOR_RESET}" >&2
-  usage
-  exit 1
+require_cmd ansible-playbook
+
+PLAYBOOK_FILE="${SCRIPT_DIR}/playbook_dev/${ENV_NAME}.yml"
+require_file "$PLAYBOOK_FILE"
+
+if [[ -z "$INVENTORY_FILE" ]]; then
+  if [[ -f "${SCRIPT_DIR}/hosts/host_${ENV_NAME}.txt" ]]; then
+    INVENTORY_FILE="${SCRIPT_DIR}/hosts/host_${ENV_NAME}.txt"
+  else
+    INVENTORY_FILE="${SCRIPT_DIR}/hosts/host_dev.txt"
+  fi
+fi
+require_file "$INVENTORY_FILE"
+
+if [[ "$NO_HOSTKEY_CHECK" == true ]]; then
+  export ANSIBLE_HOST_KEY_CHECKING=False
 fi
 
-#如果命令行没有指明role，则默认为所有role
-target_role=()
-if [[ $# -lt 3 ]]; then
-    # 全量 role
-    target_role=("${ALL_TARGET_ROLES[@]}")
-else
-    # 从命令行获取目标 role
-    for ((i=3;i<=$#;i++));
-    do
-       target_role[${#target_role[@]}]=${!i}
-    done
+# default roles: all roles found under roles/
+if [[ ${#ROLES[@]} -eq 0 ]]; then
+  while IFS= read -r r; do
+    [[ -n "$r" ]] && ROLES+=("$r")
+  done < <(list_roles)
 fi
 
-# 检查是否有非法 role 名称，避免 ansible tag 拼写错误导致悄悄不执行
-for r in "${target_role[@]}"; do
-  found=false
-  for ar in "${ALL_TARGET_ROLES[@]}"; do
-    if [[ "$r" == "$ar" ]]; then
-      found=true
-      break
-    fi
-  done
-  if [[ "$found" != true ]]; then
-    echo "${COLOR_YELLOW}[WARN] role '$r' is not in known role list, please confirm it is correct.${COLOR_RESET}" >&2
+# validate role names (warn only)
+for r in "${ROLES[@]}"; do
+  if [[ ! -d "${SCRIPT_DIR}/roles/${r}" ]]; then
+    log_warn "Unknown role '${r}' (no directory: roles/${r})"
   fi
 done
 
-#计算tags
-target=""
-for i in "${!target_role[@]}";  
-do
-    #最前面不用添加逗号
-    if [[ $i != 0 ]]; then
-        target="$target,"
-    fi
-    target="$target${target_role[$i]}_$OPTION"
+# build tags: role_action,role_action...
+TAGS=()
+for r in "${ROLES[@]}"; do
+  TAGS+=("${r}_${ACTION}")
 done
+TAG_STR="$(join_by "," "${TAGS[@]}")"
 
-#如果没有tags，则在ansible后面不添加--tags标签
-tags="--tags $target"
-if [[ $target == "" ]]; then
-  tags=""
+echo "${COLOR_BOLD}${COLOR_BLUE}========== GoOne Deploy ==========${COLOR_RESET}"
+log_info "Env       : ${ENV_NAME}"
+log_info "Action    : ${ACTION}"
+log_info "Inventory : ${INVENTORY_FILE}"
+log_info "Roles     : ${ROLES[*]}"
+log_info "Tags      : ${TAG_STR}"
+if [[ -n "$ANSIBLE_LIMIT" ]]; then
+  log_info "Limit     : ${ANSIBLE_LIMIT}"
+fi
+if [[ "$ANSIBLE_CHECK" == true ]]; then
+  log_warn "Mode      : --check"
+fi
+if [[ "$ANSIBLE_DIFF" == true ]]; then
+  log_warn "Mode      : --diff"
 fi
 
-# 目录与文件检查
-PLAYBOOK_DIR="playbook_dev"
-DEFAULT_HOSTS_FILE="hosts/host_dev.txt"
-ENV_HOSTS_FILE="hosts/host_${ENV}.txt"
-
-PLAYBOOK_FILE="${PLAYBOOK_DIR}/${ENV}.yml"
-
-if [[ ! -f "$PLAYBOOK_FILE" ]]; then
-  echo "${COLOR_RED}[ERROR] playbook file '$PLAYBOOK_FILE' not found.${COLOR_RESET}" >&2
-  exit 1
-fi
-
-if [[ -f "$ENV_HOSTS_FILE" ]]; then
-  HOSTS_FILE="$ENV_HOSTS_FILE"
-else
-  HOSTS_FILE="$DEFAULT_HOSTS_FILE"
-fi
-
-if [[ ! -f "$HOSTS_FILE" ]]; then
-  echo "${COLOR_RED}[ERROR] hosts file '$HOSTS_FILE' not found.${COLOR_RESET}" >&2
-  exit 1
-fi
-
-echo "${COLOR_BOLD}${COLOR_BLUE}========== GoOne Ansible Deploy ==========${COLOR_RESET}"
-echo "${COLOR_BOLD} Env:           ${COLOR_YELLOW}${ENV}${COLOR_RESET}"
-echo "${COLOR_BOLD} Option:        ${COLOR_CYAN}${OPTION}${COLOR_RESET}"
-echo "${COLOR_BOLD} Target roles:  ${COLOR_GREEN}${target_role[*]}${COLOR_RESET}"
-echo "${COLOR_BOLD} Hosts file:    ${COLOR_CYAN}${HOSTS_FILE}${COLOR_RESET}"
-if [[ -n "$tags" ]]; then
-  echo "${COLOR_BOLD} Ansible tags:  ${COLOR_GREEN}${target}${COLOR_RESET}"
-else
-  echo "${COLOR_BOLD} Ansible tags:  ${COLOR_YELLOW}<none>${COLOR_RESET} (all tasks in playbook)"
-fi
-echo "${COLOR_BLUE}------------------------------------------${COLOR_RESET}"
-
-# 临时文件清理函数
 TMP=""
 cleanup() {
   if [[ -n "${TMP:-}" && -f "$TMP" ]]; then
@@ -146,16 +258,22 @@ cleanup() {
 }
 trap cleanup EXIT
 
-#由于在子目录运行playbook会有目录结构问题，所以建个临时文件
-TMP="$(mktemp .tmpXXXXXX.myl)"
+TMP="$(mktemp_compat "${SCRIPT_DIR}/.tmpXXXXXX.myl")"
 cp "$PLAYBOOK_FILE" "$TMP"
 
-#执行playbook
-if ! ansible-playbook -i "$HOSTS_FILE" "$TMP" $tags; then
-  echo "${COLOR_RED}[ERROR] ansible-playbook failed.${COLOR_RESET}" >&2
-  exit 1
+ANSIBLE_ARGS=(--tags "$TAG_STR")
+if [[ -n "$ANSIBLE_LIMIT" ]]; then
+  ANSIBLE_ARGS+=(--limit "$ANSIBLE_LIMIT")
+fi
+if [[ "$ANSIBLE_CHECK" == true ]]; then
+  ANSIBLE_ARGS+=(--check)
+fi
+if [[ "$ANSIBLE_DIFF" == true ]]; then
+  ANSIBLE_ARGS+=(--diff)
+fi
+if [[ ${#ANSIBLE_EXTRA_ARGS[@]} -gt 0 ]]; then
+  ANSIBLE_ARGS+=("${ANSIBLE_EXTRA_ARGS[@]}")
 fi
 
-echo "${COLOR_GREEN}[OK] Deploy completed for env=${ENV}, option=${OPTION}.${COLOR_RESET}"
-
-
+ansible-playbook -i "$INVENTORY_FILE" "$TMP" "${ANSIBLE_ARGS[@]}"
+log_ok "Deploy completed."

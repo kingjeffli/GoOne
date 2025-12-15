@@ -160,18 +160,8 @@ guild)
     connsvr
     mainsvr
     mysqlsvr
-    dbsvr
-    gmconnsvr
-    rcmdsvr
     infosvr
-    gamesvr
-    opvpsvr
-    mailsvr
-    chatsvr
-    friendsvr
     websvr
-    ranksvr
-    guildsvr
 esac
 
 
