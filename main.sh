@@ -44,6 +44,7 @@ ${COLOR_BOLD}Usage${COLOR_RESET}
   ./main.sh ${COLOR_CYAN}doctor${COLOR_RESET}
   ./main.sh ${COLOR_CYAN}install${COLOR_RESET} ansible [--venv <dir>]
   ./main.sh ${COLOR_CYAN}go${COLOR_RESET} <install|list|current|use|uninstall|check|help> [args...]
+  ./main.sh ${COLOR_CYAN}docker${COLOR_RESET} <install|up|restart|down|status|logs> --env <dev> [options...]
 
   ./main.sh ${COLOR_CYAN}build${COLOR_RESET} [target]
   ./main.sh ${COLOR_CYAN}env${COLOR_RESET} list
@@ -67,15 +68,20 @@ ${COLOR_BOLD}Examples${COLOR_RESET}
   ./main.sh deploy --env dev1 --action push --limit 113.45.34.170 --role websvr -- -vv
 
   # init hosts
-  ./main.sh host init run
-  ./main.sh host init run --limit 192.168.50.250
-  ./main.sh host init run --variant centos --dry-run
+  ./main.sh host init
+  ./main.sh host init --limit 192.168.50.250
+  ./main.sh host init --variant centos --dry-run
 
   # go version manager (delegates to tools/go-manager.sh)
   ./main.sh go list
   ./main.sh go current
   ./main.sh go install 1.25.0
   ./main.sh go use 1.25.0
+
+  # docker env (mysql/redis/zookeeper/rabbitmq)
+  ./main.sh docker install --env dev1
+  ./main.sh docker restart --env dev1
+  ./main.sh docker status --env dev1
 
 ${COLOR_BOLD}Notes${COLOR_RESET}
   - Most deploy/init-host options are forwarded to ${COLOR_CYAN}deploy/deploy.sh${COLOR_RESET} / ${COLOR_CYAN}deploy/init-host.sh${COLOR_RESET}.
@@ -96,6 +102,12 @@ doctor() {
     kv "go-manager" "${COLOR_YELLOW}NOT FOUND${COLOR_RESET}  (${ROOT_DIR}/tools/go-manager.sh)"
   fi
 
+  if [[ -f "${ROOT_DIR}/env/docker.sh" ]]; then
+    kv "env/docker.sh" "${COLOR_GREEN}OK${COLOR_RESET}  (${ROOT_DIR}/env/docker.sh)"
+  else
+    kv "env/docker.sh" "${COLOR_YELLOW}NOT FOUND${COLOR_RESET}  (${ROOT_DIR}/env/docker.sh)"
+  fi
+
   if command -v ansible-playbook >/dev/null 2>&1; then
     kv "ansible-playbook" "$(command -v ansible-playbook)"
   else
@@ -107,7 +119,10 @@ doctor() {
   require_file "${DEPLOY_DIR}/init-host.sh"
   require_file "${DEPLOY_DIR}/install.sh"
   require_file "${ROOT_DIR}/tools/go-manager.sh"
-  log_ok "Scripts OK: build.sh, deploy/*, tools/go-manager.sh"
+  require_file "${ROOT_DIR}/env/docker.sh"
+  require_file "${ROOT_DIR}/env/docker-playbook.yml"
+  require_file "${ROOT_DIR}/env/env_docker.yaml"
+  log_ok "Scripts OK: build.sh, deploy/*, env/docker.sh, tools/go-manager.sh"
 
   hr
   title "Inventory (quick view)"
@@ -165,6 +180,12 @@ case "$cmd" in
     shift || true
     # Delegate to go-manager.sh (handles install/list/use/current/uninstall/check/help)
     (cd "${ROOT_DIR}/tools" && ./go-manager.sh "$sub" "$@")
+    ;;
+
+  docker)
+    sub="${1:-help}"
+    shift || true
+    (cd "${ROOT_DIR}/env" && ./docker.sh "$sub" "$@")
     ;;
 
   build)
