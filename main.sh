@@ -72,7 +72,7 @@ ${COLOR_BOLD}Examples${COLOR_RESET}
   ./main.sh host init --limit 192.168.50.250
   ./main.sh host init --variant centos --dry-run
 
-  # go version manager (delegates to tools/go-manager.sh)
+  # go version manager (delegates to env/go-manager.sh)
   ./main.sh go list
   ./main.sh go current
   ./main.sh go install 1.25.0
@@ -96,10 +96,10 @@ doctor() {
 
   kv "bash" "$(command -v bash 2>/dev/null || echo "${COLOR_YELLOW}NOT FOUND${COLOR_RESET}")"
   kv "go" "$(command -v go 2>/dev/null || echo "${COLOR_YELLOW}NOT FOUND${COLOR_RESET}")"
-  if [[ -f "${ROOT_DIR}/tools/go-manager.sh" ]]; then
-    kv "go-manager" "${COLOR_GREEN}OK${COLOR_RESET}  (${ROOT_DIR}/tools/go-manager.sh)"
+  if [[ -f "${ROOT_DIR}/env/go-manager.sh" ]]; then
+    kv "go-manager" "${COLOR_GREEN}OK${COLOR_RESET}  (${ROOT_DIR}/env/go-manager.sh)"
   else
-    kv "go-manager" "${COLOR_YELLOW}NOT FOUND${COLOR_RESET}  (${ROOT_DIR}/tools/go-manager.sh)"
+    kv "go-manager" "${COLOR_YELLOW}NOT FOUND${COLOR_RESET}  (${ROOT_DIR}/env/go-manager.sh)"
   fi
 
   if [[ -f "${ROOT_DIR}/env/docker.sh" ]]; then
@@ -118,11 +118,11 @@ doctor() {
   require_file "${DEPLOY_DIR}/deploy.sh"
   require_file "${DEPLOY_DIR}/init-host.sh"
   require_file "${DEPLOY_DIR}/install.sh"
-  require_file "${ROOT_DIR}/tools/go-manager.sh"
+  require_file "${ROOT_DIR}/env/go-manager.sh"
   require_file "${ROOT_DIR}/env/docker.sh"
   require_file "${ROOT_DIR}/env/docker-playbook.yml"
   require_file "${ROOT_DIR}/env/env_docker.yaml"
-  log_ok "Scripts OK: build.sh, deploy/*, env/docker.sh, tools/go-manager.sh"
+  log_ok "Scripts OK: build.sh, deploy/*, env/*"
 
   hr
   title "Inventory (quick view)"
@@ -178,8 +178,8 @@ case "$cmd" in
   go)
     sub="${1:-help}"
     shift || true
-    # Delegate to go-manager.sh (handles install/list/use/current/uninstall/check/help)
-    (cd "${ROOT_DIR}/tools" && ./go-manager.sh "$sub" "$@")
+    # Delegate to env/go-manager.sh (handles install/list/use/current/uninstall/check/help)
+    (cd "${ROOT_DIR}/env" && ./go-manager.sh "$sub" "$@")
     ;;
 
   docker)
