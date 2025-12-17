@@ -2,10 +2,7 @@
 
 ```go
 import (
-	"zap"
-
-	cfg "github.com/go-kratos/kratos/contrib/config/etcd/v2"
-	"github.com/go-kratos/kratos/v2/config"
+	cfg "github.com/Iori372552686/GoOne/lib/contrib/config/etcd"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 )
@@ -26,16 +23,10 @@ if err != nil {
     log.Fatalln(err)
 }
 
-// create a config instance with source
-c := config.New(config.WithSource(source))
-defer c.Close()
-
-// acquire config value
-foo, err := c.Value("/app-config").String()
-if err != nil {
-    log.Println(err)
-}
-println(foo)
+// load kvs
+kvs, err := source.Load()
+_ = kvs
+_ = err
 
 ```
 

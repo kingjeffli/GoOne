@@ -2,7 +2,7 @@ package svrinstmgr
 
 import (
 	"bytes"
-	"errors"
+	"context"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/Iori372552686/GoOne/lib/api/logger"
+	"github.com/Iori372552686/GoOne/lib/contrib/registry"
+	regfactory "github.com/Iori372552686/GoOne/lib/contrib/registry/factory"
 	"github.com/Iori372552686/GoOne/lib/service/bus"
-
-	"github.com/samuel/go-zookeeper/zk"
 )
 
 // 路由方法
@@ -29,7 +29,11 @@ type ServerInstanceMgr struct {
 	routeRules map[uint32]uint32
 
 	mapSvrTypeToIns map[uint32][]uint32
-	conn            *zk.Conn
+	client          registry.Client
+	reg             registry.Registrar
+	discovery       registry.Discovery
+	watcher          registry.Watcher
+	stopWatch        func()
 	lock            sync.RWMutex
 }
 
@@ -39,21 +43,47 @@ type ServerInstanceMgr struct {
 //
 //	routeRules: ServerType->SvrRouterRule
 func (s *ServerInstanceMgr) InitAndRun(selfBusID string, routeRules map[uint32]uint32, zookeeperAddr string) error {
-	zkConn, chanConnect, err := zk.Connect([]string{zookeeperAddr}, time.Second*30)
+	// Registry address supports:
+	//   - "127.0.0.1:2181"                 (defaults to zk)
+	//   - "zk://127.0.0.1:2181?..."
+	//   - "etcd://127.0.0.1:2379?..."
+	c, cfg, err := regfactory.NewFromAddr(zookeeperAddr)
 	if err != nil {
-		return errors.New("init zookeeper error")
+		return fmt.Errorf("init registry error: %w", err)
 	}
-	s.conn = zkConn
-
+	s.client = c
+	s.reg = c
+	s.discovery = c
 	s.routeRules = routeRules
+	s.mapSvrTypeToIns = make(map[uint32][]uint32)
 
-	go s.runSvrInsMgr(selfBusID, chanConnect)
+	// Register self into /online/<selfBusID> (ephemeral node).
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	if err := s.reg.Register(ctx, &registry.ServiceInstance{
+		ID:        selfBusID,
+		Name:      cfg.ServiceName,
+		Version:   "",
+		Metadata:  map[string]string{"bus_id": selfBusID},
+		Endpoints: nil,
+	}); err != nil {
+		return fmt.Errorf("register self into registry error: %w", err)
+	}
+
+	go s.runWatch(cfg.ServiceName)
 	return nil
 }
 
 func (s *ServerInstanceMgr) Close() {
-	logger.Errorf("zk close")
-	s.conn.Close()
+	if s.stopWatch != nil {
+		s.stopWatch()
+	}
+	if s.watcher != nil {
+		_ = s.watcher.Stop()
+	}
+	if s.client != nil {
+		_ = s.client.Close()
+	}
 }
 
 // 根据ServerType和预先设定的RouterRule，获取一个ServerInstance
@@ -97,69 +127,49 @@ func (s *ServerInstanceMgr) GetAllSvrInsBySvrType(severType uint32) []uint32 {
 
 // -------------------------------- private --------------------------------
 
-func (s *ServerInstanceMgr) runSvrInsMgr(selfBusID string, chanConnect <-chan zk.Event) {
-	var err error
-	var chanNodeEvent <-chan zk.Event
+func (s *ServerInstanceMgr) runWatch(serviceName string) {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.stopWatch = cancel
+
 	for {
-		select {
-		case eventConnect, ok := <-chanConnect: // ZooKeeper连接事件
-			if !ok {
-				logger.Fatalf("chanConnect is closed")
+		w, err := s.discovery.Watch(ctx, serviceName)
+		if err != nil {
+			if ctx.Err() != nil {
 				return
 			}
+			logger.Warningf("registry watch create failed: %v", err)
+			time.Sleep(time.Second)
+			continue
+		}
+		s.watcher = w
 
-			if eventConnect.Type == zk.EventSession && eventConnect.State == zk.StateHasSession {
-				nodeName := string("/online/") + selfBusID + "."
-
-				// 这里创建临时节点，断开连接的时候会自动删除
-				s.conn.Create("/online", []byte{}, 0, zk.WorldACL(zk.PermAll))
-				_, err = s.conn.Create(nodeName, []byte{}, zk.FlagEphemeral|zk.FlagSequence, zk.WorldACL(zk.PermAll))
-				if err != nil {
-					logger.Fatalf("create node %s error | %v", nodeName, err)
-					panic("failed to create node")
+		for {
+			services, err := w.Next()
+			if err != nil {
+				_ = w.Stop()
+				s.watcher = nil
+				if ctx.Err() != nil {
 					return
 				}
-
-				// 监听子节点的变化
-				chanNodeEvent, err = s.watchAndRefreshNodes()
-				if err != nil {
-					logger.Fatalf("failed to watch online nodes | %v", err)
-					panic("failed to watch online node")
-					return
-				}
+				logger.Warningf("registry watch next failed: %v", err)
+				time.Sleep(time.Second)
+				break // recreate watcher
 			}
-		case eventNode, ok := <-chanNodeEvent: // 节点变化的事件
-			if ok && eventNode.Type == zk.EventNodeChildrenChanged {
-				logger.Warningf("online nodes changed: %#v, %#v", eventNode, ok)
-
-				chanNodeEvent, err = s.watchAndRefreshNodes()
-				if err != nil {
-					if err == zk.ErrNoServer {
-						logger.Warningf("failed to watch online nodes | %v", err)
-						// 如果连接断了，会出这种错误。这种情况就交给上面的断线重连的处理去watch
-					} else {
-						logger.Fatalf("failed to watch online nodes | %v", err)
-						panic("failed to watch online node")
-						return
-					}
-				}
-			}
+			s.refreshServices(services)
 		}
 	}
 }
 
-func (s *ServerInstanceMgr) watchAndRefreshNodes() (<-chan zk.Event, error) {
-	children, _, chanEvent, err := s.conn.ChildrenW("/online")
-	if err != nil {
-		return nil, err // 这里必须把err不加修改地直接传递出去，因为外面会判断zk.ErrNoServer
-	}
-
-	s.refreshNode(children)
-	return chanEvent, nil
-}
-
 // 刷新在线的svr状态，这里要用到读写锁
-func (s *ServerInstanceMgr) refreshNode(children []string) {
+func (s *ServerInstanceMgr) refreshServices(services []*registry.ServiceInstance) {
+	children := make([]string, 0, len(services))
+	for _, si := range services {
+		if si == nil {
+			continue
+		}
+		// ID is used as the node key: /online/<ID>
+		children = append(children, si.ID)
+	}
 	logger.Infof("refresh nodes: %v\n", children)
 
 	oldIns := make(map[uint32]bool)

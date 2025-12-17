@@ -140,7 +140,7 @@ func (r *Registry) Watch(ctx context.Context, name string) (registry.Watcher, er
 	w := &watcher{
 		event: make(chan struct{}, 1),
 	}
-	w.ctx, w.cancel = context.WithCancel(context.Background())
+	w.ctx, w.cancel = context.WithCancel(ctx)
 	w.set = set
 	set.lock.Lock()
 	set.watcher[w] = struct{}{}
@@ -159,6 +159,14 @@ func (r *Registry) Watch(ctx context.Context, name string) (registry.Watcher, er
 		}
 	}
 	return w, nil
+}
+
+// Close releases internal goroutines (heartbeat / watch loops will stop after ctx cancel).
+func (r *Registry) Close() {
+	if r == nil || r.cli == nil {
+		return
+	}
+	r.cli.cancel()
 }
 
 func (r *Registry) resolve(ss *serviceSet) error {

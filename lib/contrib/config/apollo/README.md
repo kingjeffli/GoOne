@@ -1,8 +1,6 @@
 ## Apollo config centry
 
-This module implements the `config.Source` interface in kratos based apollo config management center.
-
-[![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/go-kratos/kratos/contrib/config/apollo/v2)
+This module implements the local `config.Source` interface based on apollo config management center.
 
 ### Quick start
 
@@ -11,29 +9,24 @@ import (
 	"fmt"
 	"zap"
 
-	"github.com/go-kratos/kratos/contrib/config/apollo/v2"
-	"github.com/go-kratos/kratos/v2/config"
+	"github.com/Iori372552686/GoOne/lib/contrib/config/apollo"
 )
 
 func main() {
-	c := config.New(
-		config.WithSource(
-			apollo.NewSource(
-				apollo.WithAppID("kratos"),
-				apollo.WithCluster("dev"),
-				apollo.WithEndpoint("http://localhost:8080"),
-				apollo.WithNamespace("application,event.yaml,demo.json"),
-				apollo.WithEnableBackup(),
-				apollo.WithSecret("ad75b33c77ae4b9c9626d969c44f41ee"),
-			),
-		),
+	src := apollo.NewSource(
+		apollo.WithAppID("kratos"),
+		apollo.WithCluster("dev"),
+		apollo.WithEndpoint("http://localhost:8080"),
+		apollo.WithNamespace("application,event.yaml,demo.json"),
+		apollo.WithEnableBackup(),
+		apollo.WithSecret("ad75b33c77ae4b9c9626d969c44f41ee"),
 	)
-	var bc bootstrap
-	if err := c.Load(); err != nil {
+	kvs, err := src.Load()
+	if err != nil {
 		panic(err)
 	}
-	
-	// use value and watch operations，help yourself. 
+	_ = kvs
+	// use watch operations，help yourself.
 }
 ```
 
@@ -56,7 +49,7 @@ func WithEnableBackup() Option
 func WithEndpoint(endpoint string) Option
 
 // inject a logger to debug
-func WithLogger(logger log.Logger) Option
+func WithLogger(logger Logger) Option
 
 // namespaces to load, comma to separate. 
 func WithNamespace(name string) Option
@@ -84,7 +77,7 @@ apollo config center use `Namespace` to be part of the key. For example:
 }
 ```
 
-you got them in kratos config instance maybe look like:
+you got them in local config kv maybe look like:
 
 ```go
 config := map[string]interface{}{

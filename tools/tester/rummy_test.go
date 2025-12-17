@@ -13,7 +13,7 @@ import (
 
 // 复用德州卡牌
 var (
-	Wild     uint32 = uint32(random.Intn(11) + 1)
+	Wild            = uint32(random.Intn(11) + 1)
 	WildFlag uint32 = 1 << 31
 
 	color_name = map[pb.Color]string{

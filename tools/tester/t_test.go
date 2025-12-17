@@ -11,7 +11,7 @@ func fn1(t *testing.T) {
 	defer timer.Stop()
 	for {
 		select {
-		case <- timer.C:
+		case <-timer.C:
 			break
 		}
 		fmt.Println("aaaa")
@@ -29,7 +29,7 @@ func fn2(t *testing.T) {
 }
 
 func fn3() {
-	for _ = range "12" {
+	for range "12" {
 		fmt.Println("a")
 	}
 }

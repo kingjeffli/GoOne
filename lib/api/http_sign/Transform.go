@@ -62,7 +62,7 @@ func Map2uri(params *map[string]string, filter_field string, need_sort, url_enco
 	var strParams string
 	var keys []string
 
-	for k, _ := range *params {
+	for k := range *params {
 		if k != filter_field {
 			keys = append(keys, k)
 		}

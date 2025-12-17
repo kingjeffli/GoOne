@@ -3,7 +3,7 @@ package dispatch
 import (
 	"github.com/Iori372552686/GoOne/lib/api/http_sign"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
-	rest "github.com/Iori372552686/GoOne/lib/web/rest"
+	"github.com/Iori372552686/GoOne/lib/web/rest"
 	"github.com/Iori372552686/GoOne/src/web_svr/cmd_handler"
 	define "github.com/Iori372552686/GoOne/src/web_svr/common"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"

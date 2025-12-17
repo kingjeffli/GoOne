@@ -241,7 +241,7 @@ func (this *HttpSign) PushSign(params *map[string]string, body []byte, signType 
 
 	//签名type字段修正
 	if signType == Sign_Md5 {
-		delete((*params), Const_SignType_Name)
+		delete(*params, Const_SignType_Name)
 	} else {
 		(*params)[Const_SignType_Name] = string(signType)
 	}

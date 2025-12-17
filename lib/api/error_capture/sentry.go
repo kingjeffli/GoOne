@@ -53,7 +53,7 @@ func CaptureErrorToSentry(level sentry.Level, userId, userName, errTile string, 
 	}
 
 	event.Breadcrumbs = []*sentry.Breadcrumb{
-		&sentry.Breadcrumb{
+		{
 			Level:     level,
 			Message:   fmt.Sprintf("\n%s\n%s", errMsg, stack),
 			Timestamp: time.Now(),

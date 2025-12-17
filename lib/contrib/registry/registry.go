@@ -18,6 +18,14 @@ type Discovery interface {
 	Watch(ctx context.Context, serviceName string) (Watcher, error)
 }
 
+// Client is a concrete registry client (implements both Registrar and Discovery).
+// Close should release underlying resources (connections, goroutines).
+type Client interface {
+	Registrar
+	Discovery
+	Close() error
+}
+
 // Watcher is service watcher.
 type Watcher interface {
 	// Next returns services in the following two cases:

@@ -21,7 +21,7 @@ func IpStringToInt(ipstring string) uint32 {
 
 func IpIntToString(ipInt uint32) string {
 	ipSegs := make([]string, 4)
-	var len int = len(ipSegs)
+	var len = len(ipSegs)
 	buffer := bytes.NewBufferString("")
 	for i := 0; i < len; i++ {
 		tempInt := ipInt & 0xFF

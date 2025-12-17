@@ -69,6 +69,15 @@ func New(zkServers []string, opts ...Option) (*Registry, error) {
 	}, err
 }
 
+// Close releases the underlying zk connection.
+func (r *Registry) Close() error {
+	if r == nil || r.conn == nil {
+		return nil
+	}
+	r.conn.Close()
+	return nil
+}
+
 func (r *Registry) Register(ctx context.Context, service *registry.ServiceInstance) error {
 	var (
 		data []byte
@@ -147,7 +156,7 @@ func (r *Registry) Watch(ctx context.Context, serviceName string) (registry.Watc
 	w := &watcher{
 		event: make(chan struct{}, 1),
 	}
-	w.ctx, w.cancel = context.WithCancel(context.Background())
+	w.ctx, w.cancel = context.WithCancel(ctx)
 	w.set = set
 	set.lock.Lock()
 	set.watcher[w] = struct{}{}
@@ -166,11 +175,45 @@ func (r *Registry) Watch(ctx context.Context, serviceName string) (registry.Watc
 }
 
 func (r *Registry) resolve(ss *serviceSet) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	services, err := r.GetService(ctx, ss.serviceName)
-	cancel()
-	if err == nil && len(services) > 0 {
-		ss.broadcast(services)
+	// Continuously watch for child changes and broadcast to watchers.
+	// This matches kratos registry behaviour: initial push + incremental updates.
+	serviceNamePath := path.Join(r.opts.rootPath, ss.serviceName)
+
+	for {
+		// Stop if nobody is watching anymore.
+		ss.lock.RLock()
+		watchCnt := len(ss.watcher)
+		ss.lock.RUnlock()
+		if watchCnt == 0 {
+			return
+		}
+
+		// Ensure the node exists (watching a non-existent path errors in zk).
+		if err := r.ensureName(serviceNamePath, []byte(""), 0); err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		// Establish watch + get latest snapshot.
+		_, _, ch, err := r.conn.ChildrenW(serviceNamePath)
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		ctx, cancel := context.WithTimeout(r.opts.ctx, time.Second*10)
+		services, err := r.GetService(ctx, ss.serviceName)
+		cancel()
+		if err == nil {
+			ss.broadcast(services)
+		}
+
+		// Wait for change, then loop to refresh and re-watch.
+		select {
+		case <-r.opts.ctx.Done():
+			return
+		case <-ch:
+		}
 	}
 }
 
@@ -185,6 +228,12 @@ func (r *Registry) ensureName(path string, data []byte, flags int32) error {
 		if err != nil {
 			return err
 		}
+		return nil
+	}
+	// Node exists: best-effort update data (useful for non-ephemeral nodes).
+	// For ephemeral nodes this also helps when the caller re-registers.
+	if data != nil && len(data) > 0 {
+		_, _ = r.conn.Set(path, data, -1)
 	}
 	return nil
 }

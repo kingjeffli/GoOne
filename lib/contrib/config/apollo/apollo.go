@@ -1,12 +1,10 @@
 package apollo
 
 import (
-	"fmt"
+	stdlog "log"
 	"strings"
 
-	"github.com/go-kratos/kratos/v2/config"
-	"github.com/go-kratos/kratos/v2/encoding"
-	"github.com/go-kratos/kratos/v2/log"
+	"github.com/Iori372552686/GoOne/lib/contrib/config"
 
 	"github.com/apolloconfig/agollo/v4"
 	apolloConfig "github.com/apolloconfig/agollo/v4/env/config"
@@ -29,7 +27,18 @@ type options struct {
 	isBackupConfig bool
 	backupPath     string
 
-	logger log.Logger
+	logger Logger
+}
+
+// Logger is a tiny logger interface to keep config decoupled from external ecosystems.
+type Logger interface {
+	Warnf(format string, args ...any)
+}
+
+type stdLogger struct{}
+
+func (stdLogger) Warnf(format string, args ...any) {
+	stdlog.Printf("[apollo-config] "+format, args...)
 }
 
 // WithAppID with apollo config app id
@@ -89,7 +98,7 @@ func WithBackupPath(backupPath string) Option {
 }
 
 // WithLogger use custom logger to replace default logger.
-func WithLogger(logger log.Logger) Option {
+func WithLogger(logger Logger) Option {
 	return func(o *options) {
 		if logger != nil {
 			o.logger = logger
@@ -99,7 +108,23 @@ func WithLogger(logger log.Logger) Option {
 
 func NewSource(opts ...Option) config.Source {
 	op := options{
-		logger: log.GetLogger(),
+		logger: stdLogger{},
+	}
+	for _, o := range opts {
+		o(&op)
+	}
+	src, err := NewSourceE(opts...)
+	if err != nil {
+		panic(err)
+	}
+	return src
+}
+
+// NewSourceE is an error-returning variant of NewSource.
+// It is preferred for library/factory usage to avoid panics.
+func NewSourceE(opts ...Option) (config.Source, error) {
+	op := options{
+		logger: stdLogger{},
 	}
 	for _, o := range opts {
 		o(&op)
@@ -116,10 +141,9 @@ func NewSource(opts ...Option) config.Source {
 		}, nil
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
-	return &apollo{client: client, opt: &op}
+	return &apollo{client: client, opt: &op}, nil
 }
 
 // genKey got the key of config.KeyValue pair.
@@ -167,10 +191,7 @@ func resolve(key string, value interface{}, target map[string]interface{}) {
 		// current exists, then check existing value type, if it's not map
 		// that means duplicate keys, and at least one is not map instance.
 		if cursor, ok = v.(map[string]interface{}); !ok {
-			_ = log.GetLogger().Log(log.LevelWarn,
-				"msg",
-				fmt.Sprintf("duplicate key: %v\n", strings.Join(keys[:i+1], ".")),
-			)
+			stdlog.Printf("[apollo-config] duplicate key: %v", strings.Join(keys[:i+1], "."))
 			break
 		}
 	}
@@ -199,13 +220,11 @@ func (e *apollo) load() []*config.KeyValue {
 
 		// serialize the namespace content KeyValue into bytes.
 		f := format(ns)
-		codec := encoding.GetCodec(f)
-		val, err := codec.Marshal(next)
+		val, err := config.Marshal(f, next)
 		if err != nil {
-			_ = e.opt.logger.Log(log.LevelWarn,
-				"msg",
-				fmt.Sprintf("apollo could not handle namespace %s: %v", ns, err),
-			)
+			if e.opt != nil && e.opt.logger != nil {
+				e.opt.logger.Warnf("apollo could not handle namespace %s: %v", ns, err)
+			}
 			continue
 		}
 

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-kratos/kratos/v2/config"
+	"github.com/Iori372552686/GoOne/lib/contrib/config"
 	"github.com/hashicorp/consul/api"
 )
 

@@ -2,12 +2,8 @@ package apollo
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/go-kratos/kratos/v2/config"
-	"github.com/go-kratos/kratos/v2/encoding"
-	"github.com/go-kratos/kratos/v2/log"
-
+	"github.com/Iori372552686/GoOne/lib/contrib/config"
 	"github.com/apolloconfig/agollo/v4/storage"
 )
 
@@ -18,7 +14,7 @@ type watcher struct {
 
 type customChangeListener struct {
 	in     chan<- []*config.KeyValue
-	logger log.Logger
+	logger Logger
 }
 
 func (c *customChangeListener) onChange(namespace string, changes map[string]*storage.ConfigChange) []*config.KeyValue {
@@ -30,13 +26,11 @@ func (c *customChangeListener) onChange(namespace string, changes map[string]*st
 	}
 
 	f := format(namespace)
-	codec := encoding.GetCodec(f)
-	val, err := codec.Marshal(next)
+	val, err := config.Marshal(f, next)
 	if err != nil {
-		_ = c.logger.Log(log.LevelWarn,
-			"msg",
-			fmt.Sprintf("apollo could not handle namespace %s: %v", namespace, err),
-		)
+		if c.logger != nil {
+			c.logger.Warnf("apollo could not handle namespace %s: %v", namespace, err)
+		}
 		return nil
 	}
 	kv = append(kv, &config.KeyValue{
@@ -59,9 +53,9 @@ func (c *customChangeListener) OnChange(changeEvent *storage.ChangeEvent) {
 
 func (c *customChangeListener) OnNewestChange(changeEvent *storage.FullChangeEvent) {}
 
-func newWatcher(a *apollo, logger log.Logger) (config.Watcher, error) {
+func newWatcher(a *apollo, logger Logger) (config.Watcher, error) {
 	if logger == nil {
-		logger = log.GetLogger()
+		logger = stdLogger{}
 	}
 
 	changeCh := make(chan []*config.KeyValue)
