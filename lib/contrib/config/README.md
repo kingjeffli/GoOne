@@ -1,6 +1,6 @@
-# Config 抽象层（本地 Source/Watcher/KeyValue）
+# Config中间件 抽象层（本地 Source/Watcher/KeyValue）
 
-本目录提供一套**本地**的 `Source/Watcher/KeyValue` 配置抽象，并在其上实现多种配置中心 Source：
+本目录提供一套**本地**的 `Source/Watcher/KeyValue` 配置中间件抽象，并在其上实现多种配置中心 Source：
 
 - 各配置中心的 `Source` 实现（`apollo/consul/etcd/kubernetes`）
 - 一个 **统一工厂**（`config/factory`）：用一条 `scheme://...` 字符串即可创建 Source
