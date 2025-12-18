@@ -36,20 +36,20 @@ func NewBusImplRocketMQ(selfBusId uint32, onRecvMsg MsgHandler, conf RocketMQCon
 		group = "goone_bus"
 	}
 	impl := &BusImplRocketMQ{
-		selfBusId:      selfBusId,
-		timeout:        3 * time.Second,
-		chanOut:        make(chan outMsg, 10000),
-		chanIn:         make(chan []byte, 10000),
-		onRecv:         onRecvMsg,
-		nameServers:    conf.NameServers,
-		topic:          topic,
-		consumerGroup:  group,
+		selfBusId:     selfBusId,
+		timeout:       3 * time.Second,
+		chanOut:       make(chan outMsg, 10000),
+		chanIn:        make(chan []byte, 10000),
+		onRecv:        onRecvMsg,
+		nameServers:   conf.NameServers,
+		topic:         topic,
+		consumerGroup: group,
 	}
 	go impl.run()
 	return impl
 }
 
-func (b *BusImplRocketMQ) SelfBusId() uint32 { return b.selfBusId }
+func (b *BusImplRocketMQ) SelfBusId() uint32                { return b.selfBusId }
 func (b *BusImplRocketMQ) SetReceiver(onRecvMsg MsgHandler) { b.onRecv = onRecvMsg }
 
 func (b *BusImplRocketMQ) tagFor(busId uint32) string {
@@ -182,4 +182,12 @@ func (b *BusImplRocketMQ) run() {
 	}
 }
 
-
+func init() {
+	RegisterBus("rocketmq", func(selfBusId uint32, onRecvMsg MsgHandler, conf any) (IBus, error) {
+		cfg, ok := conf.(RocketMQConfig)
+		if !ok {
+			return nil, fmt.Errorf("rocketmq arg must be RocketMQConfig")
+		}
+		return NewBusImplRocketMQ(selfBusId, onRecvMsg, cfg), nil
+	})
+}

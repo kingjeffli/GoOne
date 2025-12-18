@@ -2,12 +2,10 @@ package bus
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/Iori372552686/GoOne/lib/api/logger"
-
 	"github.com/streadway/amqp"
-
-	"time"
 )
 
 type BusImplRabbitMQ struct {
@@ -159,4 +157,23 @@ func (b *BusImplRabbitMQ) run(rabbitmqAddr string) {
 		logger.Errorf("Error occur in processing bus. Retry later {retryTimes: %v, afterSeconds:%v} | %v", retryCount, retryAfterSeconds, err)
 		time.Sleep(time.Duration(retryAfterSeconds) * time.Second)
 	}
+}
+
+func init() {
+	RegisterBus("rabbitmq", func(selfBusId uint32, onRecvMsg MsgHandler, conf any) (IBus, error) {
+		switch v := conf.(type) {
+		case string:
+			if v == "" {
+				return nil, fmt.Errorf("rabbitmq addr is empty")
+			}
+			return NewBusImplRabbitMQ(selfBusId, onRecvMsg, v), nil
+		case RabbitMQConfig:
+			if v.Addr == "" {
+				return nil, fmt.Errorf("rabbitmq addr is empty")
+			}
+			return NewBusImplRabbitMQ(selfBusId, onRecvMsg, v.Addr), nil
+		default:
+			return nil, fmt.Errorf("rabbitmq unsupported config type %T", conf)
+		}
+	})
 }

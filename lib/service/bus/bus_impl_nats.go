@@ -27,20 +27,20 @@ func NewBusImplNatsMQ(selfBusId uint32, onRecvMsg MsgHandler, conf NatsConfig) I
 		prefix = "bus"
 	}
 	impl := &BusImplNatsMQ{
-		selfBusId:      selfBusId,
-		timeout:        3 * time.Second,
-		chanOut:        make(chan outMsg, 10000),
-		chanIn:         make(chan []byte, 10000),
-		onRecv:         onRecvMsg,
-		url:            strings.TrimSpace(conf.URL),
-		subjectPrefix:  prefix,
-		queueGroup:     strings.TrimSpace(conf.QueueGroup),
+		selfBusId:     selfBusId,
+		timeout:       3 * time.Second,
+		chanOut:       make(chan outMsg, 10000),
+		chanIn:        make(chan []byte, 10000),
+		onRecv:        onRecvMsg,
+		url:           strings.TrimSpace(conf.URL),
+		subjectPrefix: prefix,
+		queueGroup:    strings.TrimSpace(conf.QueueGroup),
 	}
 	go impl.run()
 	return impl
 }
 
-func (b *BusImplNatsMQ) SelfBusId() uint32 { return b.selfBusId }
+func (b *BusImplNatsMQ) SelfBusId() uint32                { return b.selfBusId }
 func (b *BusImplNatsMQ) SetReceiver(onRecvMsg MsgHandler) { b.onRecv = onRecvMsg }
 
 func (b *BusImplNatsMQ) subjectFor(busId uint32) string {
@@ -167,4 +167,12 @@ func (b *BusImplNatsMQ) run() {
 	}
 }
 
-
+func init() {
+	RegisterBus("nats", func(selfBusId uint32, onRecvMsg MsgHandler, conf any) (IBus, error) {
+		cfg, ok := conf.(NatsConfig)
+		if !ok {
+			return nil, fmt.Errorf("nats arg must be NatsConfig")
+		}
+		return NewBusImplNatsMQ(selfBusId, onRecvMsg, cfg), nil
+	})
+}

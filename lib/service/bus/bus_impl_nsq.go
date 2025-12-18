@@ -253,3 +253,13 @@ func (b *BusImplNsqMQ) run() {
 		time.Sleep(time.Duration(retryAfterSeconds) * time.Second)
 	}
 }
+
+func init() {
+	RegisterBus("nsq", func(selfBusId uint32, onRecvMsg MsgHandler, conf any) (IBus, error) {
+		cfg, ok := conf.(NSQConfig)
+		if !ok {
+			return nil, fmt.Errorf("nsq arg must be NSQConfig")
+		}
+		return NewBusImplNsqMQ(selfBusId, onRecvMsg, cfg), nil
+	})
+}

@@ -70,6 +70,7 @@ func calcQueueName(busId uint32) string {
 func sendToMsgChan(ch chan outMsg, msg outMsg, timeout time.Duration) bool {
 	t := time.NewTimer(timeout)
 	defer t.Stop()
+
 	select {
 	case ch <- msg:
 	case <-t.C:

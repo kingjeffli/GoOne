@@ -45,7 +45,7 @@ func NewBusImplKafkaMQ(selfBusId uint32, onRecvMsg MsgHandler, conf KafkaConfig)
 	return impl
 }
 
-func (b *BusImplKafkaMQ) SelfBusId() uint32 { return b.selfBusId }
+func (b *BusImplKafkaMQ) SelfBusId() uint32                { return b.selfBusId }
 func (b *BusImplKafkaMQ) SetReceiver(onRecvMsg MsgHandler) { b.onRecv = onRecvMsg }
 
 func (b *BusImplKafkaMQ) topicFor(busId uint32) string {
@@ -177,4 +177,12 @@ func (b *BusImplKafkaMQ) run() {
 	}
 }
 
-
+func init() {
+	RegisterBus("kafka", func(selfBusId uint32, onRecvMsg MsgHandler, conf any) (IBus, error) {
+		cfg, ok := conf.(KafkaConfig)
+		if !ok {
+			return nil, fmt.Errorf("kafka arg must be KafkaConfig")
+		}
+		return NewBusImplKafkaMQ(selfBusId, onRecvMsg, cfg), nil
+	})
+}
