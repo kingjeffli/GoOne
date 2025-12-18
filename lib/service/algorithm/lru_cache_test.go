@@ -91,3 +91,27 @@ func TestLRUCache_ConcurrentAccess(t *testing.T) {
 		t.Fatalf("size should not exceed capacity, got %d", lru.Size())
 	}
 }
+
+func TestLRUCache_PeekDoesNotAffectOrder(t *testing.T) {
+	lru := NewLRUCache(2)
+	_ = lru.Set("a", 1)
+	_ = lru.Set("b", 2)
+
+	// Peek a: should not change LRU order (b is still LRU)
+	if v, ok, err := lru.Peek("a"); err != nil || !ok || v.(int) != 1 {
+		t.Fatalf("Peek a failed, v=%v ok=%v err=%v", v, ok, err)
+	}
+
+	// Now Set c, should evict b if Peek did not update order.
+	_ = lru.Set("c", 3)
+
+	if _, ok, _ := lru.Get("b"); ok {
+		t.Fatalf("expected key b to be evicted after Peek(a) and Set(c)")
+	}
+	if v, ok, _ := lru.Get("a"); !ok || v.(int) != 1 {
+		t.Fatalf("expected key a to remain with value 1, got v=%v ok=%v", v, ok)
+	}
+	if v, ok, _ := lru.Get("c"); !ok || v.(int) != 3 {
+		t.Fatalf("expected key c to exist with value 3, got v=%v ok=%v", v, ok)
+	}
+}
