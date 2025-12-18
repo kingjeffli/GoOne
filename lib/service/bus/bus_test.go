@@ -17,7 +17,7 @@ func TestRabbitMQBus(t *testing.T) {
 	if os.Getenv("BUS_ITEST") != "1" {
 		t.Skip("set BUS_ITEST=1 to run bus integration tests")
 	}
-	impl := CreateBus("rabbitmq", IpStringToInt("1.1.2.2"), onRecvMsg, "amqp://guest:guest@127.0.0.1:5672/")
+	impl := CreateBus(IpStringToInt("1.1.2.2"), onRecvMsg, "amqp://guest:guest@127.0.0.1:5672/")
 	if impl == nil {
 		t.Skip("rabbitmq bus not available or CreateBus returned nil")
 	}

@@ -21,33 +21,23 @@ func RegisterBus(implType string, ctor BusCtor) {
 	busCtors[implType] = ctor
 }
 
-// CreateBusE constructs a bus from a single addr string.
-// It auto-detects backend by addr scheme and calls registered ctors.
-func CreateBusE(selfBusId uint32, onRecvMsg MsgHandler, addr string) (IBus, error) {
-	implType, cfg, err := ParseAddr(addr)
-	if err != nil {
-		return nil, err
-	}
-	return createBusByTypeE(implType, selfBusId, onRecvMsg, cfg)
-}
-
 // CreateBus keeps backward compatibility (returns nil on error/panic).
 // Prefer CreateBusE in new code.
-func CreateBus(selfBusId uint32, onRecvMsg MsgHandler, addr string) (ret IBus) {
+func CreateBus(selfBusId uint32, onRecvMsg MsgHandler, addr string) (IBus, error) {
 	parsedType, cfg, err := ParseAddr(addr)
 	if err != nil {
 		logger.Errorf("CreateBus ParseAddr failed | implType:%v, selfBusId:0x%x  err| %v", parsedType, selfBusId, err)
-		return nil
+		return nil, err
 	}
 
 	b, err := createBusByTypeE(parsedType, selfBusId, onRecvMsg, cfg)
 	if err != nil {
 		logger.Errorf("CreateBus failed {implType:%v, parsedType:%v, selfBusId:0x%x} | %v", parsedType, parsedType, selfBusId, err)
-		return nil
+		return nil, err
 	}
 
 	logger.Infof("CreateBus success | implType:%v  addr:%v  selfBusId:%s", parsedType, addr, IpIntToString(selfBusId))
-	return b
+	return b, err
 }
 
 // createBusByTypeE is the internal helper for the legacy CreateBus(implType,...,args...) signature.
