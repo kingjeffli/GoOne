@@ -4,113 +4,132 @@ import (
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"runtime"
 	"sort"
-	"sync"
-	"unsafe"
 )
 
 const (
-	minChunkSize = 5000 // 分片大小
-	mergeWorkers = 4    // 归并并发数
+	minChunkSize = 5000 // 分片大小（小于该值直接单线程排序）
 )
 
-// parallelSort 实现分片排序+多路归并 ,可能有bug，需要压力测试 :),备用
+// parallelSort 对 rooms 进行排序。
+// 说明：
+//   - less(i,j) 中的 i、j 始终是 rooms 的全局下标（与调用方约定保持一致）
+//   - 小数据量直接使用 sort.Slice
+//   - 大数据量时：构造索引切片并行排序 + 串行多路归并，最后按索引重排 rooms
+//   - 不保证稳定性（与 sort.Slice 一致）
 func parallelSort(rooms []*g1_protocol.RoomShowInfo, less func(i, j int) bool) {
-	if len(rooms) <= minChunkSize {
+	n := len(rooms)
+	if n <= 1 {
+		return
+	}
+
+	// 小数据量直接单线程排序，避免并发开销
+	if n <= minChunkSize {
 		sort.Slice(rooms, less)
 		return
 	}
 
-	chunkCnt := runtime.GOMAXPROCS(runtime.NumCPU())
-	chunkSize := (len(rooms) + chunkCnt - 1) / chunkCnt
-	chunks := splitAndSort(rooms, chunkSize, less)
-	final := mergeChunks(chunks, less, mergeWorkers)
-
-	// 结果复制回原切片
-	copy(rooms, final)
-}
-
-// splitAndSort 将切片分块并并行排序
-func splitAndSort(rooms []*g1_protocol.RoomShowInfo, chunkSize int, less func(i, j int) bool) [][]*g1_protocol.RoomShowInfo {
-	var wg sync.WaitGroup
-	chunks := make([][]*g1_protocol.RoomShowInfo, 0, (len(rooms)+chunkSize-1)/chunkSize)
-	lock := sync.Mutex{}
-
-	for i := 0; i < len(rooms); i += chunkSize {
-		wg.Add(1)
-		go func(start, end int) {
-			defer wg.Done()
-			chunk := rooms[start:end]
-			sort.Slice(chunk, less)
-
-			lock.Lock()
-			chunks = append(chunks, chunk)
-			lock.Unlock()
-		}(i, min(i+chunkSize, len(rooms)))
-	}
-	wg.Wait()
-	return chunks
-}
-
-// mergeChunks 并行多路归并排序后的分片
-func mergeChunks(chunks [][]*g1_protocol.RoomShowInfo, less func(i, j int) bool, workers int) []*g1_protocol.RoomShowInfo {
-	if len(chunks) == 0 {
-		return nil
-	}
-	if len(chunks) == 1 {
-		return chunks[0]
+	// 构造索引切片，所有比较都通过全局下标调用 less，避免子切片下标错乱
+	idx := make([]int, n)
+	for i := range idx {
+		idx[i] = i
 	}
 
-	// 工作池模式控制并发度
-	workChan := make(chan [][]*g1_protocol.RoomShowInfo, len(chunks)/2)
-	resultChan := make(chan []*g1_protocol.RoomShowInfo, len(chunks)/2)
-	var wg sync.WaitGroup
-
-	// 启动归并worker
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for pair := range workChan {
-				merged := mergeTwo(pair[0], pair[1], less)
-				resultChan <- merged
-			}
-		}()
+	// 计算分片数量：不超过 CPU 数，也不超过元素数量 / minChunkSize
+	maxWorkers := runtime.GOMAXPROCS(0)
+	if maxWorkers < 1 {
+		maxWorkers = 1
 	}
 
-	// 分发任务
-	go func() {
-		for i := 0; i < len(chunks); i += 2 {
-			if i+1 < len(chunks) {
-				workChan <- [][]*g1_protocol.RoomShowInfo{chunks[i], chunks[i+1]}
-			} else {
-				resultChan <- chunks[i]
-			}
+	chunkCnt := (n + minChunkSize - 1) / minChunkSize
+	if chunkCnt > maxWorkers {
+		chunkCnt = maxWorkers
+	}
+	if chunkCnt <= 1 {
+		// 退化到单线程索引排序
+		sort.Slice(idx, func(i, j int) bool { return less(idx[i], idx[j]) })
+		reorderRoomsByIndex(rooms, idx)
+		return
+	}
+
+	chunkSize := (n + chunkCnt - 1) / chunkCnt
+
+	// 并行排序每个索引分片，分片之间互不重叠，无数据竞争
+	type job struct{ start, end int }
+	jobs := make(chan job, chunkCnt)
+	done := make(chan struct{}, chunkCnt)
+
+	worker := func() {
+		for j := range jobs {
+			start, end := j.start, j.end
+			// 在局部视图上排序，但比较时用全局下标 idx[start+i], idx[start+j]
+			sort.Slice(idx[start:end], func(i, j int) bool {
+				return less(idx[start+i], idx[start+j])
+			})
+			done <- struct{}{}
 		}
-		close(workChan)
-	}()
+	}
 
-	// 收集结果
-	var results [][]*g1_protocol.RoomShowInfo
-	go func() {
-		for res := range resultChan {
-			results = append(results, res)
+	// 启动 worker
+	for w := 0; w < chunkCnt; w++ {
+		go worker()
+	}
+
+	// 派发任务
+	actualChunks := 0
+	for start := 0; start < n; start += chunkSize {
+		end := start + chunkSize
+		if end > n {
+			end = n
 		}
-	}()
+		if start >= end {
+			continue
+		}
+		actualChunks++
+		jobs <- job{start: start, end: end}
+	}
+	close(jobs)
 
-	wg.Wait()
-	close(resultChan)
+	// 等待所有分片排序完成
+	for i := 0; i < actualChunks; i++ {
+		<-done
+	}
 
-	// 递归归并直到完成
-	return mergeChunks(results, less, workers)
+	// 将每个已排序分片视为一段有序索引序列，进行串行多路归并
+	slices := make([][]int, 0, actualChunks)
+	for start := 0; start < n; start += chunkSize {
+		end := start + chunkSize
+		if end > n {
+			end = n
+		}
+		if start >= end {
+			continue
+		}
+		slices = append(slices, idx[start:end])
+	}
+
+	for len(slices) > 1 {
+		next := make([][]int, 0, (len(slices)+1)/2)
+		for i := 0; i < len(slices); i += 2 {
+			if i+1 >= len(slices) {
+				next = append(next, slices[i])
+				break
+			}
+			merged := mergeIndexSlices(slices[i], slices[i+1], less)
+			next = append(next, merged)
+		}
+		slices = next
+	}
+
+	finalIdx := slices[0]
+	reorderRoomsByIndex(rooms, finalIdx)
 }
 
-// mergeTwo 合并两个有序切片
-func mergeTwo(a, b []*g1_protocol.RoomShowInfo, less func(i, j int) bool) []*g1_protocol.RoomShowInfo {
-	result := make([]*g1_protocol.RoomShowInfo, 0, len(a)+len(b))
+// mergeIndexSlices 合并两个有序索引切片，less 使用全局下标
+func mergeIndexSlices(a, b []int, less func(i, j int) bool) []int {
+	result := make([]int, 0, len(a)+len(b))
 	i, j := 0, 0
-
 	for i < len(a) && j < len(b) {
-		if less(sliceIndex(a, i), sliceIndex(b, j)) {
+		if less(a[i], b[j]) {
 			result = append(result, a[i])
 			i++
 		} else {
@@ -118,25 +137,28 @@ func mergeTwo(a, b []*g1_protocol.RoomShowInfo, less func(i, j int) bool) []*g1_
 			j++
 		}
 	}
-	result = append(result, a[i:]...)
-	result = append(result, b[j:]...)
+	if i < len(a) {
+		result = append(result, a[i:]...)
+	}
+	if j < len(b) {
+		result = append(result, b[j:]...)
+	}
 	return result
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
+// reorderRoomsByIndex 根据排好序的索引切片重排 rooms
+func reorderRoomsByIndex(rooms []*g1_protocol.RoomShowInfo, idx []int) {
+	if len(rooms) != len(idx) {
+		// 尽早发现错误使用
+		panic("reorderRoomsByIndex: length mismatch")
 	}
-	return b
-}
-
-func sliceIndex(slice []*g1_protocol.RoomShowInfo, i int) int {
-	if i < 0 || i >= len(slice) {
-		panic("index out of range")
+	if len(rooms) <= 1 {
+		return
 	}
 
-	elemSize := unsafe.Sizeof(slice[0])
-	base := uintptr(unsafe.Pointer(&slice[0]))
-	current := uintptr(unsafe.Pointer(&slice[i]))
-	return int((current - base) / elemSize)
+	tmp := make([]*g1_protocol.RoomShowInfo, len(rooms))
+	for i, id := range idx {
+		tmp[i] = rooms[id]
+	}
+	copy(rooms, tmp)
 }
