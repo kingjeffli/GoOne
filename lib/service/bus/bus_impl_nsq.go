@@ -16,12 +16,13 @@ type BusImplNsqMQ struct {
 	selfBusId   uint32
 	lookupAddr  []string
 	NsqdAddr    string
-	topics      string
+	topicPrefix string
 	chanName    string
 	concurrency int
 
 	timeout time.Duration
 	chanOut chan outMsg
+	chanIn  chan []byte
 	onRecv  MsgHandler
 }
 
@@ -34,16 +35,17 @@ type BusImplNsqMQ struct {
 * @Author: Iori
 * @Date: 2022-04-29 11:14:28
 **/
-func NewBusImplNsqMQ(selfBusId uint32, onRecvMsg MsgHandler, conf Config) *BusImplNsqMQ {
+func NewBusImplNsqMQ(selfBusId uint32, onRecvMsg MsgHandler, conf NSQConfig) *BusImplNsqMQ {
 	impl := new(BusImplNsqMQ)
 
 	impl.selfBusId = selfBusId
 	impl.lookupAddr = conf.LookupAddrs
-	impl.NsqdAddr = fmt.Sprintf("%s:%d", conf.IPAddr, conf.Port)
-	impl.chanName = conf.ChanName
-	impl.topics = conf.Topics
+	impl.NsqdAddr = conf.NsqdAddr
+	impl.chanName = conf.Channel
+	impl.topicPrefix = conf.TopicPrefix
 	impl.timeout = 3 * time.Second
 	impl.chanOut = make(chan outMsg, 10000)
+	impl.chanIn = make(chan []byte, 10000)
 	impl.onRecv = onRecvMsg
 	impl.concurrency = conf.Concurrency
 
@@ -92,6 +94,7 @@ func (b *BusImplNsqMQ) Send(dstBusId uint32, data1 []byte, data2 []byte) error {
 
 	msg := outMsg{}
 	msg.busId = dstBusId
+	msg.topics = b.topicFor(dstBusId)
 	msg.data = make([]byte, byteLenOfBusPacketHeader()+len(data1)+len(data2))
 	pos := 0
 	header.To(msg.data[pos:])
@@ -139,6 +142,15 @@ func (b *BusImplNsqMQ) SendTo(topics string, data1 []byte, data2 []byte) error {
 	return nil
 }
 
+func (b *BusImplNsqMQ) topicFor(busId uint32) string {
+	// Keep backward compatibility: if a topic prefix is provided, use "<prefix>_<hex>",
+	// otherwise use calcQueueName(busId) which returns "bus_<hex>".
+	if b.topicPrefix != "" {
+		return fmt.Sprintf("%s_%x", b.topicPrefix, busId)
+	}
+	return calcQueueName(busId)
+}
+
 /**
 * @Description: proc
 * @receiver: b
@@ -148,7 +160,21 @@ func (b *BusImplNsqMQ) SendTo(topics string, data1 []byte, data2 []byte) error {
 **/
 func (b *BusImplNsqMQ) process() error {
 	//new Consumer
-	consumer, err := nsq.NewConsumer(b.topics, b.chanName, b.NsqdAddr, b.lookupAddr, b.concurrency, nsq.MsgHandler(b.onRecv))
+	consumer, err := nsq.NewConsumer(b.topicFor(b.selfBusId), b.chanName, b.NsqdAddr, b.lookupAddr, b.concurrency,
+		func(_ uint32, data []byte) error {
+			// consumer callback may be concurrent; keep bus receiver single-thread by enqueueing only.
+			if data == nil || len(data) == 0 {
+				return nil
+			}
+			buf := make([]byte, len(data))
+			copy(buf, data)
+			select {
+			case b.chanIn <- buf:
+			default:
+			}
+			return nil
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("failed to open producer  {lookup: %v,addr:%v} | %v", b.lookupAddr, b.NsqdAddr, err)
 	}
@@ -175,6 +201,24 @@ func (b *BusImplNsqMQ) process() error {
 			if err != nil {
 				logger.Errorf("Failed to publish a message {topics:%v, dataLen:%v}| %v", msgOut.topics, len(msgOut.data), err)
 				return err
+			}
+		case data, ok := <-b.chanIn:
+			if !ok {
+				return fmt.Errorf("chanIn of bus is closed")
+			}
+			if len(data) < byteLenOfBusPacketHeader() {
+				continue
+			}
+			header := busPacketHeader{}
+			header.From(data)
+			if header.passCode != passCode {
+				logger.Warningf("Received a bus message with wrong pass code: %#v", header)
+				continue
+			}
+			if b.onRecv != nil {
+				recvData := make([]byte, len(data)-byteLenOfBusPacketHeader())
+				copy(recvData, data[byteLenOfBusPacketHeader():])
+				b.onRecv(header.srcBusId, recvData)
 			}
 		}
 	}

@@ -40,7 +40,7 @@ func InitAndRun(selfBusId string, cb CbOnRecvSSPacket, rabbitmqAddr string,
 	}
 
 	router.cbOnRecvSSPacket = cb
-	router.busImpl = bus.CreateBus("rabbitmq", bus.IpStringToInt(selfBusId), onRecvBusMsg, rabbitmqAddr)
+	router.busImpl = bus.CreateBus(bus.IpStringToInt(selfBusId), onRecvBusMsg, rabbitmqAddr)
 	if router.busImpl == nil {
 		return errors.New("failed to create bus implement")
 	}

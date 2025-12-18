@@ -1,0 +1,185 @@
+package bus
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/Iori372552686/GoOne/lib/api/logger"
+
+	rmq "github.com/apache/rocketmq-client-go/v2"
+	"github.com/apache/rocketmq-client-go/v2/consumer"
+	"github.com/apache/rocketmq-client-go/v2/primitive"
+	"github.com/apache/rocketmq-client-go/v2/producer"
+)
+
+type BusImplRocketMQ struct {
+	selfBusId uint32
+	timeout   time.Duration
+	chanOut   chan outMsg
+	chanIn    chan []byte
+	onRecv    MsgHandler
+
+	nameServers   []string
+	topic         string
+	consumerGroup string
+}
+
+func NewBusImplRocketMQ(selfBusId uint32, onRecvMsg MsgHandler, conf RocketMQConfig) IBus {
+	topic := strings.TrimSpace(conf.Topic)
+	if topic == "" {
+		topic = "goone_bus"
+	}
+	group := strings.TrimSpace(conf.ConsumerGroup)
+	if group == "" {
+		group = "goone_bus"
+	}
+	impl := &BusImplRocketMQ{
+		selfBusId:      selfBusId,
+		timeout:        3 * time.Second,
+		chanOut:        make(chan outMsg, 10000),
+		chanIn:         make(chan []byte, 10000),
+		onRecv:         onRecvMsg,
+		nameServers:    conf.NameServers,
+		topic:          topic,
+		consumerGroup:  group,
+	}
+	go impl.run()
+	return impl
+}
+
+func (b *BusImplRocketMQ) SelfBusId() uint32 { return b.selfBusId }
+func (b *BusImplRocketMQ) SetReceiver(onRecvMsg MsgHandler) { b.onRecv = onRecvMsg }
+
+func (b *BusImplRocketMQ) tagFor(busId uint32) string {
+	return calcQueueName(busId)
+}
+
+func (b *BusImplRocketMQ) Send(dstBusId uint32, data1 []byte, data2 []byte) error {
+	header := busPacketHeader{}
+	header.version = 0
+	header.passCode = passCode
+	header.srcBusId = b.SelfBusId()
+	header.dstBusId = dstBusId
+
+	msg := outMsg{}
+	msg.busId = dstBusId
+	msg.topics = b.tagFor(dstBusId) // tag
+	msg.data = make([]byte, byteLenOfBusPacketHeader()+len(data1)+len(data2))
+	pos := 0
+	header.To(msg.data[pos:])
+	pos += byteLenOfBusPacketHeader()
+	copy(msg.data[pos:], data1)
+	pos += len(data1)
+	if data2 != nil && len(data2) > 0 {
+		copy(msg.data[pos:], data2)
+		pos += len(data2)
+	}
+	if !sendToMsgChan(b.chanOut, msg, b.timeout) {
+		return fmt.Errorf("rocketmq bus.chanOut<-msg time out")
+	}
+	return nil
+}
+
+func (b *BusImplRocketMQ) process() error {
+	if len(b.nameServers) == 0 {
+		return fmt.Errorf("rocketmq nameservers is empty")
+	}
+	ctx := context.Background()
+
+	p, err := rmq.NewProducer(producer.WithNameServer(b.nameServers))
+	if err != nil {
+		return err
+	}
+	if err := p.Start(); err != nil {
+		return err
+	}
+	defer func() { _ = p.Shutdown() }()
+
+	c, err := rmq.NewPushConsumer(
+		consumer.WithNameServer(b.nameServers),
+		consumer.WithGroupName(b.consumerGroup+"."+calcQueueName(b.selfBusId)),
+	)
+	if err != nil {
+		return err
+	}
+
+	tagExpr := b.tagFor(b.selfBusId)
+	if err := c.Subscribe(b.topic, consumer.MessageSelector{Type: consumer.TAG, Expression: tagExpr},
+		func(ctx context.Context, msgs ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
+			for _, m := range msgs {
+				if m == nil {
+					continue
+				}
+				buf := make([]byte, len(m.Body))
+				copy(buf, m.Body)
+				select {
+				case b.chanIn <- buf:
+				default:
+				}
+			}
+			return consumer.ConsumeSuccess, nil
+		}); err != nil {
+		return err
+	}
+	if err := c.Start(); err != nil {
+		return err
+	}
+	defer func() { _ = c.Shutdown() }()
+
+	logger.Infof("RocketMQ bus started {topic:%s, tag:%s}", b.topic, tagExpr)
+
+	for {
+		select {
+		case msgOut, ok := <-b.chanOut:
+			if !ok {
+				return fmt.Errorf("chanOut of bus is closed")
+			}
+			_, err := p.SendSync(ctx, primitive.NewMessage(b.topic, msgOut.data).WithTag(msgOut.topics))
+			if err != nil {
+				logger.Errorf("Failed to publish rocketmq message {topic:%v, tag:%v, dataLen:%v}| %v",
+					b.topic, msgOut.topics, len(msgOut.data), err)
+			}
+		case data, ok := <-b.chanIn:
+			if !ok {
+				return fmt.Errorf("chanIn of bus is closed")
+			}
+			if len(data) < byteLenOfBusPacketHeader() {
+				continue
+			}
+			header := busPacketHeader{}
+			header.From(data)
+			if header.passCode != passCode {
+				logger.Warningf("Received a bus message with wrong pass code: %#v", header)
+				continue
+			}
+			if b.onRecv != nil {
+				recvData := make([]byte, len(data)-byteLenOfBusPacketHeader())
+				copy(recvData, data[byteLenOfBusPacketHeader():])
+				b.onRecv(header.srcBusId, recvData)
+			}
+		}
+	}
+}
+
+func (b *BusImplRocketMQ) run() {
+	retryCount := 0
+	for {
+		processStartTime := time.Now()
+		err := b.process()
+		if time.Since(processStartTime) > time.Minute {
+			retryCount = 0
+		}
+		retryCount++
+		retryAfterSeconds := (retryCount - 1) * 2
+		if retryAfterSeconds > 30 {
+			retryAfterSeconds = 30
+		}
+		logger.Errorf("Error occur in processing bus(rocketmq). Retry later {retryTimes: %v, afterSeconds:%v} | %v",
+			retryCount, retryAfterSeconds, err)
+		time.Sleep(time.Duration(retryAfterSeconds) * time.Second)
+	}
+}
+
+
