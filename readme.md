@@ -1,6 +1,6 @@
 ## GoOne
 
-GoOne 是一套基于 Go 实现的分布式游戏服务器框架，核心思路是 **Reactor + CSP**（并发消息驱动），并配套提供：服务治理、配置中心、消息总线、网络层、部署控制台等“工程化”能力，适用于中小型游戏、MMO 等服务端架构。
+GoOne 是一套基于 Go 实现的微服务分布式游戏服务器框架，核心思路是 **Reactor + CSP**（并发消息驱动）且继承了很多C++游戏架构的思想，并配套提供：服务治理、配置中心、消息总线、网络层、部署控制台等“工程化”能力，适用于中小型游戏、MMO 等游戏后端业务。
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/Iori372552686/GoOne)](go.mod)
 [![License](https://img.shields.io/github/license/Iori372552686/GoOne)](LICENSE)
