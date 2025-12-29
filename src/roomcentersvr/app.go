@@ -46,9 +46,9 @@ func (a *RoomMgrSvrImpl) OnInit() error {
 
 	err = router.InitAndRun(gconf.RoomCenterSvrCfg.SelfBusId,
 		onRecvSSPacket,
-		gconf.RoomCenterSvrCfg.RabbitMQAddr,
+		gconf.RoomCenterSvrCfg.BusMQAddr,
 		misc.ServerRouteRules,
-		gconf.RoomCenterSvrCfg.ZKAddr,
+		gconf.RoomCenterSvrCfg.RegisterAddr,
 	)
 	if err != nil {
 		return err

@@ -61,9 +61,9 @@ func (self *MainSvrImpl) OnInit() error {
 	sensitive_words.Init(gconf.MainSvrCfg.SensitiveWordsFile)
 	err = router.InitAndRun(gconf.MainSvrCfg.SelfBusId,
 		onRecvSSPacket,
-		gconf.MainSvrCfg.RabbitMQAddr,
+		gconf.MainSvrCfg.BusMQAddr,
 		misc.ServerRouteRules,
-		gconf.MainSvrCfg.ZKAddr,
+		gconf.MainSvrCfg.RegisterAddr,
 	)
 	if err != nil {
 		logger.Errorf("Failed to initialize router | %v", err)

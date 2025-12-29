@@ -18,11 +18,11 @@
 
 ## 在 GoOne 中的落地点（router/svrinstmgr）
 
-GoOne 的 `router.InitAndRun()` 内部会调用 `svrinstmgr.InitAndRun(selfBusID, routeRules, ZKAddr)`。
+GoOne 的 `router.InitAndRun()` 内部会调用 `svrinstmgr.InitAndRun(selfBusID, routeRules, RegisterAddr)`。
 
 目前 `svrinstmgr` 已接入 `registry/factory`：
 
-- 仍沿用参数名 `ZKAddr`（兼容老配置），但它实际是 **RegistryAddr**：既可以是 `host:port`（默认 zk），也可以是带 scheme 的 URL。
+- 参数名使用 `RegisterAddr`：它实际是 **RegistryAddr**：既可以是 `host:port`（默认 zk），也可以是带 scheme 的 URL。
 - 默认服务名：`online`
 - 注册 key：`ID=selfBusID`，由 `selfBusID`（形如 `world.zone.type.ins`）解析出 `svrType` 用于路由分发。
 
@@ -126,5 +126,3 @@ _ = cli.Register(context.Background(), &registry.ServiceInstance{
   Name: "online",
 })
 ```
-
-

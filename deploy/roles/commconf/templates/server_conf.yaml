@@ -1,7 +1,7 @@
 basecfg:
   Pprof: true
-  ZKAddr: '{{ zk_address }}'
-  RabbitMQAddr: '{{ rabbitmq_address }}'
+  RegisterAddr: '{{ zk_address }}'
+  BusMQAddr: '{{ rabbitmq_address }}'
   GameDataDir: '{{ root_path }}/gamedata'
   SensitiveWordsFile: '{{ root_path }}/commconf/sensitive.txt'
 

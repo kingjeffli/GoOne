@@ -14,8 +14,24 @@ import (
 var SvrConfFile = flag.String("svr_conf", "../commconf/server_conf.yaml", "app config yaml file")
 
 type BaseCfg struct {
-	ZKAddr             string             `yaml:"ZKAddr"`             // zookeeper地址
-	RabbitMQAddr       string             `yaml:"RabbitMQAddr"`       // rabbitmq地址
+	// ParseConfig parses registry address strings like:
+	//   - "127.0.0.1:2181"                       (defaults to zk)
+	//   - "zk://127.0.0.1:2181?root=/&service=online&timeout=30s"
+	//   - "etcd://127.0.0.1:2379,127.0.0.2:2379?namespace=/microservices&service=online&timeout=5s"
+	//   - "consul://127.0.0.1:8500?service=online&healthcheck=true&heartbeat=true&health_interval=10"
+	//   - "nacos://127.0.0.1:8848?service=online&group=DEFAULT_GROUP&cluster=DEFAULT&kind=grpc&weight=100"
+	//   - "k8s://?service=online&incluster=true"
+	RegisterAddr string `yaml:"RegisterAddr"` // registry/register 地址
+
+	// ParseAddr parses a single bus addr string into (implType, backendConfig).
+	// Supported examples:
+	// - amqp://guest:guest@127.0.0.1:5672/                         (rabbitmq)
+	// - rabbitmq://?addr=amqp://guest:guest@127.0.0.1:5672/        (rabbitmq)
+	// - nats://127.0.0.1:4222?subject_prefix=bus&queue_group=g1    (nats)
+	// - kafka://127.0.0.1:9092,127.0.0.2:9092?topic_prefix=bus     (kafka)
+	// - rocketmq://127.0.0.1:9876?topic=goone_bus&consumer_group=goone_bus  (rocketmq)
+	// - nsq://127.0.0.1:4150?lookup=127.0.0.1:4161&topics=test&chan=ch&concurrency=3 (nsq)
+	BusMQAddr          string             `yaml:"BusMQAddr"`          // bus mq 地址
 	GameDataDir        string             `yaml:"GameDataDir"`        // 游戏数据目录
 	SensitiveWordsFile string             `yaml:"SensitiveWordsFile"` // 敏感词文件
 	NacosConf          net_conf.NacosConf `yaml:"CenterConfAddr"`     // nacos配置

@@ -1,8 +1,8 @@
 # 根层级直接对应 BaseCfg 的字段
 basecfg:
   Pprof: true
-  ZKAddr: '192.168.50.250:2182'
-  RabbitMQAddr: 'amqp://guest:guest@192.168.50.250:5672/'
+  RegisterAddr: '192.168.50.250:2182'
+  BusMQAddr: 'amqp://guest:guest@192.168.50.250:5672/'
   GameDataDir: ../common/gamedata/data
   SensitiveWordsFile: ../common/conf/sensitive.txt
 

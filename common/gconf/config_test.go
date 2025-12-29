@@ -35,11 +35,11 @@ func TestLoad(t *testing.T) {
 	if connCfg.SelfBusId != "1.1.1.2" {
 		t.Error(debugVariable(connCfg.SelfBusId))
 	}
-	if connCfg.RabbitMQAddr != "amqp://guest:guest@192.168.50.250:5672/" {
-		t.Error(debugVariable(connCfg.RabbitMQAddr))
+	if connCfg.BusMQAddr != "amqp://guest:guest@192.168.50.250:5672/" {
+		t.Error(debugVariable(connCfg.BusMQAddr))
 	}
-	if connCfg.ZKAddr != "192.168.50.250:2182" {
-		t.Error(debugVariable(connCfg.ZKAddr))
+	if connCfg.RegisterAddr != "192.168.50.250:2182" {
+		t.Error(debugVariable(connCfg.RegisterAddr))
 	}
 	if len(connCfg.HTTPSigns) != 0 {
 		t.Error(debugVariable(connCfg.HTTPSigns))
@@ -65,11 +65,11 @@ func TestLoad(t *testing.T) {
 	if infoCfg.SelfBusId != "1.1.3.1" {
 		t.Error(debugVariable(infoCfg.SelfBusId))
 	}
-	if infoCfg.RabbitMQAddr != "amqp://guest:guest@192.168.50.250:5672/" {
-		t.Error(debugVariable(infoCfg.RabbitMQAddr))
+	if infoCfg.BusMQAddr != "amqp://guest:guest@192.168.50.250:5672/" {
+		t.Error(debugVariable(infoCfg.BusMQAddr))
 	}
-	if infoCfg.ZKAddr != "192.168.50.250:2182" {
-		t.Error(debugVariable(infoCfg.ZKAddr))
+	if infoCfg.RegisterAddr != "192.168.50.250:2182" {
+		t.Error(debugVariable(infoCfg.RegisterAddr))
 	}
 	if infoCfg.DbInstances[0].InstanceID != 3 {
 		t.Error("infoCfg.DbInstances[0].InstanceID", infoCfg.DbInstances[0].InstanceID)
@@ -92,11 +92,11 @@ func TestLoad(t *testing.T) {
 	if mainCfg.SelfBusId != "1.1.2.2" {
 		t.Error(debugVariable(mainCfg.SelfBusId))
 	}
-	if mainCfg.RabbitMQAddr != "amqp://guest:guest@192.168.50.250:5672/" {
-		t.Error(debugVariable(mainCfg.RabbitMQAddr))
+	if mainCfg.BusMQAddr != "amqp://guest:guest@192.168.50.250:5672/" {
+		t.Error(debugVariable(mainCfg.BusMQAddr))
 	}
-	if mainCfg.ZKAddr != "192.168.50.250:2182" {
-		t.Error(debugVariable(mainCfg.ZKAddr))
+	if mainCfg.RegisterAddr != "192.168.50.250:2182" {
+		t.Error(debugVariable(mainCfg.RegisterAddr))
 	}
 	if mainCfg.NacosConf.Port != 8848 {
 		t.Error(debugVariable(mainCfg.NacosConf))
@@ -119,11 +119,11 @@ func TestLoad(t *testing.T) {
 	if mysqlCfg.SelfBusId != "1.1.4.2" {
 		t.Error(debugVariable(mysqlCfg.SelfBusId))
 	}
-	if mysqlCfg.RabbitMQAddr != "amqp://guest:guest@192.168.50.250:5672/" {
-		t.Error(debugVariable(mysqlCfg.RabbitMQAddr))
+	if mysqlCfg.BusMQAddr != "amqp://guest:guest@192.168.50.250:5672/" {
+		t.Error(debugVariable(mysqlCfg.BusMQAddr))
 	}
-	if mysqlCfg.ZKAddr != "192.168.50.250:2182" {
-		t.Error(debugVariable(mysqlCfg.ZKAddr))
+	if mysqlCfg.RegisterAddr != "192.168.50.250:2182" {
+		t.Error(debugVariable(mysqlCfg.RegisterAddr))
 	}
 
 	fmt.Println("------------------------------------------RoomCenterConfig------------")
@@ -136,11 +136,11 @@ func TestLoad(t *testing.T) {
 	if roomCenterCfg.SelfBusId != "1.1.11.2" {
 		t.Error(debugVariable(roomCenterCfg.SelfBusId))
 	}
-	if roomCenterCfg.RabbitMQAddr != "amqp://guest:guest@192.168.50.250:5672/" {
-		t.Error(debugVariable(roomCenterCfg.RabbitMQAddr))
+	if roomCenterCfg.BusMQAddr != "amqp://guest:guest@192.168.50.250:5672/" {
+		t.Error(debugVariable(roomCenterCfg.BusMQAddr))
 	}
-	if roomCenterCfg.ZKAddr != "192.168.50.250:2182" {
-		t.Error(debugVariable(roomCenterCfg.ZKAddr))
+	if roomCenterCfg.RegisterAddr != "192.168.50.250:2182" {
+		t.Error(debugVariable(roomCenterCfg.RegisterAddr))
 	}
 
 	if roomCenterCfg.DbInstances[0].Description != "brief info data" {
@@ -170,11 +170,11 @@ func TestLoad(t *testing.T) {
 	if texasCfg.SelfBusId != "1.1.80.2" {
 		t.Error(debugVariable(texasCfg.SelfBusId))
 	}
-	if texasCfg.RabbitMQAddr != "amqp://guest:guest@192.168.50.250:5672/" {
-		t.Error(debugVariable(texasCfg.RabbitMQAddr))
+	if texasCfg.BusMQAddr != "amqp://guest:guest@192.168.50.250:5672/" {
+		t.Error(debugVariable(texasCfg.BusMQAddr))
 	}
-	if texasCfg.ZKAddr != "192.168.50.250:2182" {
-		t.Error(debugVariable(texasCfg.ZKAddr))
+	if texasCfg.RegisterAddr != "192.168.50.250:2182" {
+		t.Error(debugVariable(texasCfg.RegisterAddr))
 	}
 	if texasCfg.GameDataDir != "../common/gamedata/data" {
 		t.Error(debugVariable(texasCfg.GameDataDir))

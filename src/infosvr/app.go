@@ -41,9 +41,9 @@ func (a *InfoSvrImpl) OnInit() error {
 
 	err = router.InitAndRun(gconf.InfoSvrCfg.SelfBusId,
 		onRecvSSPacket,
-		gconf.InfoSvrCfg.RabbitMQAddr,
+		gconf.InfoSvrCfg.BusMQAddr,
 		misc.ServerRouteRules,
-		gconf.InfoSvrCfg.ZKAddr,
+		gconf.InfoSvrCfg.RegisterAddr,
 	)
 	if err != nil {
 		return err

@@ -41,9 +41,9 @@ func (self *AppSvrImpl) OnInit() error {
 
 	err = router.InitAndRun(gconf.ConnSvrCfg.SelfBusId,
 		onRecvSSPacket,
-		gconf.ConnSvrCfg.RabbitMQAddr,
+		gconf.ConnSvrCfg.BusMQAddr,
 		misc.ServerRouteRules,
-		gconf.ConnSvrCfg.ZKAddr,
+		gconf.ConnSvrCfg.RegisterAddr,
 	)
 	if err != nil {
 		logger.Errorf("Failed to initialize Router | %v", err)

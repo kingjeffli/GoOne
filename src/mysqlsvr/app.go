@@ -56,9 +56,9 @@ func (a *MysqlSvrImpl) OnInit() error {
 
 	err = router.InitAndRun(gconf.MySqlSvrCfg.SelfBusId,
 		onRecvSSPacket,
-		gconf.MySqlSvrCfg.RabbitMQAddr,
+		gconf.MySqlSvrCfg.BusMQAddr,
 		misc.ServerRouteRules,
-		gconf.MySqlSvrCfg.ZKAddr,
+		gconf.MySqlSvrCfg.RegisterAddr,
 	)
 	if err != nil {
 		logger.Fatalf("Failed to initialize router | %v", err)
