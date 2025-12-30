@@ -28,7 +28,7 @@ kv() {
 }
 
 print_header() {
-  echo
+  #echo
   title "========== GoOne Console =========="
   kv "Root" "$ROOT_DIR"
   kv "Deploy dir" "$DEPLOY_DIR"
