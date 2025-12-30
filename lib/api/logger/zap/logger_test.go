@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap/zapcore"
 )
 
 func reset() {
@@ -42,14 +43,14 @@ func TestGetLogger(t *testing.T) {
 	config := Config{
 		Level: "debug",
 	}
-	InitLogger(config)
+	_, _ = InitLogger(config)
 	// after init logger
 	log2 := GetLogger()
 	assert.NotEqual(t, log, log2)
 
 	// the secend init logger
 	config.Level = "info"
-	InitLogger(config)
+	_, _ = InitLogger(config)
 	log3 := GetLogger()
 	assert.NotEqual(t, log2, log3)
 	reset()
@@ -69,7 +70,7 @@ func TestSetLogger(t *testing.T) {
 	config := Config{
 		Level: "degug",
 	}
-	_ = InitLogger(config)
+	_, _ = InitLogger(config)
 	// after init logger
 	log3 := GetLogger()
 	assert.NotEqual(t, log2, log3)
@@ -93,44 +94,80 @@ func TestRaceLogger(t *testing.T) {
 			config := Config{
 				Level: "debug",
 			}
-			_ = InitLogger(config)
+			_, _ = InitLogger(config)
 		}()
 	}
 	wg.Wait()
 	reset()
 }
 
+func TestGetLogWriter_NoStdout(t *testing.T) {
+	cfg := Config{LogDir: t.TempDir(), LogFileName: "a.log", LogStdout: false}
+	w := cfg.getLogWriter()
+	assert.NotNil(t, w)
+}
+
+func TestGetLogWriter_WithStdout_IsMultiWriter(t *testing.T) {
+	cfg := Config{LogDir: t.TempDir(), LogFileName: "a.log", LogStdout: true}
+	w := cfg.getLogWriter()
+	assert.NotNil(t, w)
+
+	// zapcore.NewMultiWriteSyncer returns a zapcore.WriteSyncer that is not the plain file syncer.
+	// We can't introspect its children (type is unexported), but we can ensure it's a usable WriteSyncer.
+	assert.Implements(t, (*zapcore.WriteSyncer)(nil), w)
+}
+
+func TestNewConsoleEncoderConfig(t *testing.T) {
+	enc := newConsoleEncoderConfig()
+	assert.Equal(t, "time", enc.TimeKey)
+	assert.Equal(t, "level", enc.LevelKey)
+	assert.Equal(t, "caller", enc.CallerKey)
+	assert.Equal(t, "msg", enc.MessageKey)
+}
+
 type mockLogger struct {
 }
 
-func (m mockLogger) Info(args ...interface{}) {
+func (m mockLogger) Info(_ ...interface{}) {
 	panic("implement me")
 }
 
-func (m mockLogger) Warn(args ...interface{}) {
+func (m mockLogger) Warn(_ ...interface{}) {
 	panic("implement me")
 }
 
-func (m mockLogger) Error(args ...interface{}) {
+func (m mockLogger) Error(_ ...interface{}) {
 	panic("implement me")
 }
 
-func (m mockLogger) Debug(args ...interface{}) {
+func (m mockLogger) Debug(_ ...interface{}) {
 	panic("implement me")
 }
 
-func (m mockLogger) Infof(fmt string, args ...interface{}) {
+func (m mockLogger) Fatal(_ ...interface{}) {
 	panic("implement me")
 }
 
-func (m mockLogger) Warnf(fmt string, args ...interface{}) {
+func (m mockLogger) Sync() error {
+	return nil
+}
+
+func (m mockLogger) Infof(_ string, _ ...interface{}) {
 	panic("implement me")
 }
 
-func (m mockLogger) Errorf(fmt string, args ...interface{}) {
+func (m mockLogger) Warnf(_ string, _ ...interface{}) {
 	panic("implement me")
 }
 
-func (m mockLogger) Debugf(fmt string, args ...interface{}) {
+func (m mockLogger) Errorf(_ string, _ ...interface{}) {
+	panic("implement me")
+}
+
+func (m mockLogger) Debugf(_ string, _ ...interface{}) {
+	panic("implement me")
+}
+
+func (m mockLogger) Fatalf(_ string, _ ...interface{}) {
 	panic("implement me")
 }

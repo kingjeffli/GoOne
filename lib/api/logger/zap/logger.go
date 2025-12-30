@@ -81,8 +81,8 @@ type Logger interface {
 }
 
 func init() {
-	// Default logger (stdout only). Keep output style consistent with InitLogger.
-	zlogger := newZapLogger(zapcore.InfoLevel, zapcore.AddSync(os.Stdout), nil)
+	// Default logger: stdout only.
+	zlogger := newZapLogger(zapcore.InfoLevel, zapcore.AddSync(os.Stdout), 1)
 	ZapLogger = zlogger
 	setLogger(&NacosLogger{zlogger.Sugar()})
 }
@@ -107,42 +107,33 @@ func initNacosLogger(config Config) (Logger, error) {
 	logLevel := getLogLevel(config.Level)
 	writer := config.getLogWriter()
 
-	// If stdout is enabled, write to both file and stdout.
-	var stdout zapcore.WriteSyncer
-	if config.LogStdout {
-		stdout = zapcore.AddSync(os.Stdout)
-	}
-
-	zlogger := newZapLogger(logLevel, writer, stdout)
+	zlogger := newZapLogger(logLevel, writer, 2)
 	ZapLogger = zlogger
 	return &NacosLogger{zlogger.Sugar()}, nil
 }
 
-func newZapLogger(level zapcore.Level, fileWriter zapcore.WriteSyncer, stdoutWriter zapcore.WriteSyncer) *zap.Logger {
-	cfg := zap.NewProductionConfig()
-	cfg.Encoding = "console"
+func newZapLogger(level zapcore.Level, writer zapcore.WriteSyncer, callerSkip int) *zap.Logger {
+	encCfg := newConsoleEncoderConfig()
+	enc := zapcore.NewConsoleEncoder(encCfg)
 
-	// Use zap's recommended keys, but keep our preferred message/time output.
-	cfg.EncoderConfig = zap.NewProductionEncoderConfig()
-	cfg.EncoderConfig.TimeKey = "time"
-	cfg.EncoderConfig.LevelKey = "level"
-	cfg.EncoderConfig.CallerKey = "caller"
-	cfg.EncoderConfig.MessageKey = "msg"
-	cfg.EncoderConfig.StacktraceKey = "stacktrace"
-	cfg.EncoderConfig.FunctionKey = zapcore.OmitKey
+	core := zapcore.NewCore(enc, writer, level)
+	return zap.New(core, zap.AddCaller(), zap.AddCallerSkip(callerSkip))
+}
 
-	cfg.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
-	cfg.EncoderConfig.EncodeDuration = zapcore.SecondsDurationEncoder
-	cfg.EncoderConfig.EncodeTime = encodeLocalTimeMillis
-	cfg.EncoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
+func newConsoleEncoderConfig() zapcore.EncoderConfig {
+	cfg := zap.NewProductionEncoderConfig()
+	cfg.TimeKey = "time"
+	cfg.LevelKey = "level"
+	cfg.CallerKey = "caller"
+	cfg.MessageKey = "msg"
+	cfg.StacktraceKey = "stacktrace"
+	cfg.FunctionKey = zapcore.OmitKey
 
-	core := zapcore.NewCore(zapcore.NewConsoleEncoder(cfg.EncoderConfig), fileWriter, level)
-	if stdoutWriter != nil {
-		stdoutCore := zapcore.NewCore(zapcore.NewConsoleEncoder(cfg.EncoderConfig), stdoutWriter, level)
-		core = zapcore.NewTee(core, stdoutCore)
-	}
-
-	return zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
+	cfg.EncodeCaller = zapcore.ShortCallerEncoder
+	cfg.EncodeDuration = zapcore.SecondsDurationEncoder
+	cfg.EncodeTime = encodeLocalTimeMillis
+	cfg.EncodeLevel = zapcore.LowercaseLevelEncoder
+	return cfg
 }
 
 func getLogLevel(level string) zapcore.Level {
@@ -179,8 +170,11 @@ func (c *Config) getLogWriter() zapcore.WriteSyncer {
 		c.LogRollingConfig = &lumberjack.Logger{}
 	}
 	c.LogRollingConfig.Filename = c.LogDir + string(os.PathSeparator) + c.LogFileName
+
+	file := zapcore.AddSync(c.LogRollingConfig)
 	if c.LogStdout {
-		return zapcore.NewMultiWriteSyncer(zapcore.AddSync(c.LogRollingConfig), zapcore.AddSync(os.Stdout))
+		// Single writer that writes to both file and stdout (no tee in zap core -> no duplicates).
+		return zapcore.NewMultiWriteSyncer(file, zapcore.AddSync(os.Stdout))
 	}
-	return zapcore.AddSync(c.LogRollingConfig)
+	return file
 }
