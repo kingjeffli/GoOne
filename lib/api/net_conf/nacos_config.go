@@ -10,17 +10,17 @@ import (
 
 // nacos  client config struct
 type NacosConf struct {
-	IPAddr      string `json:"ip_addr"`
-	Port        int    `json:"port"`
-	NamespaceID string `json:"namespace_id"`
-	GroupName   string `json:"group_name"`
-	LogDir      string `json:"log_dir"`
-	CacheDir    string `json:"cache_dir"`
-	RotateTime  string `json:"rotate_time"`
-	MaxAge      int    `json:"max_age"`
-	LogLevel    string `json:"log_level"`
-	UserName    string `json:"user_name"`
-	Password    string `json:"password"`
+	IPAddr      string `json:"ip_addr" yaml:"ip_addr"`
+	Port        int    `json:"port" yaml:"port"`
+	NamespaceID string `json:"namespace_id" yaml:"namespace_id"`
+	GroupName   string `json:"group_name" yaml:"group_name"`
+	LogDir      string `json:"log_dir" yaml:"log_dir"`
+	CacheDir    string `json:"cache_dir" yaml:"cache_dir"`
+	RotateTime  string `json:"rotate_time" yaml:"rotate_time"`
+	MaxAge      int    `json:"max_age" yaml:"max_age"`
+	LogLevel    string `json:"log_level" yaml:"log_level"`
+	UserName    string `json:"user_name" yaml:"user_name"`
+	Password    string `json:"password" yaml:"password"`
 }
 
 func NewNacosConfigClient(conf NacosConf) config_client.IConfigClient {

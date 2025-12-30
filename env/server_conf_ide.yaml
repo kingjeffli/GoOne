@@ -1,37 +1,37 @@
 # 根层级直接对应 BaseCfg 的字段
-basecfg:
-  Pprof: true
-  RegisterAddr: '113.45.34.170:12181'
-  BusMQAddr: 'amqp://guest:guest@113.45.34.170:15672/'
-  GameDataDir: ../common/gamedata/data
-  SensitiveWordsFile: ../common/conf/sensitive.txt
+base_cfg:
+  pprof: true
+  register_addr: '113.45.34.170:12181'
+  bus_mq_addr: 'amqp://guest:guest@113.45.34.170:15672/'
+  game_data_dir: ../common/gamedata/data
+  sensitive_words_file: ../common/conf/sensitive.txt
 
 
-  HttpSign:
-    - IndexName: default
-      PrivateKey: d1233f2b7e9885ffb8a8268d06f44c6e2
-      SignName: sign
-      ExpiredTime: 1800
-      TimestampName: timestamp
-      SignType: md5
-      RequestIDName: ''
+  http_sign:
+    - index_name: default
+      private_key: d1233f2b7e9885ffb8a8268d06f44c6e2
+      sign_name: sign
+      expired_time: 1800
+      timestamp_name: timestamp
+      sign_type: md5
+      request_id_name: ''
 
-  DbInstances:
-    - InstanceId: 1
-      Ip: 113.45.34.170
-      Port: 16379
-      Password: go123456
-      IsCluster: false
-      Description: role info data
-    - InstanceId: 3
-      Ip: 113.45.34.170
-      Port: 16379
-      Password: go123456
-      IsCluster: false
-      Description: brief info data
+  db_instances:
+    - instance_id: 1
+      ip: 113.45.34.170
+      port: 16379
+      password: go123456
+      is_cluster: false
+      description: role info data
+    - instance_id: 3
+      ip: 113.45.34.170
+      port: 16379
+      password: go123456
+      is_cluster: false
+      description: brief info data
 
 
-  OrmInstances:
+  orm_instances:
     - index_name: default
       master:
         ip: 113.45.34.170
@@ -48,13 +48,13 @@ basecfg:
       drive_name: mysql
 
 
-  RestApiConfig:
+  rest_api_config:
     - service_name: default
       urls:
         - 'http://113.45.34.170:8000/mg/api/sdk/getGameRole?'
       sign_name: default
 
-  CenterConfAddr:
+  nacos_conf:
     ip_addr: 113.45.34.170
     port: 8848
     namespace_id: df4ad231-f231-49a1-b309-44493e949dd0
@@ -68,28 +68,28 @@ basecfg:
     log_level: debug
 
 connsvr:
-  SelfBusId: 1.1.1.251
-  ListenPort: 11000
+  self_bus_id: 1.1.1.251
+  listen_port: 11000
   log_dir: ./logs/
   log_level: debug
 
 infosvr:
-  SelfBusId: 1.1.3.251
+  self_bus_id: 1.1.3.251
   log_dir: ../logs
   log_level: debug
 
 mainsvr:
-  SelfBusId: 1.1.2.251
+  self_bus_id: 1.1.2.251
   log_dir: ../logs
   log_level: debug
 
 mysqlsvr:
-  SelfBusId: 1.1.4.251
+  self_bus_id: 1.1.4.251
   log_dir: ../logs
   log_level: debug
 
 websvr:
-  SelfBusId: 1.1.12.251
+  self_bus_id: 1.1.12.251
   log_dir: ../logs
   log_level: debug
 
@@ -101,12 +101,12 @@ websvr:
 
 
 roomcentersvr:
-  SelfBusId: 1.1.11.251
+  self_bus_id: 1.1.11.251
   log_dir: ../logs
   log_level: debug
 
 texassvr:
-  SelfBusId: 1.1.80.251
+  self_bus_id: 1.1.80.251
   log_dir: ../logs
   log_level: debug
 

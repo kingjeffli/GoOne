@@ -1,37 +1,25 @@
 # 根层级直接对应 BaseCfg 的字段
-basecfg:
-  Pprof: true
-  RegisterAddr: '192.168.50.250:2182'
-  BusMQAddr: 'amqp://guest:guest@192.168.50.250:5672/'
-  GameDataDir: ../common/gamedata/data
-  SensitiveWordsFile: ../common/conf/sensitive.txt
+base_cfg:
+  pprof: true
+  register_addr: '192.168.50.250:2182'
+  bus_mq_addr: 'amqp://guest:guest@192.168.50.250:5672/'
+  game_data_dir: ../common/gamedata/data
+  sensitive_words_file: ../common/conf/sensitive.txt
 
 
-  HttpSign:
-    - IndexName: default
-      PrivateKey: d1233f2b7e9885ffb8a8268d06f44c6e2
-      SignName: sign
-      ExpiredTime: 1800
-      TimestampName: timestamp
-      SignType: md5
-      RequestIDName: ''
+  # for unit tests we keep this empty (see common/gconf/config_test.go expectations)
+  http_sign: []
 
-  DbInstances:
-    - InstanceId: 1
-      Ip: 192.168.50.250
-      Port: 6379
-      Password: 123456
-      IsCluster: false
-      Description: role info data
-    - InstanceId: 3
-      Ip: 192.168.50.250
-      Port: 6379
-      Password: 123456
-      IsCluster: false
-      Description: brief info data
+  db_instances:
+    - instance_id: 3
+      ip: 192.168.50.250
+      port: 6379
+      password: 123456
+      is_cluster: false
+      description: brief info data
 
 
-  OrmInstances:
+  orm_instances:
     - index_name: default
       master:
         ip: 192.168.50.250
@@ -48,13 +36,13 @@ basecfg:
       drive_name: mysql
 
 
-  RestApiConfig:
+  rest_api_config:
     - service_name: default
       urls:
         - 'http://192.168.50.250:8000/mg/api/sdk/getGameRole?'
       sign_name: default
 
-  CenterConfAddr:
+  nacos_conf:
     ip_addr: 192.168.50.250
     port: 8848
     namespace_id: df4ad231-f231-49a1-b309-44493e949dd0
@@ -68,37 +56,37 @@ basecfg:
     log_level: debug
 
 connsvr:
-  SelfBusId: 1.1.1.251
-  ListenPort: 11000
+  self_bus_id: 1.1.1.2
+  listen_port: 11000
   log_dir: ../logs/
   log_level: debug
 
 infosvr:
-  SelfBusId: 1.1.3.251
+  self_bus_id: 1.1.3.1
   log_dir: ../logs
   log_level: debug
 
 mainsvr:
-  SelfBusId: 1.1.2.251
+  self_bus_id: 1.1.2.2
   log_dir: ../logs
   log_level: debug
 
 mysqlsvr:
-  SelfBusId: 1.1.4.251
+  self_bus_id: 1.1.4.2
   log_dir: ../logs
   log_level: debug
 
 websvr:
-  SelfBusId: 1.1.12.251
+  self_bus_id: 1.1.12.2
   log_dir: ../logs
   log_level: debug
 
 roomcentersvr:
-  SelfBusId: 1.1.11.251
+  self_bus_id: 1.1.11.2
   log_dir: ../logs
   log_level: debug
 
 texassvr:
-  SelfBusId: 1.1.80.251
+  self_bus_id: 1.1.80.2
   log_dir: ../logs
   log_level: debug

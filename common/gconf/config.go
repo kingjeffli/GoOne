@@ -21,7 +21,7 @@ type BaseCfg struct {
 	//   - "consul://127.0.0.1:8500?service=online&healthcheck=true&heartbeat=true&health_interval=10"
 	//   - "nacos://127.0.0.1:8848?service=online&group=DEFAULT_GROUP&cluster=DEFAULT&kind=grpc&weight=100"
 	//   - "k8s://?service=online&incluster=true"
-	RegisterAddr string `yaml:"RegisterAddr"` // registry/register 地址
+	RegisterAddr string `yaml:"register_addr"` // registry/register 地址
 
 	// ParseAddr parses a single bus addr string into (implType, backendConfig).
 	// Supported examples:
@@ -31,56 +31,56 @@ type BaseCfg struct {
 	// - kafka://127.0.0.1:9092,127.0.0.2:9092?topic_prefix=bus     (kafka)
 	// - rocketmq://127.0.0.1:9876?topic=goone_bus&consumer_group=goone_bus  (rocketmq)
 	// - nsq://127.0.0.1:4150?lookup=127.0.0.1:4161&topics=test&chan=ch&concurrency=3 (nsq)
-	BusMQAddr          string             `yaml:"BusMQAddr"`          // bus mq 地址
-	GameDataDir        string             `yaml:"GameDataDir"`        // 游戏数据目录
-	SensitiveWordsFile string             `yaml:"SensitiveWordsFile"` // 敏感词文件
-	NacosConf          net_conf.NacosConf `yaml:"CenterConfAddr"`     // nacos配置
-	OrmConf            []orm.Config       `yaml:"OrmInstances"`       // mysql配置
-	HTTPSigns          []http_sign.Config `yaml:"HttpSign"`           // http签名配置
-	RestApiConf        []rest_api.Config  `yaml:"RestApiConfig"`      // restapi配置
-	DbInstances        []redis.Config     `yaml:"DbInstances"`        // redis配置
-	Pprof              bool               `yaml:"Pprof"`              // 是否开启pprof
+	BusMQAddr          string             `yaml:"bus_mq_addr"`          // bus mq 地址
+	GameDataDir        string             `yaml:"game_data_dir"`        // 游戏数据目录
+	SensitiveWordsFile string             `yaml:"sensitive_words_file"` // 敏感词文件
+	NacosConf          net_conf.NacosConf `yaml:"nacos_conf"`           // nacos配置
+	OrmConf            []orm.Config       `yaml:"orm_instances"`        // mysql配置
+	HTTPSigns          []http_sign.Config `yaml:"http_sign"`            // http签名配置
+	RestApiConf        []rest_api.Config  `yaml:"rest_api_config"`      // restapi配置
+	DbInstances        []redis.Config     `yaml:"db_instances"`         // redis配置
+	Pprof              bool               `yaml:"pprof"`                // 是否开启pprof
 }
 
 type ConnSvr struct {
-	SelfBusId  string `yaml:"SelfBusId"`
-	ListenPort int    `yaml:"ListenPort"`
+	SelfBusId  string `yaml:"self_bus_id"`
+	ListenPort int    `yaml:"listen_port"`
 	LogDir     string `yaml:"log_dir"`
 	LogLevel   string `yaml:"log_level"`
 }
 
 type InfoSvr struct {
-	SelfBusId string `yaml:"SelfBusId"`
+	SelfBusId string `yaml:"self_bus_id"`
 	LogDir    string `yaml:"log_dir"`
 	LogLevel  string `yaml:"log_level"`
 }
 
 type MainSvr struct {
-	SelfBusId string `yaml:"SelfBusId"`
+	SelfBusId string `yaml:"self_bus_id"`
 	LogDir    string `yaml:"log_dir"`
 	LogLevel  string `yaml:"log_level"`
 }
 
 type MySqlSvr struct {
-	SelfBusId string `yaml:"SelfBusId"`
+	SelfBusId string `yaml:"self_bus_id"`
 	LogDir    string `yaml:"log_dir"`
 	LogLevel  string `yaml:"log_level"`
 }
 
 type RoomCenterSvr struct {
-	SelfBusId string `yaml:"SelfBusId"`
+	SelfBusId string `yaml:"self_bus_id"`
 	LogDir    string `yaml:"log_dir"`
 	LogLevel  string `yaml:"log_level"`
 }
 
 type TexasSvr struct {
-	SelfBusId string `yaml:"SelfBusId"`
+	SelfBusId string `yaml:"self_bus_id"`
 	LogDir    string `yaml:"log_dir"`
 	LogLevel  string `yaml:"log_level"`
 }
 
 type WebSvr struct {
-	SelfBusId string `yaml:"SelfBusId"`
+	SelfBusId string `yaml:"self_bus_id"`
 	LogDir    string `yaml:"log_dir"`
 	LogLevel  string `yaml:"log_level"`
 
@@ -89,7 +89,7 @@ type WebSvr struct {
 
 // connsvr配置
 type ConnConfig struct {
-	BaseCfg `yaml:"basecfg"`
+	BaseCfg `yaml:"base_cfg"`
 	ConnSvr `yaml:"connsvr"`
 }
 
@@ -97,7 +97,7 @@ var ConnSvrCfg ConnConfig
 
 // infosvr配置
 type InfoConfig struct {
-	BaseCfg `yaml:"basecfg"`
+	BaseCfg `yaml:"base_cfg"`
 	InfoSvr `yaml:"infosvr"`
 }
 
@@ -105,7 +105,7 @@ var InfoSvrCfg InfoConfig
 
 // mainsvr配置
 type MainSvrConfig struct {
-	BaseCfg `yaml:"basecfg"`
+	BaseCfg `yaml:"base_cfg"`
 	MainSvr `yaml:"mainsvr"`
 }
 
@@ -113,7 +113,7 @@ var MainSvrCfg MainSvrConfig
 
 // mysqlsvr配置
 type MySqlSvrConfig struct {
-	BaseCfg  `yaml:"basecfg"`
+	BaseCfg  `yaml:"base_cfg"`
 	MySqlSvr `yaml:"mysqlsvr"`
 }
 
@@ -121,7 +121,7 @@ var MySqlSvrCfg MySqlSvrConfig
 
 // roomcentersvr配置
 type RoomCenterConfig struct {
-	BaseCfg       `yaml:"basecfg"`
+	BaseCfg       `yaml:"base_cfg"`
 	RoomCenterSvr `yaml:"roomcentersvr"`
 }
 
@@ -129,7 +129,7 @@ var RoomCenterSvrCfg RoomCenterConfig
 
 // websvr配置
 type webSvrConfig struct {
-	BaseCfg `yaml:"basecfg"`
+	BaseCfg `yaml:"base_cfg"`
 	WebSvr  `yaml:"websvr"`
 }
 
@@ -137,7 +137,7 @@ var WebSvrCfg webSvrConfig
 
 // texassvr配置
 type TexasConfig struct {
-	BaseCfg  `yaml:"basecfg"`
+	BaseCfg  `yaml:"base_cfg"`
 	TexasSvr `yaml:"texassvr"`
 }
 

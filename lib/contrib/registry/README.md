@@ -18,7 +18,7 @@
 
 ## 在 GoOne 中的落地点（router/svrinstmgr）
 
-GoOne 的 `router.InitAndRun()` 内部会调用 `svrinstmgr.InitAndRun(selfBusID, routeRules, RegisterAddr)`。
+GoOne 的 `router.InitAndRun()` 内部会调用 `svrinstmgr.InitAndRun(selfBusID, routeRules, RegisterAddr)`（配置文件中推荐使用 `base_cfg.register_addr`）。
 
 目前 `svrinstmgr` 已接入 `registry/factory`：
 
