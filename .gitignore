@@ -3,5 +3,5 @@
 doc/~$服务器技术架构文档.docx
 build/*
 /logs
-/deploy/hosts/*
+deploy/hosts/*
 deploy/hosts/host_dev.txt
