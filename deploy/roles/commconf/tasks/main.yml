@@ -7,9 +7,9 @@
     mode: '0755'
   tags: 'commconf_init'
 
-- name: '[commconf] Copy files'
+- name: '[commconf] Copy sensitive files'
   copy:
-    src: ../common/conf/
+    src: ../common/sensitive/
     dest: /data/GoOne/commconf/
   tags: "commconf_push"
 
