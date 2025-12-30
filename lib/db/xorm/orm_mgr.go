@@ -2,9 +2,9 @@
 package orm
 
 import (
-	"github.com/Iori372552686/GoOne/common/gfunc"
 	"github.com/Iori372552686/GoOne/lib/api/datetime"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
+	"github.com/Iori372552686/GoOne/module/gfunc"
 	"github.com/go-xorm/xorm"
 
 	_ "github.com/go-sql-driver/mysql"

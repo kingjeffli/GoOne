@@ -32,8 +32,8 @@ type ServerInstanceMgr struct {
 	client          registry.Client
 	reg             registry.Registrar
 	discovery       registry.Discovery
-	watcher          registry.Watcher
-	stopWatch        func()
+	watcher         registry.Watcher
+	stopWatch       func()
 	lock            sync.RWMutex
 }
 

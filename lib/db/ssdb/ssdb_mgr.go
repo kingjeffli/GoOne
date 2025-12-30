@@ -1,8 +1,8 @@
 package ssdb
 
 import (
-	"github.com/Iori372552686/GoOne/common/gfunc"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
+	"github.com/Iori372552686/GoOne/module/gfunc"
 	"github.com/seefan/gossdb/v2/pool"
 )
 

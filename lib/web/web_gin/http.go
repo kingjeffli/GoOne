@@ -40,8 +40,8 @@ func RunGin(conf Config, load_routers func(router *gin.Engine)) error {
 	router := gin.New()
 	router.Use(rest.Cors())
 	router.Use(
-		ginzap.Ginzap(zap.ZapLoger, time.RFC3339, true), // 使用 Zap 替换默认日志中间件
-		ginzap.RecoveryWithZap(zap.ZapLoger, true),      // 替换 gin.Recovery()
+		ginzap.Ginzap(zap.ZapLogger, time.RFC3339, true), // 使用 Zap 替换默认日志中间件
+		ginzap.RecoveryWithZap(zap.ZapLogger, true),      // 替换 gin.Recovery()
 	)
 
 	//loadRoutes

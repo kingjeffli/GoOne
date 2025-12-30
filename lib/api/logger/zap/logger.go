@@ -18,6 +18,7 @@ package zap
 
 import (
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,9 +28,12 @@ import (
 )
 
 var (
-	logger   Logger
-	logLock  sync.RWMutex
-	ZapLoger *zap.Logger
+	logger  Logger
+	logLock sync.RWMutex
+
+	// ZapLogger is kept for backward compatibility with existing integrations
+	// (e.g. gin middleware expecting *zap.Logger).
+	ZapLogger *zap.Logger
 )
 
 var levelMap = map[string]zapcore.Level{
@@ -77,23 +81,10 @@ type Logger interface {
 }
 
 func init() {
-	zapLoggerConfig := zap.NewDevelopmentConfig()
-	zapLoggerEncoderConfig := zapcore.EncoderConfig{
-		TimeKey:        "time",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		MessageKey:     "message",
-		StacktraceKey:  "stacktrace",
-		EncodeLevel:    zapcore.CapitalLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.SecondsDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
-	}
-	zapLoggerConfig.EncoderConfig = zapLoggerEncoderConfig
-	defaultLogger, _ := zapLoggerConfig.Build(zap.AddCaller(), zap.AddCallerSkip(1))
-	ZapLoger = defaultLogger
-	setLogger(&NacosLogger{defaultLogger.Sugar()})
+	// Default logger (stdout only). Keep output style consistent with InitLogger.
+	zlogger := newZapLogger(zapcore.InfoLevel, zapcore.AddSync(os.Stdout), nil)
+	ZapLogger = zlogger
+	setLogger(&NacosLogger{zlogger.Sugar()})
 }
 
 // InitLogger is init global logger for nacos
@@ -112,41 +103,61 @@ func initNacosLogger(config Config) (Logger, error) {
 	if config.CustomLogger != nil {
 		return &NacosLogger{config.CustomLogger}, nil
 	}
+
 	logLevel := getLogLevel(config.Level)
-	encoder := getEncoder()
 	writer := config.getLogWriter()
 
-	core := zapcore.NewCore(zapcore.NewConsoleEncoder(encoder), writer, logLevel)
-
-	if config.Sampling != nil {
-		core = zapcore.NewSamplerWithOptions(core, config.Sampling.Tick, config.Sampling.Initial, config.Sampling.Thereafter)
+	// If stdout is enabled, write to both file and stdout.
+	var stdout zapcore.WriteSyncer
+	if config.LogStdout {
+		stdout = zapcore.AddSync(os.Stdout)
 	}
 
-	zaplogger := zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
-	return &NacosLogger{zaplogger.Sugar()}, nil
+	zlogger := newZapLogger(logLevel, writer, stdout)
+	ZapLogger = zlogger
+	return &NacosLogger{zlogger.Sugar()}, nil
+}
+
+func newZapLogger(level zapcore.Level, fileWriter zapcore.WriteSyncer, stdoutWriter zapcore.WriteSyncer) *zap.Logger {
+	cfg := zap.NewProductionConfig()
+	cfg.Encoding = "console"
+
+	// Use zap's recommended keys, but keep our preferred message/time output.
+	cfg.EncoderConfig = zap.NewProductionEncoderConfig()
+	cfg.EncoderConfig.TimeKey = "time"
+	cfg.EncoderConfig.LevelKey = "level"
+	cfg.EncoderConfig.CallerKey = "caller"
+	cfg.EncoderConfig.MessageKey = "msg"
+	cfg.EncoderConfig.StacktraceKey = "stacktrace"
+	cfg.EncoderConfig.FunctionKey = zapcore.OmitKey
+
+	cfg.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	cfg.EncoderConfig.EncodeDuration = zapcore.SecondsDurationEncoder
+	cfg.EncoderConfig.EncodeTime = encodeLocalTimeMillis
+	cfg.EncoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
+
+	core := zapcore.NewCore(zapcore.NewConsoleEncoder(cfg.EncoderConfig), fileWriter, level)
+	if stdoutWriter != nil {
+		stdoutCore := zapcore.NewCore(zapcore.NewConsoleEncoder(cfg.EncoderConfig), stdoutWriter, level)
+		core = zapcore.NewTee(core, stdoutCore)
+	}
+
+	return zap.New(core, zap.AddCaller(), zap.AddCallerSkip(2))
 }
 
 func getLogLevel(level string) zapcore.Level {
-	if zapLevel, ok := levelMap[level]; ok {
+	if level == "" {
+		return zapcore.InfoLevel
+	}
+	if zapLevel, ok := levelMap[strings.ToLower(level)]; ok {
 		return zapLevel
 	}
 	return zapcore.InfoLevel
 }
 
-func getEncoder() zapcore.EncoderConfig {
-	return zapcore.EncoderConfig{
-		MessageKey:     "msg",
-		TimeKey:        "time",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		FunctionKey:    zapcore.OmitKey,
-		StacktraceKey:  "stacktrace",
-		EncodeLevel:    zapcore.CapitalLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.SecondsDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
-	}
+func encodeLocalTimeMillis(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+	// e.g. 2025-12-30 10:40:10.235
+	enc.AppendString(t.Format("2006-01-02 15:04:05.000"))
 }
 
 // SetLogger sets logger for sdk

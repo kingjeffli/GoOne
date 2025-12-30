@@ -3,11 +3,11 @@ package room_ai
 import (
 	"fmt"
 	"github.com/Iori372552686/GoOne/common/gamedata/repository/texas_config"
+	"github.com/Iori372552686/GoOne/module/gfunc"
 	"github.com/Iori372552686/GoOne/module/misc"
 	id "github.com/Iori372552686/GoOne/src/roomcentersvr/globals/idgen"
 	"time"
 
-	"github.com/Iori372552686/GoOne/common/gfunc"
 	"github.com/Iori372552686/GoOne/lib/api/datetime"
 	"github.com/Iori372552686/GoOne/lib/service/router"
 	pb "github.com/Iori372552686/game_protocol/protocol"
