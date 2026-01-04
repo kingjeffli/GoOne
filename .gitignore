@@ -6,3 +6,4 @@ build/*
 /deploy/hosts/*
 /deploy/hosts/host_dev.txt
 /.cursor/
+/.bin/*
