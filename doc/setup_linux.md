@@ -95,7 +95,7 @@ ansible-playbook -i host.txt inithost.yml
 
 ##protoc
 ```
-#goOne/deps/protoc/protoc-3.11.4-linux-x86_64/bin
+#goOne/deps/protoc/protoc-33.2-linux-x86_64/bin
 cp protoc protoc-gen-go /user/local/bin
 #goOne/gopath/src/project.me/g1/gamesvr
 cp libtolua.so /user/lib64

@@ -34,10 +34,10 @@ PROTOC="${PROTOC:-}"
 if [[ -z "$PROTOC" ]]; then
   if command -v protoc >/dev/null 2>&1; then
     PROTOC="$(command -v protoc)"
-  elif [[ -x "lib/contrib/protoc/protoc-30.1-linux-x86_64/bin/protoc" ]]; then
-    PROTOC="$ROOT_DIR/lib/contrib/protoc/protoc-30.1-linux-x86_64/bin/protoc"
-  elif [[ -x "lib/util/deps/protoc/protoc-3.11.4-linux-x86_64/bin/protoc" ]]; then
-    PROTOC="$ROOT_DIR/lib/util/deps/protoc/protoc-3.11.4-linux-x86_64/bin/protoc"
+  elif [[ -x "lib/contrib/protoc/protoc-33.2-linux-x86_64/bin/protoc" ]]; then
+    PROTOC="$ROOT_DIR/lib/contrib/protoc/protoc-33.2-linux-x86_64/bin/protoc"
+  elif [[ -x "lib/util/deps/protoc/protoc-33.2-linux-x86_64/bin/protoc" ]]; then
+    PROTOC="$ROOT_DIR/lib/util/deps/protoc/protoc-33.2-linux-x86_64/bin/protoc"
   else
     echo "[proto_goone] ERROR: protoc not found. Install protoc or run in WSL with vendored protoc available." >&2
     exit 1
@@ -46,11 +46,11 @@ fi
 
 # Include dirs for google well-known types (for empty.proto / descriptor.proto etc.)
 INCLUDE_DIRS=()
-if [[ -d "lib/contrib/protoc/protoc-30.1-linux-x86_64/include" ]]; then
-  INCLUDE_DIRS+=("lib/contrib/protoc/protoc-30.1-linux-x86_64/include")
+if [[ -d "lib/contrib/protoc/protoc-33.2-linux-x86_64/include" ]]; then
+  INCLUDE_DIRS+=("lib/contrib/protoc/protoc-33.2-linux-x86_64/include")
 fi
-if [[ -d "lib/util/deps/protoc/protoc-3.11.4-linux-x86_64/include" ]]; then
-  INCLUDE_DIRS+=("lib/util/deps/protoc/protoc-3.11.4-linux-x86_64/include")
+if [[ -d "lib/util/deps/protoc/protoc-33.2-linux-x86_64/include" ]]; then
+  INCLUDE_DIRS+=("lib/util/deps/protoc/protoc-33.2-linux-x86_64/include")
 fi
 
 echo "[proto_goone] collect proto inputs (exclude api/proto/third_party)"

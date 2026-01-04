@@ -149,11 +149,11 @@ func findProtoc(repoRoot string, override string) (string, error) {
 	}
 	// fallback: vendored linux protoc (works in WSL/Linux)
 	if runtime.GOOS == "linux" {
-		p := filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-linux-x86_64", "bin", "protoc")
+		p := filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-linux-x86_64", "bin", "protoc")
 		if _, err := os.Stat(p); err == nil {
 			return p, nil
 		}
-		p2 := filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-linux-x86_64", "bin", "protoc")
+		p2 := filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-33.2-linux-x86_64", "bin", "protoc")
 		if _, err := os.Stat(p2); err == nil {
 			return p2, nil
 		}
@@ -164,9 +164,9 @@ func findProtoc(repoRoot string, override string) (string, error) {
 func existingGoogleIncludes(repoRoot string) []string {
 	candidates := []string{
 		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-win64", "include"),
-		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-linux-x86_64", "include"),
+		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-linux-x86_64", "include"),
 		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-win64", "include"),
-		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-linux-x86_64", "include"),
+		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-33.2-linux-x86_64", "include"),
 	}
 	out := make([]string, 0, len(candidates))
 	seen := map[string]bool{}
@@ -211,5 +211,3 @@ func collectProtoInputs(absProtoRoot string) ([]string, error) {
 	sort.Strings(protos)
 	return protos, nil
 }
-
-
