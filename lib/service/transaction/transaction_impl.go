@@ -119,6 +119,12 @@ func (t *Transaction) SendMsgBack(pbMsg proto.Message) {
 	router.SendMsgBack(t.OriPacketHeader, t.transID, pbMsg)
 }
 
+// SendMsgBackWithCmd sends a response to the original caller but overrides cmd.
+// This is primarily used by IDL-driven ssrpc wrappers when cmd_resp is explicitly specified.
+func (t *Transaction) SendMsgBackWithCmd(cmd g1_protocol.CMD, pbMsg proto.Message) {
+	router.SendMsgBackWithCmd(t.OriPacketHeader, t.transID, cmd, pbMsg)
+}
+
 func (t *Transaction) CallMsgBySvrType(svrType uint32, cmd g1_protocol.CMD, req proto.Message, rsp proto.Message) error {
 	return t.CallOtherMsgBySvrType(svrType, t.Uid(), t.Uid(), t.Zone(), cmd, req, rsp)
 }
@@ -198,15 +204,24 @@ func (t *Transaction) waitRsp(dstSvrType uint32, dstSvrIns uint32, cmd g1_protoc
 					dstSvrType, dstSvrIns, t.Uid(), cmd, t.Rid(), req.String())
 				return errors.New("channel is closed")
 			}
-			if packet.Header.CmdSeq != t.sendSeq || packet.Header.Cmd != uint32(cmd)+1 {
+			// Primary match is CmdSeq (Transaction-driven request/response correlation).
+			// Historically we also enforced rspCmd == reqCmd+1, but IDL-driven ssrpc may override cmd_resp.
+			if packet.Header.CmdSeq != t.sendSeq {
 				logger.Warningf("Received a packet which is not what I'm waiting for "+
 					"{dstSvrType:%v, dstSvrIns:%v, uid:%v, cmd:%v, rid:%v,req:%#v, recvPacket:%#v}",
 					dstSvrType, dstSvrIns, t.Uid(), cmd, t.Rid(), req.String(), packet.Header)
-			} else {
-				err := proto.Unmarshal(packet.Body, rsp)
-				t.Debugf("Received a rsp: %#v", rsp.String())
-				return err
+				break
 			}
+
+			if packet.Header.Cmd != uint32(cmd)+1 {
+				logger.Warningf("Received a rsp with unexpected cmd (still decoding by CmdSeq) "+
+					"{expectRspCmd:%v, gotRspCmd:%v, uid:%v, rid:%v, reqCmd:%v}",
+					uint32(cmd)+1, packet.Header.Cmd, t.Uid(), t.Rid(), uint32(cmd))
+			}
+
+			err := proto.Unmarshal(packet.Body, rsp)
+			t.Debugf("Received a rsp: %#v", rsp.String())
+			return err
 		}
 		ti.Stop()
 		ti = time.NewTimer(d)

@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package game.roomcenter.v1;
+
+import "goone/options/v1/options.proto";
+import "third_party/game_protocol/g1/protocol/struct.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/Iori372552686/GoOne/api/gen/game/roomcenter/v1;roomcenterv1";
+
+// RoomCenterInnerService defines internal (s2s) commands for roomcentersvr.
+// Phase A migration target: Tick (ROOM_CENTER_INNER_TICK_REQ)
+service RoomCenterInnerService {
+  rpc Tick(g1.protocol.InnerTickReq) returns (google.protobuf.Empty) {
+    option (goone.options.v1.ssrpc) = {
+      // ROOM_CENTER_INNER_TICK_REQ = 0x0B1008
+      cmd: 0x0B1008
+      // one-way internal notify, no response should be sent
+      one_way: true
+      comment: "roomcentersvr tick (one-way)"
+    };
+  }
+}
+
+

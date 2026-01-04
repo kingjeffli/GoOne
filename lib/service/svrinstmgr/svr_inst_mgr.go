@@ -1,11 +1,11 @@
 package svrinstmgr
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"math/rand"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,7 +23,16 @@ const (
 	SvrRouterRule_Hash_RouterID               // 根据自定义RouterID取模
 	SvrRouterRule_IoCache_RouterID            // 根据自定义RouterID io cache
 	SvrRouterRule_Master
+
+	// --- new: consistent-hash routing rules (do NOT replace Hash_* modulo rules) ---
+	SvrRouterRule_ConsistentHash_UID
+	SvrRouterRule_ConsistentHash_ZoneID
+	SvrRouterRule_ConsistentHash_RouterID
 )
+
+// Force-use constants that are meant to be configured at runtime.
+// Some IDE analyzers incorrectly report them as unused.
+var _ = SvrRouterRule_IoCache_RouterID
 
 type ServerInstanceMgr struct {
 	routeRules map[uint32]uint32
@@ -98,6 +107,14 @@ func (s *ServerInstanceMgr) GetSvrInsBySvrType(serverType, zone uint32, uid uint
 			return s.getSvrInsByHash(serverType, uint64(zone)), uint64(zone)
 		case SvrRouterRule_Hash_RouterID:
 			return s.getSvrInsByHash(serverType, routerId), routerId
+		case SvrRouterRule_IoCache_RouterID:
+			return s.getSvrInsByConsistentHash(serverType, routerId), routerId
+		case SvrRouterRule_ConsistentHash_UID:
+			return s.getSvrInsByConsistentHash(serverType, uid), uid
+		case SvrRouterRule_ConsistentHash_ZoneID:
+			return s.getSvrInsByConsistentHash(serverType, uint64(zone)), uint64(zone)
+		case SvrRouterRule_ConsistentHash_RouterID:
+			return s.getSvrInsByConsistentHash(serverType, routerId), routerId
 		case SvrRouterRule_Master:
 			return s.getSvrInsByMaster(serverType), uid
 		default:
@@ -170,7 +187,7 @@ func (s *ServerInstanceMgr) refreshServices(services []*registry.ServiceInstance
 		// ID is used as the node key: /online/<ID>
 		children = append(children, si.ID)
 	}
-	logger.Infof("refresh nodes: %v\n", children)
+	logger.Infof("refresh nodes: %v", children)
 
 	oldIns := make(map[uint32]bool)
 	newIns := make(map[uint32]bool)
@@ -199,16 +216,18 @@ func (s *ServerInstanceMgr) refreshServices(services []*registry.ServiceInstance
 		sort.Slice(s.mapSvrTypeToIns[k], func(i, j int) bool { return s.mapSvrTypeToIns[k][i] < s.mapSvrTypeToIns[k][j] })
 		s.mapSvrTypeToIns[k] = Uint32SliceDeduplicateSorted(s.mapSvrTypeToIns[k])
 
-		// 输出日志
-		var b bytes.Buffer
-		fmt.Fprintf(&b, "Server instances: {type:%v, nodes:[", k)
+		// 输出日志（strings.Builder，避免 fmt ignored-error 告警）
+		var b strings.Builder
+		b.WriteString("Server instances: {type:")
+		b.WriteString(fmt.Sprint(k))
+		b.WriteString(", nodes:[")
 		for i, u := range s.mapSvrTypeToIns[k] {
 			if i > 0 {
-				fmt.Fprint(&b, ", ")
+				b.WriteString(", ")
 			}
-			fmt.Fprint(&b, bus.IpIntToString(u))
+			b.WriteString(bus.IpIntToString(u))
 		}
-		fmt.Fprint(&b, "]}\n")
+		b.WriteString("]}")
 		logger.Infof(b.String())
 	}
 	s.lock.Unlock()
@@ -243,6 +262,18 @@ func (s *ServerInstanceMgr) getSvrInsByRandom(svrType uint32) uint32 {
 }
 
 // 通过UID获取一个svr，这里对uid取模
+func (s *ServerInstanceMgr) getSvrInsByConsistentHash(svrType uint32, key uint64) uint32 {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	svrs := s.mapSvrTypeToIns[svrType]
+	if len(svrs) == 0 {
+		return 0
+	}
+	return newConsistentHash(svrs, 50).get(key)
+}
+
+// 兼容旧名字：Hash_* 路由仍然是取模（不要改语义）
 func (s *ServerInstanceMgr) getSvrInsByHash(svrType uint32, id uint64) uint32 {
 	s.lock.RLock()
 	defer s.lock.RUnlock()

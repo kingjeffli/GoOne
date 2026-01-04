@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package goone.options.v1;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1";
+
+// SsRpc describes how a proto service method is exposed via GoOne's SSPacket RPC.
+//
+// - cmd is the request CMD (SSPacketHeader.Cmd)
+// - cmd_resp defaults to cmd+1 if 0 (keeps GoOne's existing convention)
+// - one_way means no response should be sent
+// - uid_lock is reserved for Phase A+ (route to UID-serialized executor)
+message SsRpc {
+  uint32 cmd = 1;
+  uint32 cmd_resp = 2;
+  bool one_way = 3;
+  bool uid_lock = 4;
+
+  // comment is for docs / generated code comments only.
+  string comment = 15;
+}
+
+extend google.protobuf.MethodOptions {
+  // NOTE: pick a high extension number to avoid conflicts with other ecosystems.
+  SsRpc ssrpc = 61001;
+}
+
+
