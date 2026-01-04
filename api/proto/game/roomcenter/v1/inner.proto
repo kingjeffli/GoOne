@@ -4,6 +4,7 @@ package game.roomcenter.v1;
 
 import "goone/options/v1/options.proto";
 import "third_party/game_protocol/g1/protocol/struct.proto";
+import "third_party/game_protocol/g1/protocol/stubs.proto";
 import "google/protobuf/empty.proto";
 
 option go_package = "github.com/Iori372552686/GoOne/api/gen/game/roomcenter/v1;roomcenterv1";
@@ -18,6 +19,42 @@ service RoomCenterInnerService {
       // one-way internal notify, no response should be sent
       one_way: true
       comment: "roomcentersvr tick (one-way)"
+    };
+  }
+
+  // TODO(cmd): Fill correct cmd value from g1_protocol.CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ
+  // via: go run ./tools/cmd/dumpg1cmd -exact CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ
+  rpc RoomList(g1.protocol.RoomListReq) returns (g1.protocol.RoomListRsp) {
+    option (goone.options.v1.ssrpc) = {
+      cmd_name: "CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ"
+      comment: "room list"
+    };
+  }
+
+  // TODO(cmd): Fill correct cmd value from g1_protocol.CMD_ROOM_CENTER_INNER_QUICK_START_REQ
+  // via: go run ./tools/cmd/dumpg1cmd -exact CMD_ROOM_CENTER_INNER_QUICK_START_REQ
+  rpc QuickStart(g1.protocol.QuickStartReq) returns (g1.protocol.QuickStartRsp) {
+    option (goone.options.v1.ssrpc) = {
+      cmd_name: "CMD_ROOM_CENTER_INNER_QUICK_START_REQ"
+      comment: "quick start"
+    };
+  }
+
+  // TODO(cmd): Confirm caller semantics (send vs call). Legacy handler returns ErrorCode only and sends no rsp.
+  // If callers use Send, keep one_way=true; if callers use Call, you must define a rsp and send it back.
+  rpc UpdateRoomInfo(g1.protocol.RoomShowInfo) returns (google.protobuf.Empty) {
+    option (goone.options.v1.ssrpc) = {
+      cmd_name: "CMD_ROOM_CENTER_INNER_UPDATE_ROOM_INFO_REQ"
+      one_way: true
+      comment: "update room info (one-way)"
+    };
+  }
+
+  rpc DelRoomInfo(g1.protocol.RoomShowInfo) returns (google.protobuf.Empty) {
+    option (goone.options.v1.ssrpc) = {
+      cmd_name: "CMD_ROOM_CENTER_INNER_DEL_ROOM_INFO_REQ"
+      one_way: true
+      comment: "delete room info (one-way)"
     };
   }
 }

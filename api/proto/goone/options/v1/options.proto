@@ -13,10 +13,16 @@ option go_package = "github.com/Iori372552686/GoOne/api/gen/goone/options/v1;opt
 // - one_way means no response should be sent
 // - uid_lock is reserved for Phase A+ (route to UID-serialized executor)
 message SsRpc {
+  // cmd is the numeric request CMD (SSPacketHeader.Cmd).
+  // Prefer cmd_name if you want to avoid hardcoding numbers.
   uint32 cmd = 1;
   uint32 cmd_resp = 2;
   bool one_way = 3;
   bool uid_lock = 4;
+
+  // cmd_name is the Go enum constant name from g1_protocol, e.g. "CMD_MAIN_LOGIN_REQ".
+  // If cmd==0 and cmd_name is non-empty, generator will use g1_protocol.<cmd_name>.
+  string cmd_name = 5;
 
   // comment is for docs / generated code comments only.
   string comment = 15;

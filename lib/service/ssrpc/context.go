@@ -18,6 +18,7 @@ type Context struct {
 
 	Transport Transport
 	Cmd       g1_protocol.CMD
+	MCP       MCP // optional capability provider (Phase A+)
 }
 
 func WrapIContext(ic cmd_handler.IContext, cmd g1_protocol.CMD) *Context {

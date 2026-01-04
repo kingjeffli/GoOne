@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"runtime"
 
+	mainsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/mainsvr/v1"
 	"github.com/Iori372552686/GoOne/module/misc"
 
 	"github.com/Iori372552686/GoOne/common/gconf"
@@ -18,11 +19,13 @@ import (
 	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
 	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/service/sensitive_words"
+	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/util/idgen"
 	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/src/mainsvr/cmd_handler"
 	"github.com/Iori372552686/GoOne/src/mainsvr/globals"
 	"github.com/Iori372552686/GoOne/src/mainsvr/globals/rds"
+	"github.com/Iori372552686/GoOne/src/mainsvr/service"
 )
 
 // gameSvr  struct
@@ -78,6 +81,14 @@ func (self *MainSvrImpl) OnInit() error {
 	}
 
 	cmd_handler.RegisterCmd()
+	// IDL-driven ssrpc handlers (Phase A). Register AFTER legacy handlers so ssrpc wrappers can override.
+	mainsvrv1.RegisterMainC2SServiceToTransactionMgr(globals.TransMgr, mainsvrv1.MainC2SServiceSServer{
+		Impl: &service.MainC2SServiceImpl{},
+		MW: []ssrpc.Middleware{
+			ssrpc.Recover(),
+			ssrpc.Logging(),
+		},
+	})
 	globals.TransMgr.InitAndRun(misc.MaxTransNumber, true, 100)
 	if globals.IDGen, err = idgen.NewIDGen(); err != nil {
 		return err

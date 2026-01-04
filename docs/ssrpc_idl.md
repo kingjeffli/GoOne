@@ -41,6 +41,15 @@ protoc -I=api/proto \
   api/proto/game/main/v1/main.proto
 ```
 
+### 4.2 如何拿到 g1_protocol.CMD 的数值（用于 option cmd）
+
+因为 Phase A 的 `(goone.options.v1.ssrpc).cmd` 是 `uint32`，你需要把 `g1_protocol.CMD_XXX` 的 **数值**填进 proto。
+
+仓库提供了一个小工具：
+
+- `./scripts/dumpg1cmd.sh --exact CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ`
+- `./scripts/dumpg1cmd.sh CMD_ROOM_CENTER_INNER_`
+
 ### 4.1 关于 go_package（强烈建议）
 
 Phase A+（跨 package message type）要求每个 proto 文件都配置正确的 `option go_package = "...;name"`，否则生成器无法解析跨文件类型的 Go import path。
@@ -72,6 +81,15 @@ mainv1.RegisterMainServiceToTransactionMgr(&globals.TransMgr, mainv1.MainService
 - middleware 链执行
 - 调用 `srv.Impl.<Method>()`
 - `one_way=false` 且返回 rsp 非 nil 时自动 `ctx.SendMsgBack(rsp)`（默认响应 cmd=cmd+1）
+
+### 6. 生成代码风格（优化：统一走 ssrpc.WrapUnary）
+
+当前 `protoc-gen-goone` 生成的 `Register<Service>ToTransactionMgr` 会调用 runtime 的 `ssrpc.WrapUnary(...)`，而不是把解码/中间件/回包逻辑全部内联进生成文件。
+
+好处：
+
+- runtime 行为集中在 `lib/service/ssrpc/*`，更容易演进（metrics/trace/mcp/uid_lock）
+- 生成文件更小、diff 更稳定
 
 ### 5.1 cmd_resp 的语义
 

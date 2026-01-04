@@ -30,6 +30,7 @@ func TestGenerate_SSRPCOptionAndDeterministicImports(t *testing.T) {
 					{Name: protoString("cmd"), Number: protoInt32(1), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
 					{Name: protoString("cmd_resp"), Number: protoInt32(2), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
 					{Name: protoString("one_way"), Number: protoInt32(3), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_BOOL)},
+					{Name: protoString("cmd_name"), Number: protoInt32(5), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_STRING)},
 				},
 			},
 		},
@@ -83,7 +84,7 @@ func TestGenerate_SSRPCOptionAndDeterministicImports(t *testing.T) {
 	}
 
 	// Build extension type and set method option.
-	extType, extMsgDesc, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD, extFD, svcFD})
+	extType, extMsgDesc, _, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD, extFD, svcFD})
 	if err != nil {
 		t.Fatalf("buildSsRpcExtension err: %v", err)
 	}
@@ -116,6 +117,372 @@ func TestGenerate_SSRPCOptionAndDeterministicImports(t *testing.T) {
 	}
 	if !contains(out, "(*extv1.ExtRsp, error)") {
 		t.Fatalf("missing cross-package return type in output:\n%s", out)
+	}
+}
+
+func Test_readSsRpcOption_DecodesFromUnknownFields(t *testing.T) {
+	// Include descriptor.proto so our custom extension can extendee MethodOptions.
+	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
+
+	// options.proto (minimal in-test version; name must match ssrpcOptFilePath)
+	optionsFD := &descriptorpb.FileDescriptorProto{
+		Name:    protoString(ssrpcOptFilePath),
+		Package: protoString("goone.options.v1"),
+		Dependency: []string{
+			"google/protobuf/descriptor.proto",
+		},
+		Options: &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{
+				Name: protoString("SsRpc"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: protoString("cmd"), Number: protoInt32(1), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+					{Name: protoString("cmd_resp"), Number: protoInt32(2), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+					{Name: protoString("one_way"), Number: protoInt32(3), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_BOOL)},
+					{Name: protoString("cmd_name"), Number: protoInt32(5), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_STRING)},
+				},
+			},
+		},
+		Extension: []*descriptorpb.FieldDescriptorProto{
+			{
+				Name:     protoString("ssrpc"),
+				Number:   protoInt32(61001),
+				Label:    labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
+				Type:     typePtr(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+				TypeName: protoString(".goone.options.v1.SsRpc"),
+				Extendee: protoString(".google.protobuf.MethodOptions"),
+			},
+		},
+	}
+
+	extType, extMsgDesc, extNum, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD})
+	if err != nil {
+		t.Fatalf("buildSsRpcExtension err: %v", err)
+	}
+
+	// Simulate protoc: custom options are encoded into unknown fields of MethodOptions.
+	optsWithExt := &descriptorpb.MethodOptions{}
+	optMsg := dynamicpb.NewMessage(extMsgDesc)
+	optMsg.Set(extMsgDesc.Fields().ByName("cmd"), protoreflect.ValueOfUint32(0x01020003))
+	optMsg.Set(extMsgDesc.Fields().ByName("one_way"), protoreflect.ValueOfBool(true))
+	proto.SetExtension(optsWithExt, extType, optMsg)
+
+	wire, err := proto.Marshal(optsWithExt)
+	if err != nil {
+		t.Fatalf("marshal method options err: %v", err)
+	}
+	optsUnknown := &descriptorpb.MethodOptions{}
+	if err := proto.Unmarshal(wire, optsUnknown); err != nil {
+		t.Fatalf("unmarshal method options err: %v", err)
+	}
+
+	got, ok, err := readSsRpcOption(optsUnknown, extType, extMsgDesc, extNum)
+	if err != nil {
+		t.Fatalf("readSsRpcOption err: %v", err)
+	}
+	if !ok {
+		t.Fatalf("expected ok=true when extension exists in unknown fields")
+	}
+	if got.cmd != 0x01020003 || !got.oneWay {
+		t.Fatalf("unexpected parsed option: %+v", got)
+	}
+}
+
+func TestGenerate_SSRPCOption_CmdName(t *testing.T) {
+	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
+
+	optionsFD := &descriptorpb.FileDescriptorProto{
+		Name:    protoString(ssrpcOptFilePath),
+		Package: protoString("goone.options.v1"),
+		Dependency: []string{
+			"google/protobuf/descriptor.proto",
+		},
+		Options: &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{
+				Name: protoString("SsRpc"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: protoString("cmd"), Number: protoInt32(1), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+					{Name: protoString("cmd_resp"), Number: protoInt32(2), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+					{Name: protoString("one_way"), Number: protoInt32(3), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_BOOL)},
+					{Name: protoString("cmd_name"), Number: protoInt32(5), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_STRING)},
+				},
+			},
+		},
+		Extension: []*descriptorpb.FieldDescriptorProto{
+			{
+				Name:     protoString("ssrpc"),
+				Number:   protoInt32(61001),
+				Label:    labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
+				Type:     typePtr(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+				TypeName: protoString(".goone.options.v1.SsRpc"),
+				Extendee: protoString(".google.protobuf.MethodOptions"),
+			},
+		},
+	}
+
+	svcFD := &descriptorpb.FileDescriptorProto{
+		Name:       protoString("test/cmdname/v1/svc.proto"),
+		Package:    protoString("test.cmdname.v1"),
+		Dependency: []string{ssrpcOptFilePath},
+		Options:    &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/test/cmdname/v1;cmdnamev1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{Name: protoString("Req")},
+			{Name: protoString("Rsp")},
+		},
+		Service: []*descriptorpb.ServiceDescriptorProto{
+			{
+				Name: protoString("Svc"),
+				Method: []*descriptorpb.MethodDescriptorProto{
+					{
+						Name:       protoString("Do"),
+						InputType:  protoString(".test.cmdname.v1.Req"),
+						OutputType: protoString(".test.cmdname.v1.Rsp"),
+						Options:    &descriptorpb.MethodOptions{},
+					},
+				},
+			},
+		},
+	}
+
+	extType, extMsgDesc, _, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD})
+	if err != nil {
+		t.Fatalf("buildSsRpcExtension err: %v", err)
+	}
+	optMsg := dynamicpb.NewMessage(extMsgDesc)
+	optMsg.Set(extMsgDesc.Fields().ByName("cmd_name"), protoreflect.ValueOfString("CMD_MAIN_LOGIN_REQ"))
+	proto.SetExtension(svcFD.Service[0].Method[0].Options, extType, optMsg)
+
+	req := &pluginpb.CodeGeneratorRequest{
+		FileToGenerate: []string{svcFD.GetName()},
+		ProtoFile:      []*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD},
+		Parameter:      protoString("paths=import,module=github.com/Iori372552686/GoOne"),
+	}
+
+	resp, err := Generate(req)
+	if err != nil {
+		t.Fatalf("Generate err: %v", err)
+	}
+	out := resp.File[0].GetContent()
+	if !contains(out, "mgr.RegisterCmd(g1_protocol.CMD_MAIN_LOGIN_REQ, ssrpc.WrapUnary") {
+		t.Fatalf("expected generator to use WrapUnary and enum constant, got:\n%s", out)
+	}
+}
+
+func TestGenerate_SSRPCOption_UIDLockInject(t *testing.T) {
+	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
+
+	optionsFD := &descriptorpb.FileDescriptorProto{
+		Name:    protoString(ssrpcOptFilePath),
+		Package: protoString("goone.options.v1"),
+		Dependency: []string{
+			"google/protobuf/descriptor.proto",
+		},
+		Options: &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{
+				Name: protoString("SsRpc"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: protoString("cmd"), Number: protoInt32(1), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+					{Name: protoString("cmd_resp"), Number: protoInt32(2), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+					{Name: protoString("one_way"), Number: protoInt32(3), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_BOOL)},
+					{Name: protoString("uid_lock"), Number: protoInt32(4), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_BOOL)},
+					{Name: protoString("cmd_name"), Number: protoInt32(5), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_STRING)},
+				},
+			},
+		},
+		Extension: []*descriptorpb.FieldDescriptorProto{
+			{
+				Name:     protoString("ssrpc"),
+				Number:   protoInt32(61001),
+				Label:    labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
+				Type:     typePtr(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+				TypeName: protoString(".goone.options.v1.SsRpc"),
+				Extendee: protoString(".google.protobuf.MethodOptions"),
+			},
+		},
+	}
+
+	svcFD := &descriptorpb.FileDescriptorProto{
+		Name:       protoString("test/uidlock/v1/svc.proto"),
+		Package:    protoString("test.uidlock.v1"),
+		Dependency: []string{ssrpcOptFilePath},
+		Options:    &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/test/uidlock/v1;uidlockv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{Name: protoString("Req")},
+			{Name: protoString("Rsp")},
+		},
+		Service: []*descriptorpb.ServiceDescriptorProto{
+			{
+				Name: protoString("Svc"),
+				Method: []*descriptorpb.MethodDescriptorProto{
+					{
+						Name:       protoString("Do"),
+						InputType:  protoString(".test.uidlock.v1.Req"),
+						OutputType: protoString(".test.uidlock.v1.Rsp"),
+						Options:    &descriptorpb.MethodOptions{},
+					},
+				},
+			},
+		},
+	}
+
+	extType, extMsgDesc, _, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD})
+	if err != nil {
+		t.Fatalf("buildSsRpcExtension err: %v", err)
+	}
+	optMsg := dynamicpb.NewMessage(extMsgDesc)
+	optMsg.Set(extMsgDesc.Fields().ByName("cmd_name"), protoreflect.ValueOfString("CMD_MAIN_LOGIN_REQ"))
+	optMsg.Set(extMsgDesc.Fields().ByName("uid_lock"), protoreflect.ValueOfBool(true))
+	proto.SetExtension(svcFD.Service[0].Method[0].Options, extType, optMsg)
+
+	req := &pluginpb.CodeGeneratorRequest{
+		FileToGenerate: []string{svcFD.GetName()},
+		ProtoFile:      []*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD},
+		Parameter:      protoString("paths=import,module=github.com/Iori372552686/GoOne"),
+	}
+
+	resp, err := Generate(req)
+	if err != nil {
+		t.Fatalf("Generate err: %v", err)
+	}
+	out := resp.File[0].GetContent()
+	// Generator should express UIDLock via MethodDesc so runtime can inject middleware.
+	if !contains(out, "UIDLock: true") {
+		t.Fatalf("expected uid_lock to set UIDLock: true in MethodDesc, got:\n%s", out)
+	}
+}
+
+func TestGenerate_Imports_EmptyPBOnlyWhenUsed(t *testing.T) {
+	// Include descriptor.proto so our custom extension can extendee MethodOptions.
+	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
+	emptyFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_empty_proto)
+
+	optionsFD := &descriptorpb.FileDescriptorProto{
+		Name:    protoString(ssrpcOptFilePath),
+		Package: protoString("goone.options.v1"),
+		Dependency: []string{
+			"google/protobuf/descriptor.proto",
+		},
+		Options: &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{
+				Name: protoString("SsRpc"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: protoString("cmd"), Number: protoInt32(1), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+					{Name: protoString("cmd_resp"), Number: protoInt32(2), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+					{Name: protoString("one_way"), Number: protoInt32(3), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_BOOL)},
+					{Name: protoString("uid_lock"), Number: protoInt32(4), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_BOOL)},
+					{Name: protoString("cmd_name"), Number: protoInt32(5), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_STRING)},
+				},
+			},
+		},
+		Extension: []*descriptorpb.FieldDescriptorProto{
+			{
+				Name:     protoString("ssrpc"),
+				Number:   protoInt32(61001),
+				Label:    labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
+				Type:     typePtr(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+				TypeName: protoString(".goone.options.v1.SsRpc"),
+				Extendee: protoString(".google.protobuf.MethodOptions"),
+			},
+		},
+	}
+
+	// Case 1: output type is a local message -> should NOT import emptypb.
+	svcNoEmptyFD := &descriptorpb.FileDescriptorProto{
+		Name:       protoString("test/imports/v1/no_empty.proto"),
+		Package:    protoString("test.imports.v1"),
+		Dependency: []string{ssrpcOptFilePath},
+		Options:    &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/test/imports/v1;importsv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{Name: protoString("Req")},
+			{Name: protoString("Rsp")},
+		},
+		Service: []*descriptorpb.ServiceDescriptorProto{
+			{
+				Name: protoString("Svc"),
+				Method: []*descriptorpb.MethodDescriptorProto{
+					{
+						Name:       protoString("Do"),
+						InputType:  protoString(".test.imports.v1.Req"),
+						OutputType: protoString(".test.imports.v1.Rsp"),
+						Options:    &descriptorpb.MethodOptions{},
+					},
+				},
+			},
+		},
+	}
+
+	extType, extMsgDesc, _, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcNoEmptyFD})
+	if err != nil {
+		t.Fatalf("buildSsRpcExtension err: %v", err)
+	}
+	optMsg := dynamicpb.NewMessage(extMsgDesc)
+	optMsg.Set(extMsgDesc.Fields().ByName("cmd_name"), protoreflect.ValueOfString("CMD_MAIN_LOGIN_REQ"))
+	proto.SetExtension(svcNoEmptyFD.Service[0].Method[0].Options, extType, optMsg)
+
+	req1 := &pluginpb.CodeGeneratorRequest{
+		FileToGenerate: []string{svcNoEmptyFD.GetName()},
+		ProtoFile:      []*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcNoEmptyFD},
+		Parameter:      protoString("paths=import,module=github.com/Iori372552686/GoOne"),
+	}
+	resp1, err := Generate(req1)
+	if err != nil {
+		t.Fatalf("Generate err: %v", err)
+	}
+	out1 := resp1.File[0].GetContent()
+	if contains(out1, "emptypb \"google.golang.org/protobuf/types/known/emptypb\"") {
+		t.Fatalf("did not expect emptypb import when google.protobuf.Empty is not used:\n%s", out1)
+	}
+
+	// Case 2: output type is google.protobuf.Empty -> SHOULD import emptypb.
+	svcEmptyFD := &descriptorpb.FileDescriptorProto{
+		Name:    protoString("test/imports/v1/with_empty.proto"),
+		Package: protoString("test.imports.v1"),
+		Dependency: []string{
+			ssrpcOptFilePath,
+			"google/protobuf/empty.proto",
+		},
+		Options: &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/test/imports/v1;importsv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{Name: protoString("Req")},
+		},
+		Service: []*descriptorpb.ServiceDescriptorProto{
+			{
+				Name: protoString("Svc2"),
+				Method: []*descriptorpb.MethodDescriptorProto{
+					{
+						Name:       protoString("Do2"),
+						InputType:  protoString(".test.imports.v1.Req"),
+						OutputType: protoString(".google.protobuf.Empty"),
+						Options:    &descriptorpb.MethodOptions{},
+					},
+				},
+			},
+		},
+	}
+
+	extType2, extMsgDesc2, _, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, emptyFD, optionsFD, svcEmptyFD})
+	if err != nil {
+		t.Fatalf("buildSsRpcExtension err: %v", err)
+	}
+	optMsg2 := dynamicpb.NewMessage(extMsgDesc2)
+	optMsg2.Set(extMsgDesc2.Fields().ByName("cmd_name"), protoreflect.ValueOfString("CMD_MAIN_LOGIN_REQ"))
+	proto.SetExtension(svcEmptyFD.Service[0].Method[0].Options, extType2, optMsg2)
+
+	req2 := &pluginpb.CodeGeneratorRequest{
+		FileToGenerate: []string{svcEmptyFD.GetName()},
+		ProtoFile:      []*descriptorpb.FileDescriptorProto{descFD, emptyFD, optionsFD, svcEmptyFD},
+		Parameter:      protoString("paths=import,module=github.com/Iori372552686/GoOne"),
+	}
+	resp2, err := Generate(req2)
+	if err != nil {
+		t.Fatalf("Generate err: %v", err)
+	}
+	out2 := resp2.File[0].GetContent()
+	if !contains(out2, "emptypb \"google.golang.org/protobuf/types/known/emptypb\"") {
+		t.Fatalf("expected emptypb import when google.protobuf.Empty is used:\n%s", out2)
 	}
 }
 
