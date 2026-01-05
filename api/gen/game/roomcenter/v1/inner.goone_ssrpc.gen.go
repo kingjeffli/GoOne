@@ -6,7 +6,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
-	"github.com/golang/protobuf/proto"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -17,6 +16,41 @@ type RoomCenterInnerServiceSS interface {
 	QuickStart(ctx *ssrpc.Context, req *g1_protocol.QuickStartReq) (*g1_protocol.QuickStartRsp, error)
 	UpdateRoomInfo(ctx *ssrpc.Context, req *g1_protocol.RoomShowInfo) (*emptypb.Empty, error)
 	DelRoomInfo(ctx *ssrpc.Context, req *g1_protocol.RoomShowInfo) (*emptypb.Empty, error)
+}
+
+// UnimplementedRoomCenterInnerServiceSS can be embedded/used to have forward compatible implementations.
+type UnimplementedRoomCenterInnerServiceSS struct{}
+
+var _ RoomCenterInnerServiceSS = (*UnimplementedRoomCenterInnerServiceSS)(nil)
+
+func (*UnimplementedRoomCenterInnerServiceSS) Tick(ctx *ssrpc.Context, req *g1_protocol.InnerTickReq) (*emptypb.Empty, error) {
+	return nil, ssrpc.Unimplemented("RoomCenterInnerService.Tick")
+}
+
+func (*UnimplementedRoomCenterInnerServiceSS) RoomList(ctx *ssrpc.Context, req *g1_protocol.RoomListReq) (*g1_protocol.RoomListRsp, error) {
+	return nil, ssrpc.Unimplemented("RoomCenterInnerService.RoomList")
+}
+
+func (*UnimplementedRoomCenterInnerServiceSS) QuickStart(ctx *ssrpc.Context, req *g1_protocol.QuickStartReq) (*g1_protocol.QuickStartRsp, error) {
+	return nil, ssrpc.Unimplemented("RoomCenterInnerService.QuickStart")
+}
+
+func (*UnimplementedRoomCenterInnerServiceSS) UpdateRoomInfo(ctx *ssrpc.Context, req *g1_protocol.RoomShowInfo) (*emptypb.Empty, error) {
+	return nil, ssrpc.Unimplemented("RoomCenterInnerService.UpdateRoomInfo")
+}
+
+func (*UnimplementedRoomCenterInnerServiceSS) DelRoomInfo(ctx *ssrpc.Context, req *g1_protocol.RoomShowInfo) (*emptypb.Empty, error) {
+	return nil, ssrpc.Unimplemented("RoomCenterInnerService.DelRoomInfo")
+}
+
+// DefaultRoomCenterInnerServiceSSMiddlewares returns the standard middleware chain for RoomCenterInnerService.
+func DefaultRoomCenterInnerServiceSSMiddlewares(opts ssrpc.DefaultMWOptions) []ssrpc.Middleware {
+	return ssrpc.DefaultMiddlewares(opts)
+}
+
+// NewRoomCenterInnerServiceSServer constructs a RoomCenterInnerServiceSServer with a default middleware chain.
+func NewRoomCenterInnerServiceSServer(impl RoomCenterInnerServiceSS, opts ssrpc.DefaultMWOptions) RoomCenterInnerServiceSServer {
+	return RoomCenterInnerServiceSServer{Impl: impl, MW: ssrpc.DefaultMiddlewares(opts)}
 }
 
 type RoomCenterInnerServiceSServer struct {
@@ -34,11 +68,11 @@ func RegisterRoomCenterInnerServiceToTransactionMgr(mgr transaction.ITransaction
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD(0xB1008),
 			OneWay: true,
-			Name: "Tick",
+			Name: "roomcentersvr tick (one-way)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.InnerTickReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.InnerTickReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.Tick(ctx, in.(*g1_protocol.InnerTickReq))
 		},
 	))
@@ -46,11 +80,11 @@ func RegisterRoomCenterInnerServiceToTransactionMgr(mgr transaction.ITransaction
 	mgr.RegisterCmd(g1_protocol.CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ,
-			Name: "RoomList",
+			Name: "room list",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.RoomListReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.RoomListReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.RoomList(ctx, in.(*g1_protocol.RoomListReq))
 		},
 	))
@@ -58,11 +92,11 @@ func RegisterRoomCenterInnerServiceToTransactionMgr(mgr transaction.ITransaction
 	mgr.RegisterCmd(g1_protocol.CMD_ROOM_CENTER_INNER_QUICK_START_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_ROOM_CENTER_INNER_QUICK_START_REQ,
-			Name: "QuickStart",
+			Name: "quick start",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.QuickStartReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.QuickStartReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.QuickStart(ctx, in.(*g1_protocol.QuickStartReq))
 		},
 	))
@@ -71,11 +105,11 @@ func RegisterRoomCenterInnerServiceToTransactionMgr(mgr transaction.ITransaction
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_ROOM_CENTER_INNER_UPDATE_ROOM_INFO_REQ,
 			OneWay: true,
-			Name: "UpdateRoomInfo",
+			Name: "update room info (one-way)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.RoomShowInfo) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.RoomShowInfo) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.UpdateRoomInfo(ctx, in.(*g1_protocol.RoomShowInfo))
 		},
 	))
@@ -84,11 +118,11 @@ func RegisterRoomCenterInnerServiceToTransactionMgr(mgr transaction.ITransaction
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_ROOM_CENTER_INNER_DEL_ROOM_INFO_REQ,
 			OneWay: true,
-			Name: "DelRoomInfo",
+			Name: "delete room info (one-way)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.RoomShowInfo) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.RoomShowInfo) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.DelRoomInfo(ctx, in.(*g1_protocol.RoomShowInfo))
 		},
 	))

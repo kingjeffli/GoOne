@@ -14,6 +14,9 @@ type MethodDesc struct {
 	CmdResp g1_protocol.CMD // 0 means default Cmd+1
 	OneWay  bool
 	UIDLock bool // reserved for Phase A+
+	Auth    bool
+	Sign    bool
+	TraceTags map[string]string
 	Name    string
 }
 
@@ -25,7 +28,10 @@ type MethodDesc struct {
 // - executes middleware chain
 // - maps error via ToErrorCode
 // - auto-replies unless OneWay
-func WrapUnary(desc MethodDesc, mws []Middleware, newReq func() proto.Message, invoke func(ctx *Context, req proto.Message) (proto.Message, error)) cmd_handler.CmdHandlerFunc {
+//
+// NOTE: newReq/invoke use `any` so generated code does NOT need to import proto.
+// The runtime will type-check/cast to proto.Message as needed.
+func WrapUnary(desc MethodDesc, mws []Middleware, newReq func() any, invoke func(ctx *Context, req any) (any, error)) cmd_handler.CmdHandlerFunc {
 	// IMPORTANT: never mutate caller-provided middleware slice in the returned closure.
 	// Otherwise UIDLock injection may accumulate across requests if slice capacity allows.
 	if desc.UIDLock {
@@ -37,14 +43,42 @@ func WrapUnary(desc MethodDesc, mws []Middleware, newReq func() proto.Message, i
 			return g1_protocol.ErrorCode_ERR_INTERNAL
 		}
 		ctx := WrapIContext(c, desc.Cmd)
+		ctx.Method = desc.Name
+		ctx.AuthRequired = desc.Auth
+		ctx.SignRequired = desc.Sign
+		if desc.TraceTags != nil {
+			// Copy to avoid sharing/mutation across requests.
+			m := make(map[string]string, len(desc.TraceTags))
+			for k, v := range desc.TraceTags {
+				m[k] = v
+			}
+			ctx.TraceTags = m
+		} else {
+			ctx.TraceTags = nil
+		}
 
-		req := newReq()
+		reqAny := newReq()
+		req, ok := reqAny.(proto.Message)
+		if !ok || req == nil {
+			ctx.Warningf("ssrpc invalid req type: %T", reqAny)
+			return g1_protocol.ErrorCode_ERR_INTERNAL
+		}
 		if err := ctx.ParseMsg(data, req); err != nil {
 			ctx.Warningf("ssrpc parse failed err=%v", err)
 			return g1_protocol.ErrorCode_ERR_MARSHAL
 		}
 
-		h := Handler(invoke)
+		h := Handler(func(c2 *Context, in proto.Message) (proto.Message, error) {
+			outAny, err := invoke(c2, in)
+			if outAny == nil {
+				return nil, err
+			}
+			out, ok := outAny.(proto.Message)
+			if !ok {
+				return nil, Wrap(g1_protocol.ErrorCode_ERR_INTERNAL, "ssrpc invalid rsp type", nil)
+			}
+			return out, err
+		})
 		if len(mws) > 0 {
 			h = Chain(mws...)(h)
 		}

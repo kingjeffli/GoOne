@@ -3,6 +3,7 @@ package ssrpc
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 )
@@ -40,6 +41,16 @@ func E(code g1_protocol.ErrorCode, msg string) *Error {
 
 func Wrap(code g1_protocol.ErrorCode, msg string, err error) *Error {
 	return &Error{Code: code, Msg: msg, Err: err}
+}
+
+// Unimplemented is a helper for generated scaffold implementations.
+// It maps to ERR_INTERNAL by default (you can adjust mapping later if needed).
+func Unimplemented(method string) *Error {
+	method = strings.TrimSpace(method)
+	if method == "" {
+		return Wrap(g1_protocol.ErrorCode_ERR_INTERNAL, "unimplemented", nil)
+	}
+	return Wrap(g1_protocol.ErrorCode_ERR_INTERNAL, "unimplemented: "+method, nil)
 }
 
 func ToErrorCode(err error) g1_protocol.ErrorCode {

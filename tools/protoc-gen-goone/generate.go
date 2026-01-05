@@ -60,6 +60,27 @@ func Generate(req *pluginpb.CodeGeneratorRequest) (*pluginpb.CodeGeneratorRespon
 			continue
 		}
 
+		// Only generate if at least one method in this file has ssrpc option.
+		has := false
+		for _, s := range fd.GetService() {
+			for _, m := range s.GetMethod() {
+				_, ok, err := readSsRpcOption(m.GetOptions(), extType, extMsgDesc, extNum)
+				if err != nil {
+					return nil, err
+				}
+				if ok {
+					has = true
+					break
+				}
+			}
+			if has {
+				break
+			}
+		}
+		if !has {
+			continue
+		}
+
 		outName, pkgName, err := outputFileNameAndPkg(fd, name, params)
 		if err != nil {
 			return nil, err
@@ -136,7 +157,6 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 	ib := newImportBuilder()
 	// reserve aliases used in file
 	ib.usedAliases["g1_protocol"] = true
-	ib.usedAliases["proto"] = true
 	ib.usedAliases["cmd_handler"] = true
 	ib.usedAliases["ssrpc"] = true
 	ib.usedAliases["transaction"] = true
@@ -146,6 +166,28 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 
 	// generate per service
 	localPkg := fd.GetPackage()
+
+	type methodInfo struct {
+		name  string
+		inGo  string
+		outGo string
+	}
+
+	type httpBind struct {
+		method     string
+		inGo       string
+		path       string
+		httpMethod string
+
+		cmdExpr string
+
+		oneWay  bool
+		uidLock bool
+		auth    bool
+		sign    bool
+		tags    []string
+		name    string
+	}
 
 	typeRef := func(fullType string) (string, string, error) {
 		// If using source_relative, allow local package type names even without go_package.
@@ -197,6 +239,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			}
 		}
 
+		methods := make([]methodInfo, 0, len(annotated))
 		for _, m := range annotated {
 			method := m.GetName()
 			if method == "" {
@@ -216,8 +259,29 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			if imp2 != "" {
 				usedMsgImports[imp2] = struct{}{}
 			}
+			methods = append(methods, methodInfo{name: method, inGo: inGo, outGo: outGo})
 			b.WriteString(fmt.Sprintf("\t%s(ctx *ssrpc.Context, req *%s) (*%s, error)\n", method, inGo, outGo))
 		}
+		b.WriteString("}\n\n")
+
+		// Optional scaffold: provide an Unimplemented<Service>SS implementation that compiles.
+		b.WriteString(fmt.Sprintf("// Unimplemented%sSS can be embedded/used to have forward compatible implementations.\n", svc))
+		b.WriteString(fmt.Sprintf("type Unimplemented%sSS struct{}\n\n", svc))
+		b.WriteString(fmt.Sprintf("var _ %sSS = (*Unimplemented%sSS)(nil)\n\n", svc, svc))
+		for _, mi := range methods {
+			b.WriteString(fmt.Sprintf("func (*Unimplemented%sSS) %s(ctx *ssrpc.Context, req *%s) (*%s, error) {\n", svc, mi.name, mi.inGo, mi.outGo))
+			b.WriteString(fmt.Sprintf("\treturn nil, ssrpc.Unimplemented(%q)\n", svc+"."+mi.name))
+			b.WriteString("}\n\n")
+		}
+
+		// Optional layered runtime helpers: default middleware builder + server constructor.
+		b.WriteString(fmt.Sprintf("// Default%sSSMiddlewares returns the standard middleware chain for %s.\n", svc, svc))
+		b.WriteString(fmt.Sprintf("func Default%sSSMiddlewares(opts ssrpc.DefaultMWOptions) []ssrpc.Middleware {\n", svc))
+		b.WriteString("\treturn ssrpc.DefaultMiddlewares(opts)\n")
+		b.WriteString("}\n\n")
+		b.WriteString(fmt.Sprintf("// New%sSServer constructs a %sSServer with a default middleware chain.\n", svc, svc))
+		b.WriteString(fmt.Sprintf("func New%sSServer(impl %sSS, opts ssrpc.DefaultMWOptions) %sSServer {\n", svc, svc, svc))
+		b.WriteString(fmt.Sprintf("\treturn %sSServer{Impl: impl, MW: ssrpc.DefaultMiddlewares(opts)}\n", svc))
 		b.WriteString("}\n\n")
 
 		b.WriteString(fmt.Sprintf("type %sSServer struct {\n", svc))
@@ -234,19 +298,22 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			b.WriteString("\t}\n\n")
 		}
 
+		httpBinds := make([]httpBind, 0)
 		for _, m := range annotated {
 			ext, _, err := readSsRpcOption(m.GetOptions(), extType, extMsgDesc, extNum)
 			if err != nil {
 				return "", err
 			}
-			if ext.cmd == 0 && strings.TrimSpace(ext.cmdName) == "" {
-				return "", fmt.Errorf("ssrpc option requires cmd != 0 or cmd_name != \"\" (service=%s method=%s)", svc, m.GetName())
+			if ext.cmd == 0 && ext.cmdEnum == 0 && strings.TrimSpace(ext.cmdName) == "" {
+				return "", fmt.Errorf("ssrpc option requires cmd != 0 or cmd_enum != 0 or cmd_name != \"\" (service=%s method=%s)", svc, m.GetName())
 			}
 
 			// cmd expression (prefer explicit numeric cmd; otherwise use cmd_name -> g1_protocol.<NAME>)
 			cmdExpr := ""
 			if ext.cmd != 0 {
 				cmdExpr = fmt.Sprintf("g1_protocol.CMD(0x%X)", ext.cmd)
+			} else if ext.cmdEnum != 0 {
+				cmdExpr = fmt.Sprintf("g1_protocol.CMD(0x%X)", uint32(ext.cmdEnum))
 			} else {
 				cmdExpr = "g1_protocol." + strings.TrimSpace(ext.cmdName)
 			}
@@ -277,6 +344,32 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			}
 
 			method := m.GetName()
+
+			// Phase 2: collect gin HTTP bindings.
+			if p := strings.TrimSpace(ext.httpPath); p != "" {
+				hm := strings.ToUpper(strings.TrimSpace(ext.httpMethod))
+				if hm == "" {
+					hm = "POST"
+				}
+				name := ext.comment
+				if name == "" {
+					name = svc + "." + method
+				}
+				httpBinds = append(httpBinds, httpBind{
+					method:     method,
+					inGo:       inGo,
+					path:       p,
+					httpMethod: hm,
+					cmdExpr:    cmdExpr,
+					oneWay:     oneWay,
+					uidLock:    ext.uidLock,
+					auth:       ext.auth,
+					sign:       ext.sign,
+					tags:       ext.tags,
+					name:       name,
+				})
+			}
+
 			b.WriteString(fmt.Sprintf("\tmgr.RegisterCmd(%s, ssrpc.WrapUnary(\n", cmdExpr))
 			b.WriteString("\t\tssrpc.MethodDesc{\n")
 			b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", cmdExpr))
@@ -290,22 +383,87 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			if ext.uidLock {
 				b.WriteString("\t\t\tUIDLock: true,\n")
 			}
+			if ext.auth {
+				b.WriteString("\t\t\tAuth: true,\n")
+			}
+			if ext.sign {
+				b.WriteString("\t\t\tSign: true,\n")
+			}
+			if tagMap := parseTraceTags(ext.tags); len(tagMap) > 0 {
+				b.WriteString("\t\t\tTraceTags: map[string]string{")
+				keys := make([]string, 0, len(tagMap))
+				for k := range tagMap {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				for _, k := range keys {
+					b.WriteString(fmt.Sprintf("%q: %q, ", k, tagMap[k]))
+				}
+				b.WriteString("},\n")
+			}
+			// Prefer proto option comment; otherwise use "Service.Method".
 			if ext.comment != "" {
-				// comment is for docs only; still helpful in generated code.
-				b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", method))
+				b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", ext.comment))
 			} else {
-				b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", method))
+				b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", svc+"."+method))
 			}
 			b.WriteString("\t\t},\n")
 			b.WriteString("\t\tsrv.MW,\n")
-			b.WriteString(fmt.Sprintf("\t\tfunc() proto.Message { return new(%s) },\n", inGo))
-			b.WriteString("\t\tfunc(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {\n")
+			b.WriteString(fmt.Sprintf("\t\tfunc() any { return new(%s) },\n", inGo))
+			b.WriteString("\t\tfunc(ctx *ssrpc.Context, in any) (any, error) {\n")
 			b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s))\n", method, inGo))
 			b.WriteString("\t\t},\n")
 			b.WriteString("\t))\n\n")
 		}
 
 		if len(annotated) > 0 {
+			b.WriteString("}\n\n")
+		}
+
+		// Optional Phase-2 output: gin route registration for methods with http_path.
+		if len(httpBinds) > 0 {
+			b.WriteString(fmt.Sprintf("// Register%sToGin binds HTTP routes -> service methods (Gin).\n", svc))
+			b.WriteString(fmt.Sprintf("func Register%sToGin(r gin.IRoutes, srv %sSServer) {\n", svc, svc))
+			b.WriteString("\tif r == nil || srv.Impl == nil {\n")
+			b.WriteString("\t\treturn\n")
+			b.WriteString("\t}\n\n")
+			for _, hb := range httpBinds {
+				b.WriteString(fmt.Sprintf("\tr.Handle(%q, %q, ssrpc.WrapHTTPGin(\n", hb.httpMethod, hb.path))
+				b.WriteString("\t\tssrpc.MethodDesc{\n")
+				b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", hb.cmdExpr))
+				if hb.oneWay {
+					b.WriteString("\t\t\tOneWay: true,\n")
+				}
+				if hb.uidLock {
+					b.WriteString("\t\t\tUIDLock: true,\n")
+				}
+				if hb.auth {
+					b.WriteString("\t\t\tAuth: true,\n")
+				}
+				if hb.sign {
+					b.WriteString("\t\t\tSign: true,\n")
+				}
+				if tagMap := parseTraceTags(hb.tags); len(tagMap) > 0 {
+					b.WriteString("\t\t\tTraceTags: map[string]string{")
+					keys := make([]string, 0, len(tagMap))
+					for k := range tagMap {
+						keys = append(keys, k)
+					}
+					sort.Strings(keys)
+					for _, k := range keys {
+						b.WriteString(fmt.Sprintf("%q: %q, ", k, tagMap[k]))
+					}
+					b.WriteString("},\n")
+				}
+				b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", hb.name))
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t\tsrv.MW,\n")
+				b.WriteString(fmt.Sprintf("\t\tfunc() any { return new(%s) },\n", hb.inGo))
+				b.WriteString("\t\tfunc(ctx *ssrpc.Context, in any) (any, error) {\n")
+				b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s))\n", hb.method, hb.inGo))
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t))\n\n")
+			}
 			b.WriteString("}\n\n")
 		}
 	}
@@ -318,6 +476,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 	// construct final import list
 	// NOTE: base imports are only needed if we generated any register wrapper.
 	hasAnyWrapper := strings.Contains(content, "mgr.RegisterCmd(")
+	hasGinWrapper := strings.Contains(content, "gin.IRoutes") && strings.Contains(content, "WrapHTTPGin(")
 	imports := []importSpec{
 		{Path: "github.com/Iori372552686/GoOne/lib/service/ssrpc", Alias: ""},
 	}
@@ -328,11 +487,13 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 		imports = append(imports,
 			importSpec{Path: "github.com/Iori372552686/GoOne/lib/service/transaction", Alias: ""},
 			importSpec{Path: gameProtocolPath, Alias: "g1_protocol"},
-			importSpec{Path: "github.com/golang/protobuf/proto", Alias: ""},
 		)
 		basePaths["github.com/Iori372552686/GoOne/lib/service/transaction"] = struct{}{}
 		basePaths[gameProtocolPath] = struct{}{}
-		basePaths["github.com/golang/protobuf/proto"] = struct{}{}
+	}
+	if hasGinWrapper {
+		imports = append(imports, importSpec{Path: "github.com/gin-gonic/gin", Alias: "gin"})
+		basePaths["github.com/gin-gonic/gin"] = struct{}{}
 	}
 	// deterministic import order
 	extra := make([]string, 0, len(usedMsgImports))
@@ -377,7 +538,14 @@ type ssrpcOpt struct {
 	cmdResp uint32
 	oneWay  bool
 	uidLock bool
+	cmdEnum int32
 	cmdName string
+	auth    bool
+	sign    bool
+	tags    []string
+	httpPath   string
+	httpMethod string
+	ws      bool
 	comment string
 }
 
@@ -466,10 +634,24 @@ func parseSsRpcOpt(m protoreflect.Message, extMsgDesc protoreflect.MessageDescri
 	cmdResp := getUint32(m, extMsgDesc.Fields().ByName("cmd_resp"))
 	oneWay := getBool(m, extMsgDesc.Fields().ByName("one_way"))
 	uidLock := getBool(m, extMsgDesc.Fields().ByName("uid_lock"))
+	cmdEnum := getInt32(m, extMsgDesc.Fields().ByName("cmd_enum"))
 	cmdName := getString(m, extMsgDesc.Fields().ByName("cmd_name"))
+	auth := getBool(m, extMsgDesc.Fields().ByName("auth"))
+	sign := getBool(m, extMsgDesc.Fields().ByName("sign"))
+	tags := getStringList(m, extMsgDesc.Fields().ByName("trace_tags"))
+	httpPath := getString(m, extMsgDesc.Fields().ByName("http_path"))
+	httpMethod := getString(m, extMsgDesc.Fields().ByName("http_method"))
+	ws := getBool(m, extMsgDesc.Fields().ByName("ws"))
 	comment := getString(m, extMsgDesc.Fields().ByName("comment"))
 
-	return ssrpcOpt{cmd: cmd, cmdResp: cmdResp, oneWay: oneWay, uidLock: uidLock, cmdName: cmdName, comment: comment}
+	return ssrpcOpt{
+		cmd: cmd, cmdResp: cmdResp, oneWay: oneWay, uidLock: uidLock,
+		cmdEnum: cmdEnum, cmdName: cmdName,
+		auth: auth, sign: sign, tags: tags,
+		httpPath: httpPath, httpMethod: httpMethod,
+		ws: ws,
+		comment: comment,
+	}
 }
 
 // findLenDelimitedField finds the first length-delimited (bytes) field for the given field number
@@ -532,6 +714,24 @@ func getUint32(m protoreflect.Message, fd protoreflect.FieldDescriptor) uint32 {
 	return uint32(m.Get(fd).Uint())
 }
 
+func getInt32(m protoreflect.Message, fd protoreflect.FieldDescriptor) int32 {
+	if fd == nil {
+		return 0
+	}
+	if !m.Has(fd) {
+		return 0
+	}
+	v := m.Get(fd)
+	switch fd.Kind() {
+	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind:
+		return int32(v.Int())
+	case protoreflect.EnumKind:
+		return int32(v.Enum())
+	default:
+		return 0
+	}
+}
+
 func getBool(m protoreflect.Message, fd protoreflect.FieldDescriptor) bool {
 	if fd == nil {
 		return false
@@ -550,6 +750,49 @@ func getString(m protoreflect.Message, fd protoreflect.FieldDescriptor) string {
 		return ""
 	}
 	return m.Get(fd).String()
+}
+
+func getStringList(m protoreflect.Message, fd protoreflect.FieldDescriptor) []string {
+	if fd == nil {
+		return nil
+	}
+	if fd.Cardinality() != protoreflect.Repeated || fd.Kind() != protoreflect.StringKind {
+		return nil
+	}
+	if !m.Has(fd) {
+		return nil
+	}
+	l := m.Get(fd).List()
+	if l.Len() == 0 {
+		return nil
+	}
+	out := make([]string, 0, l.Len())
+	for i := 0; i < l.Len(); i++ {
+		out = append(out, l.Get(i).String())
+	}
+	return out
+}
+
+// parseTraceTags parses "k=v" pairs, keeping the last value for duplicate keys.
+func parseTraceTags(tags []string) map[string]string {
+	out := map[string]string{}
+	for _, t := range tags {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		parts := strings.SplitN(t, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		k := strings.TrimSpace(parts[0])
+		v := strings.TrimSpace(parts[1])
+		if k == "" {
+			continue
+		}
+		out[k] = v
+	}
+	return out
 }
 
 func goTypeNameFromProtoType(filePkg string, fullType string) (string, error) {

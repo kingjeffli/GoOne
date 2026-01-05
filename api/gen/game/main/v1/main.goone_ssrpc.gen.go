@@ -6,12 +6,30 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
-	"github.com/golang/protobuf/proto"
 )
 
 // MainServiceSS is the SSPacket RPC interface for MainService.
 type MainServiceSS interface {
 	Login(ctx *ssrpc.Context, req *LoginReq) (*LoginRsp, error)
+}
+
+// UnimplementedMainServiceSS can be embedded/used to have forward compatible implementations.
+type UnimplementedMainServiceSS struct{}
+
+var _ MainServiceSS = (*UnimplementedMainServiceSS)(nil)
+
+func (*UnimplementedMainServiceSS) Login(ctx *ssrpc.Context, req *LoginReq) (*LoginRsp, error) {
+	return nil, ssrpc.Unimplemented("MainService.Login")
+}
+
+// DefaultMainServiceSSMiddlewares returns the standard middleware chain for MainService.
+func DefaultMainServiceSSMiddlewares(opts ssrpc.DefaultMWOptions) []ssrpc.Middleware {
+	return ssrpc.DefaultMiddlewares(opts)
+}
+
+// NewMainServiceSServer constructs a MainServiceSServer with a default middleware chain.
+func NewMainServiceSServer(impl MainServiceSS, opts ssrpc.DefaultMWOptions) MainServiceSServer {
+	return MainServiceSServer{Impl: impl, MW: ssrpc.DefaultMiddlewares(opts)}
 }
 
 type MainServiceSServer struct {
@@ -28,11 +46,11 @@ func RegisterMainServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv Ma
 	mgr.RegisterCmd(g1_protocol.CMD(0x1020001), ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD(0x1020001),
-			Name: "Login",
+			Name: "user login",
 		},
 		srv.MW,
-		func() proto.Message { return new(LoginReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(LoginReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.Login(ctx, in.(*LoginReq))
 		},
 	))

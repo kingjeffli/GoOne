@@ -26,6 +26,12 @@ BIN_DIR="${BIN_DIR:-.bin}"
 
 mkdir -p "$BIN_DIR"
 
+CMD_PROTO="$PROTO_ROOT/goone/cmd/v1/cmd.proto"
+if [[ "${GEN_CMD_PROTO:-0}" == "1" || ! -f "$CMD_PROTO" ]]; then
+  echo "[proto_goone] ensure cmd.proto -> $CMD_PROTO"
+  ./scripts/gencmdproto.sh
+fi
+
 echo "[proto_goone] build plugins -> $BIN_DIR"
 
 # In WSL, ensure we build Linux binaries (Windows-built plugins won't execute).

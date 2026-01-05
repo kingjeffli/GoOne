@@ -22,8 +22,6 @@ service RoomCenterInnerService {
     };
   }
 
-  // TODO(cmd): Fill correct cmd value from g1_protocol.CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ
-  // via: go run ./tools/cmd/dumpg1cmd -exact CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ
   rpc RoomList(g1.protocol.RoomListReq) returns (g1.protocol.RoomListRsp) {
     option (goone.options.v1.ssrpc) = {
       cmd_name: "CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ"
@@ -31,8 +29,6 @@ service RoomCenterInnerService {
     };
   }
 
-  // TODO(cmd): Fill correct cmd value from g1_protocol.CMD_ROOM_CENTER_INNER_QUICK_START_REQ
-  // via: go run ./tools/cmd/dumpg1cmd -exact CMD_ROOM_CENTER_INNER_QUICK_START_REQ
   rpc QuickStart(g1.protocol.QuickStartReq) returns (g1.protocol.QuickStartRsp) {
     option (goone.options.v1.ssrpc) = {
       cmd_name: "CMD_ROOM_CENTER_INNER_QUICK_START_REQ"

@@ -7,7 +7,10 @@ import (
 
 type Transport string
 
-const TransportSS Transport = "sspack"
+const (
+	TransportSS   Transport = "sspack"
+	TransportHTTP Transport = "http"
+)
 
 // Context is the unified request context for GoOne RPC handlers (Phase A).
 //
@@ -19,6 +22,19 @@ type Context struct {
 	Transport Transport
 	Cmd       g1_protocol.CMD
 	MCP       MCP // optional capability provider (Phase A+)
+
+	// Method is the logical RPC method name (typically "Service.Method" or comment).
+	Method string
+
+	// Flags propagated from ssrpc.MethodDesc (set by WrapUnary).
+	AuthRequired bool
+	SignRequired bool
+
+	// TraceTags are optional extra tags for tracing/metrics.
+	TraceTags map[string]string
+
+	// UIDLocker can be attached via middleware; UIDLock() will prefer it when present.
+	UIDLocker UIDLocker
 }
 
 func WrapIContext(ic cmd_handler.IContext, cmd g1_protocol.CMD) *Context {

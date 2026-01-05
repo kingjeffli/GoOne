@@ -29,6 +29,11 @@ func main() {
 	absOut := filepath.Join(repoRoot, *outDir)
 	absProtoRoot := filepath.Join(repoRoot, *protoRoot)
 
+	// Ensure cmd.proto exists (new checkouts shouldn't fail due to missing generated IDL).
+	if err := ensureCmdProto(repoRoot, absProtoRoot); err != nil {
+		die(err)
+	}
+
 	protocPath, err := findProtoc(repoRoot, *protoc)
 	if err != nil {
 		die(err)
@@ -100,6 +105,28 @@ func main() {
 func die(err error) {
 	_, _ = fmt.Fprintln(os.Stderr, "[genproto] error:", err)
 	os.Exit(1)
+}
+
+func ensureCmdProto(repoRoot, absProtoRoot string) error {
+	cmdProto := filepath.Join(absProtoRoot, "goone", "cmd", "v1", "cmd.proto")
+	_, statErr := os.Stat(cmdProto)
+	if statErr == nil && os.Getenv("GEN_CMD_PROTO") != "1" {
+		return nil
+	}
+	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) && os.Getenv("GEN_CMD_PROTO") != "1" {
+		return fmt.Errorf("stat cmd.proto: %w", statErr)
+	}
+
+	// Generate via go run so this works cross-platform (no shell script dependency).
+	fmt.Printf("[genproto] ensure cmd.proto -> %s\n", cmdProto)
+	cmd := exec.Command("go", "run", "./tools/cmd/gencmdproto")
+	cmd.Dir = repoRoot
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("generate cmd.proto (gencmdproto): %w", err)
+	}
+	return nil
 }
 
 func exeName(name string) string {

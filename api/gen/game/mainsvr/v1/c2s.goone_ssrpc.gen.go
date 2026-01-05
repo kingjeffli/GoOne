@@ -6,7 +6,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
-	"github.com/golang/protobuf/proto"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -59,6 +58,201 @@ type MainC2SServiceSS interface {
 	Preoperation(ctx *ssrpc.Context, req *g1_protocol.PreOperationReq) (*g1_protocol.PreOperationRsp, error)
 }
 
+// UnimplementedMainC2SServiceSS can be embedded/used to have forward compatible implementations.
+type UnimplementedMainC2SServiceSS struct{}
+
+var _ MainC2SServiceSS = (*UnimplementedMainC2SServiceSS)(nil)
+
+func (*UnimplementedMainC2SServiceSS) Login(ctx *ssrpc.Context, req *g1_protocol.LoginReq) (*g1_protocol.LoginRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.Login")
+}
+
+func (*UnimplementedMainC2SServiceSS) Logout(ctx *ssrpc.Context, req *g1_protocol.LogoutReq) (*g1_protocol.LogoutRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.Logout")
+}
+
+func (*UnimplementedMainC2SServiceSS) HeartBeat(ctx *ssrpc.Context, req *g1_protocol.HeartBeatReq) (*g1_protocol.HeartBeatRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.HeartBeat")
+}
+
+func (*UnimplementedMainC2SServiceSS) ChangeName(ctx *ssrpc.Context, req *g1_protocol.ChangeNameReq) (*g1_protocol.ChangeNameRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.ChangeName")
+}
+
+func (*UnimplementedMainC2SServiceSS) ChangeIcon(ctx *ssrpc.Context, req *g1_protocol.ChangeIconReq) (*g1_protocol.ChangeIconRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.ChangeIcon")
+}
+
+func (*UnimplementedMainC2SServiceSS) GmGetRole(ctx *ssrpc.Context, req *g1_protocol.GMGetRoleReq) (*g1_protocol.GMGetRoleRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.GmGetRole")
+}
+
+func (*UnimplementedMainC2SServiceSS) GmSetRole(ctx *ssrpc.Context, req *g1_protocol.GMSetRoleReq) (*g1_protocol.GMSetRoleRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.GmSetRole")
+}
+
+func (*UnimplementedMainC2SServiceSS) GmAddItem(ctx *ssrpc.Context, req *g1_protocol.GMAddItemReq) (*g1_protocol.GMAddItemRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.GmAddItem")
+}
+
+func (*UnimplementedMainC2SServiceSS) MallBuyPackage(ctx *ssrpc.Context, req *g1_protocol.MallBuyPackageReq) (*g1_protocol.MallBuyPackageRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.MallBuyPackage")
+}
+
+func (*UnimplementedMainC2SServiceSS) CreateRoom(ctx *ssrpc.Context, req *g1_protocol.CreateRoomReq) (*g1_protocol.CreateRoomRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.CreateRoom")
+}
+
+func (*UnimplementedMainC2SServiceSS) JoinRoom(ctx *ssrpc.Context, req *g1_protocol.JoinRoomReq) (*g1_protocol.JoinRoomRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.JoinRoom")
+}
+
+func (*UnimplementedMainC2SServiceSS) QuickStart(ctx *ssrpc.Context, req *g1_protocol.QuickStartReq) (*g1_protocol.QuickStartRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.QuickStart")
+}
+
+func (*UnimplementedMainC2SServiceSS) GetRoomList(ctx *ssrpc.Context, req *g1_protocol.RoomListReq) (*g1_protocol.RoomListRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.GetRoomList")
+}
+
+func (*UnimplementedMainC2SServiceSS) DoBet(ctx *ssrpc.Context, req *g1_protocol.DoBetReq) (*g1_protocol.DoBetRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.DoBet")
+}
+
+func (*UnimplementedMainC2SServiceSS) Fold(ctx *ssrpc.Context, req *g1_protocol.FoldReq) (*g1_protocol.FoldRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.Fold")
+}
+
+func (*UnimplementedMainC2SServiceSS) MainBuyInDetail(ctx *ssrpc.Context, req *g1_protocol.MainBuyInDetailReq) (*g1_protocol.MainBuyInDetailRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.MainBuyInDetail")
+}
+
+func (*UnimplementedMainC2SServiceSS) GetLookers(ctx *ssrpc.Context, req *g1_protocol.GetLookersReq) (*g1_protocol.GetLookersRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.GetLookers")
+}
+
+func (*UnimplementedMainC2SServiceSS) SitDown(ctx *ssrpc.Context, req *g1_protocol.SitDownReq) (*g1_protocol.SitDownRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.SitDown")
+}
+
+func (*UnimplementedMainC2SServiceSS) StandUp(ctx *ssrpc.Context, req *g1_protocol.StandUpReq) (*g1_protocol.StandUpRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.StandUp")
+}
+
+func (*UnimplementedMainC2SServiceSS) LeaveGame(ctx *ssrpc.Context, req *g1_protocol.LeaveGameReq) (*g1_protocol.LeaveGameRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.LeaveGame")
+}
+
+func (*UnimplementedMainC2SServiceSS) BuyIn(ctx *ssrpc.Context, req *g1_protocol.BuyInReq) (*emptypb.Empty, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.BuyIn")
+}
+
+func (*UnimplementedMainC2SServiceSS) MilitarySuccess(ctx *ssrpc.Context, req *g1_protocol.MilitarySuccessReq) (*g1_protocol.MilitarySuccessRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.MilitarySuccess")
+}
+
+func (*UnimplementedMainC2SServiceSS) GetGameLog(ctx *ssrpc.Context, req *g1_protocol.GetGameLogReq) (*g1_protocol.GetGameLogRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.GetGameLog")
+}
+
+func (*UnimplementedMainC2SServiceSS) GetTimeLeft(ctx *ssrpc.Context, req *g1_protocol.GetTimeLeftReq) (*g1_protocol.GetTimeLeftRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.GetTimeLeft")
+}
+
+func (*UnimplementedMainC2SServiceSS) VoiceCall(ctx *ssrpc.Context, req *g1_protocol.VoiceCallReq) (*g1_protocol.VoiceCallRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.VoiceCall")
+}
+
+func (*UnimplementedMainC2SServiceSS) BuyThinkTime(ctx *ssrpc.Context, req *g1_protocol.BuyThinkTimeReq) (*g1_protocol.BuyThinkTimeRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.BuyThinkTime")
+}
+
+func (*UnimplementedMainC2SServiceSS) AutoBuyin(ctx *ssrpc.Context, req *g1_protocol.AutoBuyinReq) (*g1_protocol.AutoBuyinRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.AutoBuyin")
+}
+
+func (*UnimplementedMainC2SServiceSS) Interaction(ctx *ssrpc.Context, req *g1_protocol.InteractionReq) (*g1_protocol.InteractionRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.Interaction")
+}
+
+func (*UnimplementedMainC2SServiceSS) Emoticon(ctx *ssrpc.Context, req *g1_protocol.EmoticonReq) (*g1_protocol.EmoticonRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.Emoticon")
+}
+
+func (*UnimplementedMainC2SServiceSS) GetMilitaryDiagram(ctx *ssrpc.Context, req *g1_protocol.GetMilitaryDiagramReq) (*g1_protocol.GetMilitaryDiagramRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.GetMilitaryDiagram")
+}
+
+func (*UnimplementedMainC2SServiceSS) ShowCard(ctx *ssrpc.Context, req *g1_protocol.ShowCardReq) (*g1_protocol.ShowCardRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.ShowCard")
+}
+
+func (*UnimplementedMainC2SServiceSS) GetPlayerInfo(ctx *ssrpc.Context, req *g1_protocol.GetPlayerInfoReq) (*g1_protocol.GetPlayerInfoRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.GetPlayerInfo")
+}
+
+func (*UnimplementedMainC2SServiceSS) MarkPlayer(ctx *ssrpc.Context, req *g1_protocol.MarkPlayerReq) (*g1_protocol.MarkPlayerRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.MarkPlayer")
+}
+
+func (*UnimplementedMainC2SServiceSS) InsuranceBuy(ctx *ssrpc.Context, req *g1_protocol.InsuranceBuyReq) (*g1_protocol.InsuranceBuyRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.InsuranceBuy")
+}
+
+func (*UnimplementedMainC2SServiceSS) RoomSet(ctx *ssrpc.Context, req *g1_protocol.RoomSetReq) (*g1_protocol.RoomSetRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.RoomSet")
+}
+
+func (*UnimplementedMainC2SServiceSS) SngGetBlindLevel(ctx *ssrpc.Context, req *g1_protocol.SngGetBlindLevelReq) (*g1_protocol.SngGetBlindLevelRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.SngGetBlindLevel")
+}
+
+func (*UnimplementedMainC2SServiceSS) GetRoomInfo(ctx *ssrpc.Context, req *g1_protocol.GetRoomInfoReq) (*g1_protocol.GetRoomInfoRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.GetRoomInfo")
+}
+
+func (*UnimplementedMainC2SServiceSS) InsuranceThinkTime(ctx *ssrpc.Context, req *g1_protocol.InsuranceThinkTimeReq) (*g1_protocol.InsuranceThinkTimeRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.InsuranceThinkTime")
+}
+
+func (*UnimplementedMainC2SServiceSS) InsuranceOp(ctx *ssrpc.Context, req *g1_protocol.InsuranceOpReq) (*g1_protocol.InsuranceOpRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.InsuranceOp")
+}
+
+func (*UnimplementedMainC2SServiceSS) GetGameInfo(ctx *ssrpc.Context, req *g1_protocol.GetGameInfoReq) (*g1_protocol.GetGameInfoRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.GetGameInfo")
+}
+
+func (*UnimplementedMainC2SServiceSS) AddToFavorite(ctx *ssrpc.Context, req *g1_protocol.AddToFavoriteReq) (*g1_protocol.AddToFavoriteRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.AddToFavorite")
+}
+
+func (*UnimplementedMainC2SServiceSS) ChangeSkin(ctx *ssrpc.Context, req *g1_protocol.ChangeSkinReq) (*g1_protocol.ChangeSkinRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.ChangeSkin")
+}
+
+func (*UnimplementedMainC2SServiceSS) RabbitHunting(ctx *ssrpc.Context, req *g1_protocol.RabbitHuntingReq) (*g1_protocol.RabbitHuntingRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.RabbitHunting")
+}
+
+func (*UnimplementedMainC2SServiceSS) EarlySettle(ctx *ssrpc.Context, req *g1_protocol.EarlySettleReq) (*g1_protocol.EarlySettleRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.EarlySettle")
+}
+
+func (*UnimplementedMainC2SServiceSS) Preoperation(ctx *ssrpc.Context, req *g1_protocol.PreOperationReq) (*g1_protocol.PreOperationRsp, error) {
+	return nil, ssrpc.Unimplemented("MainC2SService.Preoperation")
+}
+
+// DefaultMainC2SServiceSSMiddlewares returns the standard middleware chain for MainC2SService.
+func DefaultMainC2SServiceSSMiddlewares(opts ssrpc.DefaultMWOptions) []ssrpc.Middleware {
+	return ssrpc.DefaultMiddlewares(opts)
+}
+
+// NewMainC2SServiceSServer constructs a MainC2SServiceSServer with a default middleware chain.
+func NewMainC2SServiceSServer(impl MainC2SServiceSS, opts ssrpc.DefaultMWOptions) MainC2SServiceSServer {
+	return MainC2SServiceSServer{Impl: impl, MW: ssrpc.DefaultMiddlewares(opts)}
+}
+
 type MainC2SServiceSServer struct {
 	Impl MainC2SServiceSS
 	MW []ssrpc.Middleware
@@ -73,11 +267,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_LOGIN_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_LOGIN_REQ,
-			Name: "Login",
+			Name: "mainsvr login",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.LoginReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.LoginReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.Login(ctx, in.(*g1_protocol.LoginReq))
 		},
 	))
@@ -85,11 +279,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_LOGOUT_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_LOGOUT_REQ,
-			Name: "Logout",
+			Name: "mainsvr logout (rsp optional, see req.ByServer)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.LogoutReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.LogoutReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.Logout(ctx, in.(*g1_protocol.LogoutReq))
 		},
 	))
@@ -97,11 +291,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_HEARTBEAT_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_HEARTBEAT_REQ,
-			Name: "HeartBeat",
+			Name: "mainsvr heartbeat",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.HeartBeatReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.HeartBeatReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.HeartBeat(ctx, in.(*g1_protocol.HeartBeatReq))
 		},
 	))
@@ -109,11 +303,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_CHANGE_NAME_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_CHANGE_NAME_REQ,
-			Name: "ChangeName",
+			Name: "mainsvr change name",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.ChangeNameReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.ChangeNameReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.ChangeName(ctx, in.(*g1_protocol.ChangeNameReq))
 		},
 	))
@@ -121,11 +315,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_CHANGE_ICON_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_CHANGE_ICON_REQ,
-			Name: "ChangeIcon",
+			Name: "mainsvr change icon",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.ChangeIconReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.ChangeIconReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.ChangeIcon(ctx, in.(*g1_protocol.ChangeIconReq))
 		},
 	))
@@ -133,11 +327,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GM_GET_ROLE_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GM_GET_ROLE_REQ,
-			Name: "GmGetRole",
+			Name: "gm get role",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.GMGetRoleReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.GMGetRoleReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.GmGetRole(ctx, in.(*g1_protocol.GMGetRoleReq))
 		},
 	))
@@ -145,11 +339,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GM_SET_ROLE_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GM_SET_ROLE_REQ,
-			Name: "GmSetRole",
+			Name: "gm set role",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.GMSetRoleReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.GMSetRoleReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.GmSetRole(ctx, in.(*g1_protocol.GMSetRoleReq))
 		},
 	))
@@ -157,11 +351,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GM_ADD_ITEM_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GM_ADD_ITEM_REQ,
-			Name: "GmAddItem",
+			Name: "gm add item",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.GMAddItemReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.GMAddItemReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.GmAddItem(ctx, in.(*g1_protocol.GMAddItemReq))
 		},
 	))
@@ -169,11 +363,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_MALL_BUY_PACKAGE_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_MALL_BUY_PACKAGE_REQ,
-			Name: "MallBuyPackage",
+			Name: "mall buy package",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.MallBuyPackageReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.MallBuyPackageReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.MallBuyPackage(ctx, in.(*g1_protocol.MallBuyPackageReq))
 		},
 	))
@@ -181,11 +375,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_CREATE_ROOM_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_CREATE_ROOM_REQ,
-			Name: "CreateRoom",
+			Name: "texas create room",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.CreateRoomReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.CreateRoomReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.CreateRoom(ctx, in.(*g1_protocol.CreateRoomReq))
 		},
 	))
@@ -193,11 +387,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_JOIN_ROOM_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_JOIN_ROOM_REQ,
-			Name: "JoinRoom",
+			Name: "texas join room",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.JoinRoomReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.JoinRoomReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.JoinRoom(ctx, in.(*g1_protocol.JoinRoomReq))
 		},
 	))
@@ -205,11 +399,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_QUICK_START_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_QUICK_START_REQ,
-			Name: "QuickStart",
+			Name: "texas quick start",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.QuickStartReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.QuickStartReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.QuickStart(ctx, in.(*g1_protocol.QuickStartReq))
 		},
 	))
@@ -217,11 +411,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_ROOM_LIST_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_ROOM_LIST_REQ,
-			Name: "GetRoomList",
+			Name: "texas room list",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.RoomListReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.RoomListReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.GetRoomList(ctx, in.(*g1_protocol.RoomListReq))
 		},
 	))
@@ -229,11 +423,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_DO_BET_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_DO_BET_REQ,
-			Name: "DoBet",
+			Name: "texas do bet",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.DoBetReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.DoBetReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.DoBet(ctx, in.(*g1_protocol.DoBetReq))
 		},
 	))
@@ -241,11 +435,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_FOLD_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_FOLD_REQ,
-			Name: "Fold",
+			Name: "texas fold",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.FoldReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.FoldReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.Fold(ctx, in.(*g1_protocol.FoldReq))
 		},
 	))
@@ -253,11 +447,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_BUY_IN_DETAIL_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_BUY_IN_DETAIL_REQ,
-			Name: "MainBuyInDetail",
+			Name: "texas buy-in detail",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.MainBuyInDetailReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.MainBuyInDetailReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.MainBuyInDetail(ctx, in.(*g1_protocol.MainBuyInDetailReq))
 		},
 	))
@@ -265,11 +459,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_LOOKERS_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_GET_LOOKERS_REQ,
-			Name: "GetLookers",
+			Name: "texas get lookers",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.GetLookersReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.GetLookersReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.GetLookers(ctx, in.(*g1_protocol.GetLookersReq))
 		},
 	))
@@ -277,11 +471,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_SIT_DOWN_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_SIT_DOWN_REQ,
-			Name: "SitDown",
+			Name: "texas sit down",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.SitDownReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.SitDownReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.SitDown(ctx, in.(*g1_protocol.SitDownReq))
 		},
 	))
@@ -289,11 +483,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_STAND_UP_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_STAND_UP_REQ,
-			Name: "StandUp",
+			Name: "texas stand up",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.StandUpReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.StandUpReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.StandUp(ctx, in.(*g1_protocol.StandUpReq))
 		},
 	))
@@ -301,11 +495,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_LEAVE_GAME_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_LEAVE_GAME_REQ,
-			Name: "LeaveGame",
+			Name: "texas leave game",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.LeaveGameReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.LeaveGameReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.LeaveGame(ctx, in.(*g1_protocol.LeaveGameReq))
 		},
 	))
@@ -314,11 +508,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_BUY_IN_REQ,
 			OneWay: true,
-			Name: "BuyIn",
+			Name: "texas buy in (one-way, stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.BuyInReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.BuyInReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.BuyIn(ctx, in.(*g1_protocol.BuyInReq))
 		},
 	))
@@ -326,11 +520,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_MILITARY_SUCCESS_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_MILITARY_SUCCESS_REQ,
-			Name: "MilitarySuccess",
+			Name: "texas military success (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.MilitarySuccessReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.MilitarySuccessReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.MilitarySuccess(ctx, in.(*g1_protocol.MilitarySuccessReq))
 		},
 	))
@@ -338,11 +532,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_GAME_LOG_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_GET_GAME_LOG_REQ,
-			Name: "GetGameLog",
+			Name: "texas game log (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.GetGameLogReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.GetGameLogReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.GetGameLog(ctx, in.(*g1_protocol.GetGameLogReq))
 		},
 	))
@@ -350,11 +544,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_TIME_LEFT_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_GET_TIME_LEFT_REQ,
-			Name: "GetTimeLeft",
+			Name: "texas time left (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.GetTimeLeftReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.GetTimeLeftReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.GetTimeLeft(ctx, in.(*g1_protocol.GetTimeLeftReq))
 		},
 	))
@@ -362,11 +556,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_VOICE_CALL_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_VOICE_CALL_REQ,
-			Name: "VoiceCall",
+			Name: "texas voice call (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.VoiceCallReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.VoiceCallReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.VoiceCall(ctx, in.(*g1_protocol.VoiceCallReq))
 		},
 	))
@@ -374,11 +568,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_BUY_THINK_TIME_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_BUY_THINK_TIME_REQ,
-			Name: "BuyThinkTime",
+			Name: "texas buy think time (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.BuyThinkTimeReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.BuyThinkTimeReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.BuyThinkTime(ctx, in.(*g1_protocol.BuyThinkTimeReq))
 		},
 	))
@@ -386,11 +580,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_AUTO_BUYIN_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_AUTO_BUYIN_REQ,
-			Name: "AutoBuyin",
+			Name: "texas auto buyin (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.AutoBuyinReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.AutoBuyinReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.AutoBuyin(ctx, in.(*g1_protocol.AutoBuyinReq))
 		},
 	))
@@ -398,11 +592,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_INTERACTION_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_INTERACTION_REQ,
-			Name: "Interaction",
+			Name: "texas interaction (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.InteractionReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.InteractionReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.Interaction(ctx, in.(*g1_protocol.InteractionReq))
 		},
 	))
@@ -410,11 +604,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_EMOTICON_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_EMOTICON_REQ,
-			Name: "Emoticon",
+			Name: "texas emoticon (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.EmoticonReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.EmoticonReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.Emoticon(ctx, in.(*g1_protocol.EmoticonReq))
 		},
 	))
@@ -422,11 +616,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_MILITARY_DIAGRAM_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_GET_MILITARY_DIAGRAM_REQ,
-			Name: "GetMilitaryDiagram",
+			Name: "texas military diagram (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.GetMilitaryDiagramReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.GetMilitaryDiagramReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.GetMilitaryDiagram(ctx, in.(*g1_protocol.GetMilitaryDiagramReq))
 		},
 	))
@@ -434,11 +628,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_SHOW_CARD_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_SHOW_CARD_REQ,
-			Name: "ShowCard",
+			Name: "texas show card (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.ShowCardReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.ShowCardReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.ShowCard(ctx, in.(*g1_protocol.ShowCardReq))
 		},
 	))
@@ -446,11 +640,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_ROLE_INFO_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_GET_ROLE_INFO_REQ,
-			Name: "GetPlayerInfo",
+			Name: "texas get player info (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.GetPlayerInfoReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.GetPlayerInfoReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.GetPlayerInfo(ctx, in.(*g1_protocol.GetPlayerInfoReq))
 		},
 	))
@@ -458,11 +652,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_MARK_PLAYER_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_MARK_PLAYER_REQ,
-			Name: "MarkPlayer",
+			Name: "texas mark player (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.MarkPlayerReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.MarkPlayerReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.MarkPlayer(ctx, in.(*g1_protocol.MarkPlayerReq))
 		},
 	))
@@ -470,11 +664,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_INSURANCE_BUY_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_INSURANCE_BUY_REQ,
-			Name: "InsuranceBuy",
+			Name: "texas insurance buy (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.InsuranceBuyReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.InsuranceBuyReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.InsuranceBuy(ctx, in.(*g1_protocol.InsuranceBuyReq))
 		},
 	))
@@ -482,11 +676,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_ROOM_SET_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_ROOM_SET_REQ,
-			Name: "RoomSet",
+			Name: "texas room set (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.RoomSetReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.RoomSetReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.RoomSet(ctx, in.(*g1_protocol.RoomSetReq))
 		},
 	))
@@ -494,11 +688,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_SNG_GET_BLIND_LEVEL_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_SNG_GET_BLIND_LEVEL_REQ,
-			Name: "SngGetBlindLevel",
+			Name: "texas sng blind level (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.SngGetBlindLevelReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.SngGetBlindLevelReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.SngGetBlindLevel(ctx, in.(*g1_protocol.SngGetBlindLevelReq))
 		},
 	))
@@ -506,11 +700,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_ROOM_INFO_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_GET_ROOM_INFO_REQ,
-			Name: "GetRoomInfo",
+			Name: "texas get room info",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.GetRoomInfoReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.GetRoomInfoReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.GetRoomInfo(ctx, in.(*g1_protocol.GetRoomInfoReq))
 		},
 	))
@@ -518,11 +712,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_INSURANCE_THINK_TIME_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_INSURANCE_THINK_TIME_REQ,
-			Name: "InsuranceThinkTime",
+			Name: "texas insurance think time (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.InsuranceThinkTimeReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.InsuranceThinkTimeReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.InsuranceThinkTime(ctx, in.(*g1_protocol.InsuranceThinkTimeReq))
 		},
 	))
@@ -530,11 +724,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_INSURANCE_OP_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_INSURANCE_OP_REQ,
-			Name: "InsuranceOp",
+			Name: "texas insurance op (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.InsuranceOpReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.InsuranceOpReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.InsuranceOp(ctx, in.(*g1_protocol.InsuranceOpReq))
 		},
 	))
@@ -542,11 +736,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_GAME_INFO_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_GET_GAME_INFO_REQ,
-			Name: "GetGameInfo",
+			Name: "texas get game info",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.GetGameInfoReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.GetGameInfoReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.GetGameInfo(ctx, in.(*g1_protocol.GetGameInfoReq))
 		},
 	))
@@ -554,11 +748,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_ADD_TO_FAVORITE_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_ADD_TO_FAVORITE_REQ,
-			Name: "AddToFavorite",
+			Name: "texas add to favorite (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.AddToFavoriteReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.AddToFavoriteReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.AddToFavorite(ctx, in.(*g1_protocol.AddToFavoriteReq))
 		},
 	))
@@ -566,11 +760,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_CHANGE_SKIN_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_CHANGE_SKIN_REQ,
-			Name: "ChangeSkin",
+			Name: "texas change skin (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.ChangeSkinReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.ChangeSkinReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.ChangeSkin(ctx, in.(*g1_protocol.ChangeSkinReq))
 		},
 	))
@@ -578,11 +772,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_RABBIT_HUNTING_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_RABBIT_HUNTING_REQ,
-			Name: "RabbitHunting",
+			Name: "texas rabbit hunting (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.RabbitHuntingReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.RabbitHuntingReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.RabbitHunting(ctx, in.(*g1_protocol.RabbitHuntingReq))
 		},
 	))
@@ -590,11 +784,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_EARLY_SETTLE_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_EARLY_SETTLE_REQ,
-			Name: "EarlySettle",
+			Name: "texas early settle (stub)",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.EarlySettleReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.EarlySettleReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.EarlySettle(ctx, in.(*g1_protocol.EarlySettleReq))
 		},
 	))
@@ -602,11 +796,11 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 	mgr.RegisterCmd(g1_protocol.CMD_MAIN_GAME_PREOPERATION_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_MAIN_GAME_PREOPERATION_REQ,
-			Name: "Preoperation",
+			Name: "texas preoperation",
 		},
 		srv.MW,
-		func() proto.Message { return new(g1_protocol.PreOperationReq) },
-		func(ctx *ssrpc.Context, in proto.Message) (proto.Message, error) {
+		func() any { return new(g1_protocol.PreOperationReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.Preoperation(ctx, in.(*g1_protocol.PreOperationReq))
 		},
 	))
