@@ -95,8 +95,12 @@ if [[ -d "lib/util/deps/protoc/protoc-33.2-linux-x86_64/include" ]]; then
 fi
 
 echo "[proto_goone] collect proto inputs (exclude api/proto/third_party)"
+ROOTS=("$PROTO_ROOT/goone" "$PROTO_ROOT/game")
+if [[ -d "$PROTO_ROOT/web" ]]; then
+  ROOTS+=("$PROTO_ROOT/web")
+fi
 mapfile -t PROTOS < <(
-  find "$PROTO_ROOT/goone" "$PROTO_ROOT/game" -type f -name '*.proto' -print \
+  find "${ROOTS[@]}" -type f -name '*.proto' -print \
     | sed "s|^$PROTO_ROOT/||" \
     | LC_ALL=C sort
 )

@@ -129,3 +129,74 @@ func RegisterRoomCenterInnerServiceToTransactionMgr(mgr transaction.ITransaction
 
 }
 
+// RegisterRoomCenterInnerServiceToDispatcher registers cmd/http bindings into a unified ssrpc.Dispatcher.
+func RegisterRoomCenterInnerServiceToDispatcher(d *ssrpc.Dispatcher, srv RoomCenterInnerServiceSServer) {
+	if d == nil || srv.Impl == nil {
+		return
+	}
+
+	d.RegisterCmd(g1_protocol.CMD(0xB1008), ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD(0xB1008),
+			OneWay: true,
+			Name: "roomcentersvr tick (one-way)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.InnerTickReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Tick(ctx, in.(*g1_protocol.InnerTickReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ,
+			Name: "room list",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.RoomListReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.RoomList(ctx, in.(*g1_protocol.RoomListReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_ROOM_CENTER_INNER_QUICK_START_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_ROOM_CENTER_INNER_QUICK_START_REQ,
+			Name: "quick start",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.QuickStartReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.QuickStart(ctx, in.(*g1_protocol.QuickStartReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_ROOM_CENTER_INNER_UPDATE_ROOM_INFO_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_ROOM_CENTER_INNER_UPDATE_ROOM_INFO_REQ,
+			OneWay: true,
+			Name: "update room info (one-way)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.RoomShowInfo) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.UpdateRoomInfo(ctx, in.(*g1_protocol.RoomShowInfo))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_ROOM_CENTER_INNER_DEL_ROOM_INFO_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_ROOM_CENTER_INNER_DEL_ROOM_INFO_REQ,
+			OneWay: true,
+			Name: "delete room info (one-way)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.RoomShowInfo) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.DelRoomInfo(ctx, in.(*g1_protocol.RoomShowInfo))
+		},
+	))
+
+}
+

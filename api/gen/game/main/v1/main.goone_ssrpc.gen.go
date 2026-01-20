@@ -57,3 +57,23 @@ func RegisterMainServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv Ma
 
 }
 
+// RegisterMainServiceToDispatcher registers cmd/http bindings into a unified ssrpc.Dispatcher.
+func RegisterMainServiceToDispatcher(d *ssrpc.Dispatcher, srv MainServiceSServer) {
+	if d == nil || srv.Impl == nil {
+		return
+	}
+
+	d.RegisterCmd(g1_protocol.CMD(0x1020001), ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD(0x1020001),
+			Name: "user login",
+		},
+		srv.MW,
+		func() any { return new(LoginReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Login(ctx, in.(*LoginReq))
+		},
+	))
+
+}
+

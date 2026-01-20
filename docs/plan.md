@@ -1,215 +1,116 @@
-结论：先做 A（SSPacket/TransactionMgr）最合理的“IDL 驱动 + 中间件分层”落地方案
-你们仓库里 lib/contrib/protoc 目前只是 protoc 二进制 + google 官方 proto include，并没有你们业务协议的 .proto 源文件（game_protocol 是外部 module）。所以 Phase-A 最稳的方式是：
-- 新建 GoOne 自己的 IDL（.proto）目录（从现在开始新增/改造的接口都走这里）
-- 生成出来的 Go 代码进入本仓库（而不是写到外部 game_protocol module）
-- 与现有 g1_protocol.CMD（外部 enum）共存：旧逻辑不动；新逻辑用新 enum 或直接用 uint32 cmd
-下面给一份“明天就能开工”的技术设计 + 目录草案（含 options.proto + cmd.proto + protoc-gen-goone 输出格式与初始化方式）。
+升级计划
+已经有一个很“游戏服友好”的骨架：
+- 内网 RPC：SSPacket（Cmd/Uid/RouterID/TransID/CmdSeq）+ router（bus 转发）+ TransactionMgr（按 DstTransID 分发、可做 uid/rid 串行）+ cmd_handler.IContext（ParseMsg/Call/Send/日志）
+- HTTP/WS：CmdHandlerMgr 用 string->handler 的方式注册，dispatch.go 把 URL 转成 cmd 字符串再找 handler
+最大问题是：多协议入口是多套 handler 注册/ctx/编解码，而“命令字/方法名”也分散在 register.go、URL path、cmd enum 里。
 --------------------------------------------------------------------------------
-1) 目标（Phase A：仅 SSPacket 内网 RPC）
-- IDL 驱动：用 proto service 定义方法名/请求响应类型
-- cmd 绑定：用 proto option 把 service method 绑定到 SSPacketHeader.Cmd
-- 自动注册：生成 Register<Service>ToTransactionMgr(...)，替代手写 globals.TransMgr.RegisterCmd(...)
-- 统一中间件链：生成 wrapper 时自动跑 middleware（recover/log/metrics/uid-lock/trace…）
-- 兼容现有执行模型：仍由 TransactionMgr 管理 trans 生命周期、CmdSeq/DstTransID 等语义不变
+业界框架“共同点”（Kratos / due / CloudWeGo）
+- Kratos：核心是 transport 抽象 + middleware 链 + 业务 service 层；接口强、扩展方便，但“游戏服 uid 串行/事务”要自己做。
+- due：模块化思路借鉴 Kratos，强调“只暴露必要接口”，更偏游戏业务落地（它 README 就明确借鉴 kratos 的模块设计思路，可参考：）。
+- 字节系 CloudWeGo（Kitex/Hertz）：核心是 IDL 驱动（proto/thrift）生成 client/server 桩代码 + middleware + 高性能网络；工程化最强的一点是“定义一次 service，自动生成注册/路由/脚手架”。
+你要的“聚合 ctx + cmd_handler + dispatch，并支持 HTTP/GRPC/WS/SSPack，且用 proto service 统一定义方法名与 cmd 绑定 + 代码生成”，本质上就是把 CloudWeGo 的 IDL 驱动 + Kratos 的 middleware/transport 分层，嫁接到你们现有 TransactionMgr/SSPacket 这套“游戏服执行模型”上。
 --------------------------------------------------------------------------------
-2) 目录结构草案（建议）
-新增这些目录即可开工：
-api/proto/goone/
-  cmd.proto                 # cmd enum（GoOne 新协议用；也可只用 uint32 cmd）
-  options.proto             # method options：cmd、one_way、uid_lock 等
-
-api/proto/game/             # 你的业务服务（逐步迁移/新增）
-  main/v1/main.proto        # MainService（示例）
-  ...                       # 其他 service
-
-lib/service/ssrpc/          # “SSPacket RPC server” 适配层（相当于 transport）
-  server.go                 # Server + middleware chain + invoker
-  context.go                # 统一 Context（先包一层 cmd_handler.IContext）
-  middleware.go             # Middleware/Chain 定义
-  errors.go                 # goone.Error{Code, Msg} 等
-
-tools/protoc-gen-goone/     # 代码生成器（CloudWeGo 风格：IDL 驱动）
-  main.go
-  gen_ssrpc.go              # 生成 SSPacket/TransactionMgr 注册代码
-  gen_scaffold.go           # (可选) 生成服务脚手架
-
-> HTTP/WS/gRPC 会在 Phase B/C 继续加 lib/transport/http, lib/transport/ws, lib/transport/grpc，但 Phase A 先不碰。
+方案总览：IDL（proto service）为中心，一套业务实现，多种 transport 复用
+1) 统一 IDL：用 proto service 定义“方法名”，用 option 绑定“cmd”
+建议引入三类 proto 文件：
+A. cmd.proto（统一命令字）
+把你们现有的 g1_protocol.CMD_* 迁移/镜像到 proto（或由脚本从现有枚举生成）：
+- enum Cmd { CMD_MAIN_LOGIN_REQ = 0x....; ... }
+这样后续 service 的 method 能直接引用 Cmd 常量，不会散落在 Go 代码里。
+B. options.proto（统一路由与协议绑定）
+定义 method options（挂在 google.protobuf.MethodOptions）：
+- goone.cmd：绑定 SSPacket/CSPacket 的 cmd（通常绑定 *_REQ）
+- goone.http：绑定 HTTP path/method（也可以直接用 google.api.http）
+- goone.ws：是否开放 WS / 或 WS 的 cmd（可复用 goone.cmd）
+- goone.uid_lock：是否需要 uid/rid 串行（对有状态服很重要）
+- goone.auth / goone.sign / rate_limit：后续中间件策略（可选）
+C. service_xxx.proto（业务服务定义）
+例如：
+- service MainService { rpc Login(LoginReq) returns (LoginRsp) { option (goone.cmd)=CMD_MAIN_LOGIN_REQ; option (goone.uid_lock)=true; option (goone.http)="/v1/main/login"; } }
+> 你们现在约定 rsp_cmd = req_cmd + 1，生成器可以在编译期校验这个约定（或者也允许显式配置 cmd_rsp）。
 --------------------------------------------------------------------------------
-3) options.proto 设计（核心：method 绑定 cmd + 执行语义）
-关键点：extension number 一定要避免你们曾经踩到的冲突号（例如 50001）。
-建议选一个不常见段，例如 61000+，并且挂在 google.protobuf.MethodOptions（不是 FieldOptions）。
-syntax = "proto3";
-package goone.options.v1;
-
-import "google/protobuf/descriptor.proto";
-
-option go_package = "github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1";
-
-message SsRpc {
-  uint32 cmd = 1;          // 请求 cmd（SSPacketHeader.Cmd）
-  uint32 cmd_resp = 2;     // 响应 cmd（默认 cmd+1；可显式覆盖）
-  bool one_way = 3;        // true: 不回包（send-only）
-  bool uid_lock = 4;       // true: 强制 uid/rid 串行（Phase A 可先不启用细粒度）
-  string comment = 15;     // 仅用于生成代码注释
-}
-
-extend google.protobuf.MethodOptions {
-  SsRpc ssrpc = 61001;
-}
+2) 统一 Context：GoOne Context 做“多协议聚合 ctx”
+建议新增一个“聚合 ctx”，它不是替换 context.Context，而是 包一层，把协议无关的信息统一起来：
+- 身份：uid/zone/rid、auth claims、role/session
+- 路由：cmd、service/method、src/dst bus id、trace_id
+- 传输：transport=http/grpc/ws/sspack、peer ip、headers/metadata
+- 能力：
+- Unmarshal(req)：统一解析 proto（SSPack 是 proto binary；HTTP 可 JSON->proto）
+- Reply(rsp)：统一回包（SSPack 回 SSPacket；HTTP 回 JSON；gRPC 直接 return；WS 回 CSPacket）
+- Call/Send：复用你们现有的 Transaction.CallMsgBySvrType/SendMsgByServerType 能力（对内网 RPC 非常关键）
+这样，业务 handler 永远只面对一种 ctx，不再区分 gin.Context / Transaction / grpc.Context。
 --------------------------------------------------------------------------------
-4) cmd.proto 设计（两种路线）
-路线 1（推荐开工快）：options 里只存 uint32 cmd
-- 不需要把全量 CMD enum 搬到新 proto
-- 生成代码直接用 uint32 注册到 TransactionMgr.RegisterCmd(g1_protocol.CMD(cmd), ...)
-路线 2（更“规范”）：cmd.proto 定义 enum，options 引用 enum
-- 需要维护 enum 数值与现有 g1_protocol 一致（否则线上会乱）
-- 优点：IDL 更可读，可做静态校验
-Phase A 建议先走路线 1，后续再补 cmd.proto（可脚本从 g1_protocol 生成）。
+3) 统一 Dispatcher：一套路由表 + 一套 middleware
+建议引入一个“统一 dispatcher（注册中心）”：
+- 核心索引：
+- cmd(uint32) -> handler（SSPacket/CSPacket/WS）
+- http_path(string) -> handler（HTTP）
+- grpc_method(fullname) -> handler（gRPC，通常由 grpc 桩代码直接调用业务实现，也可走 dispatcher）
+- handler 形态（推荐）：
+- 业务层统一为：func(ctx *Context, req proto.Message) (proto.Message, error)
+- middleware 形态：
+- func(next Handler) Handler
+- 典型 middleware：
+- recover、日志、metrics、tracing
+- auth/sign/acl
+- uid_lock / rid_lock（游戏服强需求）
+- 超时、限流、熔断（可选）
+> 你们现有 TransactionMgr 已经实现了“按 trans + uid/rid 串行”的执行模型；建议把它保留为 SSPacket 的执行引擎，同时让 HTTP/GRPC/WS 也可选走同一套“串行执行器”（这样全协议语义一致）。
 --------------------------------------------------------------------------------
-5) 统一 Context（Phase A 先“包一层”）
-你现在的业务 handler 依赖 cmd_handler.IContext（Transaction 实现了它）。Phase A 不改业务执行模型，所以统一 ctx 做 wrapper：
-// lib/service/ssrpc/context.go
-package ssrpc
-
-import (
-  "github.com/Iori372552686/GoOne/lib/api/cmd_handler"
-  g1_protocol "github.com/Iori372552686/game_protocol/protocol"
-)
-
-type Transport string
-const TransportSS Transport = "sspack"
-
-type Context struct {
-  cmd_handler.IContext           // 复用现有能力：ParseMsg/Call/Send/日志
-  Transport Transport
-  Cmd       g1_protocol.CMD
-}
-
-func WrapIContext(ic cmd_handler.IContext, cmd g1_protocol.CMD) *Context {
-  return &Context{IContext: ic, Transport: TransportSS, Cmd: cmd}
-}
+4) Transport 适配：HTTP / gRPC / WS / SSPacket 四种入口复用同一业务
+建议分层：
+- Service（业务实现）：只写一次
+- Transport adapter：负责把协议转换成统一 ctx + req，然后调用 service
+四种入口的典型流转：
+A. SSPacket（你们现有内网 RPC）
+- 收到 SSPacket：按 header.Cmd 找 handler
+- proto.Unmarshal(body, req)
+- 调用 service
+- proto.Marshal(rsp) 并按你们规则回 cmd+1、DstTransID/SrcTransID/CmdSeq 等
+B. HTTP（Gin 或 Hertz 都可）
+- path -> method -> handler
+- body JSON -> proto（protojson）
+- service -> rsp proto -> JSON
+C. WebSocket（客户端 CSPacket）
+- 从 CSPacket header 取 cmd
+- body -> proto -> service -> proto -> CSPacket rsp
+D. gRPC
+- gRPC server 收到 method
+- 直接调用同一个 service 实现（推荐），或走 dispatcher（便于统一 middleware）
 --------------------------------------------------------------------------------
-6) 中间件模型（Kratos 风格裁剪）// lib/service/ssrpc/middleware.gopackage ssrpcimport "google.golang.org/protobuf/proto"type Handler func(ctx *Context, req proto.Message) (proto.Message, error)type Middleware func(next Handler) Handlerfunc Chain(mws ...Middleware) Middleware {  return func(next Handler) Handler {    for i := len(mws) - 1; i >= 0; i-- {      next = mws[i](next)    }    return next  }}Phase A 最有价值的 middleware：
-- recover（防止单个 handler panic 带崩 trans）
-- logging（cmd/uid/rid/transId）
-- metrics
-- auth/sign（如果内网也需要）
-- uid_lock（预留）：Phase A 可以先做“标注能力”，真正生效可在 Phase A+ 做（需要改 TransactionMgr 的锁粒度）
+代码生成（关键）：protoc-gen-goone 生成注册与脚手架
+你要的“绑定 cmd 注册、初始化、手架生成”，建议做成一个专用生成器插件：
+生成器输出（建议）
+对每个 service Foo 生成：1) SSPacket 注册代码（对接 TransactionMgr.RegisterCmd）
+- 自动生成 RegisterFooToTransMgr(transMgr, impl)：
+- 遍历每个 method 的 goone.cmd
+- 生成 wrapper：CmdHandlerFunc(IContext, raw)->ErrorCode，内部做 proto decode/encode，最后 ctx.SendMsgBack(...)2) HTTP 路由注册代码（对接 gin）
+- 自动生成 RegisterFooHTTP(r *gin.Engine, impl) 或 RegisterFooHTTP(g gin.IRoutes, impl)
+- 支持 option 指定 path/method/body3) WS 路由注册代码（对接 CSPacket）
+- 自动生成 RegisterFooWS(dispatcher, impl) 或 RegisterFooCmd(dispatcher, impl)（本质按 cmd）4) Client stub（可选）
+- 生成 FooClient，内部用你们现有 IContext.CallMsgBySvrType/SendMsgByServerType 或新的统一 Invoker5) 脚手架（可选）
+- goonectl new service mainsvr：生成 proto + handler skeleton + 注册入口
+- 生成文件要遵循“不覆盖手写文件”的策略（只生成 *.gen.go 或 *_goone.pb.go）
 --------------------------------------------------------------------------------
-7) protoc-gen-goone 输出格式（Phase A 必需产物）
-7.1 生成文件命名
-对每个 xxx.proto 生成一个：
-- xxx.goone_ssrpc.gen.go
-并放到该 proto 的 go_package 目录下（和 pb.go 同包），避免 import 麻烦。
-7.2 生成的接口与注册函数（固定签名）
-假设 proto：
-service MainService {
-  rpc Login(LoginReq) returns (LoginRsp) {
-    option (goone.options.v1.ssrpc) = { cmd: 0x01020304 };
-  }
-}
-生成内容（关键签名）：
-// Code generated by protoc-gen-goone. DO NOT EDIT.
-package mainv1
-
-import (
-  "github.com/Iori372552686/GoOne/lib/service/ssrpc"
-  "github.com/Iori372552686/GoOne/lib/service/transaction"
-  g1_protocol "github.com/Iori372552686/game_protocol/protocol"
-  "google.golang.org/protobuf/proto"
-)
-
-type MainServiceSS interface {
-  Login(ctx *ssrpc.Context, req *LoginReq) (*LoginRsp, error)
-  // ...
-}
-
-type MainServiceSSServer struct {
-  Impl MainServiceSS
-  MW   []ssrpc.Middleware
-}
-
-// RegisterMainServiceToTransactionMgr binds SSPacket cmd -> handler wrappers.
-func RegisterMainServiceToTransactionMgr(mgr *transaction.TransactionMgr, s MainServiceSSServer) {
-  mgr.RegisterCmd(g1_protocol.CMD(0x01020304), func(ic interface{ /* cmd_handler.IContext */ }, data []byte) g1_protocol.ErrorCode {
-    // 1) wrap ctx
-    ctx := ssrpc.WrapIContext(ic, g1_protocol.CMD(0x01020304))
-
-    // 2) decode
-    req := new(LoginReq)
-    if err := ctx.ParseMsg(data, req); err != nil {
-      return g1_protocol.ErrorCode_ERR_PB_PARSE_FAILED
-    }
-
-    // 3) invoke with middleware
-    h := ssrpc.Chain(s.MW...)(func(c *ssrpc.Context, in proto.Message) (proto.Message, error) {
-      return s.Impl.Login(c, in.(*LoginReq))
-    })
-    out, err := h(ctx, req)
-    if err != nil {
-      // map error -> ErrorCode (goone.Error preferred)
-      return ssrpc.ToErrorCode(err)
-    }
-
-    // 4) auto reply (cmd+1 default)
-    if out != nil {
-      ctx.SendMsgBack(out)
-    }
-    return g1_protocol.ErrorCode_ERR_OK
-  })
-}
-> 注意：这里 ic 的类型实际应直接是 cmd_handler.IContext；生成器会导入 github.com/Iori372552686/GoOne/lib/api/cmd_handler 并用强类型签名。
-7.3 错误码映射（建议统一）
-在 lib/service/ssrpc/errors.go 做统一转换：
-- type Error struct { Code g1_protocol.ErrorCode; Msg string; Err error }
-- func ToErrorCode(err error) g1_protocol.ErrorCode
-这样业务层只返回 error（可携带 code），生成 wrapper 统一转成 ErrorCode。
+迁移建议（不破现网）
+第一阶段（最快见效）：先统一 SSPacket cmd 注册为“生成代码”
+- 不动 HTTP/WS
+- 把 src/*/cmd_handler/register.go 逐步替换为 generated.RegisterXXXToTransMgr(globals.TransMgr, impl)
+- 业务逻辑逐步从“函数式 handler”迁移到 “service 方法”
+第二阶段：HTTP/WS 变成 transport adapter（调用同一 service）
+- dispatch.go 只负责解析 uri/body，然后交给 dispatcher（统一注册中心）
+- 老的 CmdHandlerMgr 先保留为兼容层，逐步下线
+第三阶段：引入 gRPC（可选）
+- 用于后台/运营/内部服务调用（不一定替代 SSPacket）
+- gRPC 也调用同一个 service 实现
 --------------------------------------------------------------------------------
-8) 在 src/mainsvr/app.go 初始化方式（你问的“如何接入”）
-你现在是手写：
-- cmd_handler.RegisterCmd() → 里面 globals.TransMgr.RegisterCmd(...)
-改造后变成：1) 实现 service
-- 新建 src/mainsvr/service/main_service.go 实现生成的 MainServiceSS 接口
-2) 在初始化时注册
-在 src/mainsvr/app.go（cmd_handler.RegisterCmd() 之前的位置）：
-import (
-  mainv1 "github.com/Iori372552686/GoOne/api/gen/game/main/v1"
-  "github.com/Iori372552686/GoOne/lib/service/ssrpc"
-  "github.com/Iori372552686/GoOne/src/mainsvr/service"
-)
-
-func initServices() {
-  mainv1.RegisterMainServiceToTransactionMgr(
-    &globals.TransMgr,
-    mainv1.MainServiceSSServer{
-      Impl: &service.MainServiceImpl{},
-      MW: []ssrpc.Middleware{
-        ssrpc.Recover(),
-        ssrpc.Logging(),
-        // ssrpc.Trace(),
-        // ssrpc.UIDLock(), // Phase A+ 启用
-      },
-    },
-  )
-}
-然后把 cmd_handler.RegisterCmd() 逐步删掉（或保留旧 cmd 兼容，先并存）。
+你现在立刻可以定的“统一规范”
+- IDL 为主：新增功能必须在 proto service 里定义 method
+- 命令字来源唯一：由 cmd.proto（生成到 Go enum / 或映射到现有 g1_protocol）统一管理
+- handler 不再手写 RegisterCmd 列表：由 protoc 插件生成
+- 一套 middleware：签名/鉴权/uid lock/日志/metrics 在 dispatcher 层做
 --------------------------------------------------------------------------------
-9) 预留 AI MCP 支持（不影响 Phase A，但提前留好接口）
-你可以把 MCP 当成一种“能力提供者”，不与 transport 强耦合。建议预留两层：
-9.1 在 Context 上预留 Tools()/MCP() 能力type MCP interface {  CallTool(name string, input any) (any, error)  // or: Invoke(ctx, req) ...}type Context struct {  cmd_handler.IContext  MCP MCP // 可选，nil 表示未启用}
-9.2 中间件里挂载/鉴权
-- ssrpc.MCPAttach(mcp MCP)：把 mcp 注入 ctx
-- ssrpc.MCPGuard()：限制哪些 cmd/service 可以调用哪些 tool（避免被业务滥用/越权）
-- 未来 HTTP/WS 也复用同一套 middleware，不需要改业务 service
---------------------------------------------------------------------------------
-10) 下一步你要拍板的 3 个关键决策（我按你的选择继续细化）
-- IDL 放哪里：建议 api/proto/...（如上），生成代码 api/gen/...
-- cmd 来源：
-- Phase A 推荐：options 存 uint32 cmd
-- Phase A+ 再补：cmd.proto 全量 enum（可脚本生成）
-- 服务返回风格：
-- 推荐：(*Rsp, error) + ssrpc.Error{Code} 统一映射到 g1_protocol.ErrorCode你确认这 3 点后，我可以把：
-- options.proto 与示例 main.proto
-- protoc-gen-goone 的最小可用输出（只生成 SSPacket 注册）
-- lib/service/ssrpc 的最小 runtime（Context/Middleware/Error mapping/Recover/Logging）
-整理成一套完整的“开工骨架”（目录/文件名/生成命令/接入 mainsvr 示例）。
+如果你想我继续“落地到 GoOne 级别”，我建议你先选一个切入点：
+- A：先做 SSPacket（内网 RPC）生成注册（最贴合你们现有 TransactionMgr/uid lock）
+- B：先做 HTTP（web_svr）把 URL/path 映射到 proto service method
+你希望先从 A 还是 B 开始？我可以在你选定后，把 options.proto + cmd.proto + protoc-gen-goone 的输出格式（文件名、生成函数签名、如何在 src/mainsvr/app.go 初始化）写成一份可直接开工的“技术设计 + 目录结构草案”。

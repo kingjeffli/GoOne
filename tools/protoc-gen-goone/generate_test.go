@@ -582,6 +582,105 @@ func TestGenerate_HTTPBinding_GinRegister(t *testing.T) {
 	}
 }
 
+func TestGenerate_HTTPOnly_NoCmd_SkipsTransactionMgr(t *testing.T) {
+	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
+
+	optionsFD := &descriptorpb.FileDescriptorProto{
+		Name:    protoString(ssrpcOptFilePath),
+		Package: protoString("goone.options.v1"),
+		Dependency: []string{
+			"google/protobuf/descriptor.proto",
+		},
+		Options: &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{
+				Name: protoString("SsRpc"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: protoString("cmd"), Number: protoInt32(1), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+					{Name: protoString("http_path"), Number: protoInt32(20), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_STRING)},
+					{Name: protoString("http_method"), Number: protoInt32(21), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_STRING)},
+				},
+			},
+		},
+		Extension: []*descriptorpb.FieldDescriptorProto{
+			{
+				Name:     protoString("ssrpc"),
+				Number:   protoInt32(61001),
+				Label:    labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
+				Type:     typePtr(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+				TypeName: protoString(".goone.options.v1.SsRpc"),
+				Extendee: protoString(".google.protobuf.MethodOptions"),
+			},
+		},
+	}
+
+	svcFD := &descriptorpb.FileDescriptorProto{
+		Name:       protoString("test/http/v1/svc2.proto"),
+		Package:    protoString("test.http.v1"),
+		Dependency: []string{ssrpcOptFilePath},
+		Options:    &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/test/http/v1;httpv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{Name: protoString("Req2")},
+			{Name: protoString("Rsp2")},
+		},
+		Service: []*descriptorpb.ServiceDescriptorProto{
+			{
+				Name: protoString("Svc2"),
+				Method: []*descriptorpb.MethodDescriptorProto{
+					{
+						Name:       protoString("Do2"),
+						InputType:  protoString(".test.http.v1.Req2"),
+						OutputType: protoString(".test.http.v1.Rsp2"),
+						Options:    &descriptorpb.MethodOptions{},
+					},
+				},
+			},
+		},
+	}
+
+	extType, extMsgDesc, _, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD})
+	if err != nil {
+		t.Fatalf("buildSsRpcExtension err: %v", err)
+	}
+	optMsg := dynamicpb.NewMessage(extMsgDesc)
+	// NOTE: intentionally omit cmd/cmd_name/cmd_enum
+	optMsg.Set(extMsgDesc.Fields().ByName("http_path"), protoreflect.ValueOfString("/v1/test/do2"))
+	optMsg.Set(extMsgDesc.Fields().ByName("http_method"), protoreflect.ValueOfString("POST"))
+	svcFD.Service[0].Method[0].Options = mustMethodOptionsUnknown(t, extType, optMsg)
+
+	req := &pluginpb.CodeGeneratorRequest{
+		FileToGenerate: []string{svcFD.GetName()},
+		ProtoFile:      []*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD},
+		Parameter:      protoString("paths=import,module=github.com/Iori372552686/GoOne"),
+	}
+	resp, err := Generate(req)
+	if err != nil {
+		t.Fatalf("Generate err: %v", err)
+	}
+	if len(resp.File) != 1 {
+		t.Fatalf("expected 1 generated file, got %d", len(resp.File))
+	}
+	out := resp.File[0].GetContent()
+	if contains(out, "RegisterSvc2ToTransactionMgr") {
+		t.Fatalf("expected no transaction mgr register for http-only method, got:\n%s", out)
+	}
+	if contains(out, "lib/service/transaction") || contains(out, "game_protocol/protocol") {
+		t.Fatalf("expected no transaction/g1_protocol imports for http-only method, got:\n%s", out)
+	}
+	if !contains(out, "func RegisterSvc2ToGin(r gin.IRoutes") {
+		t.Fatalf("expected gin register function, got:\n%s", out)
+	}
+	if !contains(out, "func RegisterSvc2ToDispatcher(d *ssrpc.Dispatcher") {
+		t.Fatalf("expected dispatcher register function, got:\n%s", out)
+	}
+	if !contains(out, "d.RegisterHTTP(\"POST\", \"/v1/test/do2\", ssrpc.WrapHTTPGin") {
+		t.Fatalf("expected dispatcher http registration, got:\n%s", out)
+	}
+	if !contains(out, "Cmd: 0,") {
+		t.Fatalf("expected Cmd: 0 for http-only binding, got:\n%s", out)
+	}
+}
+
 func TestGenerate_SSRPCOption_UIDLockInject(t *testing.T) {
 	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
 

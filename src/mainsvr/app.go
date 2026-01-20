@@ -81,14 +81,18 @@ func (self *MainSvrImpl) OnInit() error {
 	}
 
 	cmd_handler.RegisterCmd()
-	// IDL-driven ssrpc handlers (Phase A). Register AFTER legacy handlers so ssrpc wrappers can override.
-	mainsvrv1.RegisterMainC2SServiceToTransactionMgr(globals.TransMgr, mainsvrv1.MainC2SServiceSServer{
+	// IDL-driven ssrpc handlers. Register AFTER legacy handlers so ssrpc wrappers can override.
+	// Phase 2: register into a unified dispatcher, then mount into TransactionMgr.
+	srv := mainsvrv1.MainC2SServiceSServer{
 		Impl: &service.MainC2SServiceImpl{},
 		MW: []ssrpc.Middleware{
 			ssrpc.Recover(),
 			ssrpc.Logging(),
 		},
-	})
+	}
+	d := ssrpc.NewDispatcher()
+	mainsvrv1.RegisterMainC2SServiceToDispatcher(d, srv)
+	d.RegisterToTransactionMgr(globals.TransMgr)
 	globals.TransMgr.InitAndRun(misc.MaxTransNumber, true, 100)
 	if globals.IDGen, err = idgen.NewIDGen(); err != nil {
 		return err

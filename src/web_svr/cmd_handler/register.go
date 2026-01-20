@@ -50,7 +50,9 @@ func NewRegCmdHandler() *RegCmdHandler {
 func (self *RegCmdHandler) RegHttpCmd() {
 	logger.Infof("register http transaction commands")
 
-	self.ChMgr.HttpRegister("msgSecCheck", MsgSecCheck) //msg security check
+	// Legacy HTTP cmd handler (safe_msg/:cmd). Prefer the IDL-driven route:
+	// POST /v1/web/msg-sec-check (see api/proto/web/websvr/v1/web_api.proto).
+	self.ChMgr.HttpRegister("msgSecCheck", MsgSecCheck) // msg security check
 }
 
 /**

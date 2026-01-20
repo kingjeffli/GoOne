@@ -179,7 +179,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 		path       string
 		httpMethod string
 
-		cmdExpr string
+		cmdLit string // literal for MethodDesc.Cmd, can be "0" for HTTP-only
 
 		oneWay  bool
 		uidLock bool
@@ -289,42 +289,43 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 		b.WriteString("\tMW []ssrpc.Middleware\n")
 		b.WriteString("}\n\n")
 
-		// Only generate register function if there are annotated methods.
-		if len(annotated) > 0 {
-			b.WriteString(fmt.Sprintf("// Register%sToTransactionMgr binds SSPacket cmd -> handler wrappers.\n", svc))
-			b.WriteString(fmt.Sprintf("func Register%sToTransactionMgr(mgr transaction.ITransactionMgr, srv %sSServer) {\n", svc, svc))
-			b.WriteString("\tif mgr == nil || srv.Impl == nil {\n")
-			b.WriteString("\t\treturn\n")
-			b.WriteString("\t}\n\n")
-		}
-
 		httpBinds := make([]httpBind, 0)
+		hasAnyCmdMethod := false
 		for _, m := range annotated {
 			ext, _, err := readSsRpcOption(m.GetOptions(), extType, extMsgDesc, extNum)
 			if err != nil {
 				return "", err
 			}
-			if ext.cmd == 0 && ext.cmdEnum == 0 && strings.TrimSpace(ext.cmdName) == "" {
-				return "", fmt.Errorf("ssrpc option requires cmd != 0 or cmd_enum != 0 or cmd_name != \"\" (service=%s method=%s)", svc, m.GetName())
+			hasCmd := !(ext.cmd == 0 && ext.cmdEnum == 0 && strings.TrimSpace(ext.cmdName) == "")
+			hasHTTP := strings.TrimSpace(ext.httpPath) != ""
+			if !hasCmd && !hasHTTP {
+				return "", fmt.Errorf("ssrpc option requires cmd/cmd_enum/cmd_name OR http_path (service=%s method=%s)", svc, m.GetName())
+			}
+			if hasCmd {
+				hasAnyCmdMethod = true
 			}
 
 			// cmd expression (prefer explicit numeric cmd; otherwise use cmd_name -> g1_protocol.<NAME>)
 			cmdExpr := ""
-			if ext.cmd != 0 {
-				cmdExpr = fmt.Sprintf("g1_protocol.CMD(0x%X)", ext.cmd)
-			} else if ext.cmdEnum != 0 {
-				cmdExpr = fmt.Sprintf("g1_protocol.CMD(0x%X)", uint32(ext.cmdEnum))
-			} else {
-				cmdExpr = "g1_protocol." + strings.TrimSpace(ext.cmdName)
+			if hasCmd {
+				if ext.cmd != 0 {
+					cmdExpr = fmt.Sprintf("g1_protocol.CMD(0x%X)", ext.cmd)
+				} else if ext.cmdEnum != 0 {
+					cmdExpr = fmt.Sprintf("g1_protocol.CMD(0x%X)", uint32(ext.cmdEnum))
+				} else {
+					cmdExpr = "g1_protocol." + strings.TrimSpace(ext.cmdName)
+				}
 			}
 
 			// cmd_resp expression
 			cmdRespExpr := ""
-			if ext.cmdResp != 0 {
-				cmdRespExpr = fmt.Sprintf("g1_protocol.CMD(0x%X)", ext.cmdResp)
-			} else {
-				// default resp = cmd + 1
-				cmdRespExpr = fmt.Sprintf("g1_protocol.CMD(uint32(%s) + 1)", cmdExpr)
+			if hasCmd {
+				if ext.cmdResp != 0 {
+					cmdRespExpr = fmt.Sprintf("g1_protocol.CMD(0x%X)", ext.cmdResp)
+				} else {
+					// default resp = cmd + 1
+					cmdRespExpr = fmt.Sprintf("g1_protocol.CMD(uint32(%s) + 1)", cmdExpr)
+				}
 			}
 
 			oneWay := ext.oneWay
@@ -360,7 +361,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 					inGo:       inGo,
 					path:       p,
 					httpMethod: hm,
-					cmdExpr:    cmdExpr,
+					cmdLit:     func() string { if hasCmd { return cmdExpr }; return "0" }(),
 					oneWay:     oneWay,
 					uidLock:    ext.uidLock,
 					auth:       ext.auth,
@@ -368,6 +369,20 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 					tags:       ext.tags,
 					name:       name,
 				})
+			}
+
+			if !hasCmd {
+				continue
+			}
+
+			if !strings.Contains(b.String(), fmt.Sprintf("func Register%sToTransactionMgr", svc)) {
+				// emit header lazily when first cmd-bound method encountered
+				// (keeps HTTP-only services from importing transaction/g1_protocol).
+				b.WriteString(fmt.Sprintf("// Register%sToTransactionMgr binds SSPacket cmd -> handler wrappers.\n", svc))
+				b.WriteString(fmt.Sprintf("func Register%sToTransactionMgr(mgr transaction.ITransactionMgr, srv %sSServer) {\n", svc, svc))
+				b.WriteString("\tif mgr == nil || srv.Impl == nil {\n")
+				b.WriteString("\t\treturn\n")
+				b.WriteString("\t}\n\n")
 			}
 
 			b.WriteString(fmt.Sprintf("\tmgr.RegisterCmd(%s, ssrpc.WrapUnary(\n", cmdExpr))
@@ -416,7 +431,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			b.WriteString("\t))\n\n")
 		}
 
-		if len(annotated) > 0 {
+		if hasAnyCmdMethod {
 			b.WriteString("}\n\n")
 		}
 
@@ -430,7 +445,131 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			for _, hb := range httpBinds {
 				b.WriteString(fmt.Sprintf("\tr.Handle(%q, %q, ssrpc.WrapHTTPGin(\n", hb.httpMethod, hb.path))
 				b.WriteString("\t\tssrpc.MethodDesc{\n")
-				b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", hb.cmdExpr))
+				b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", hb.cmdLit))
+				if hb.oneWay {
+					b.WriteString("\t\t\tOneWay: true,\n")
+				}
+				if hb.uidLock {
+					b.WriteString("\t\t\tUIDLock: true,\n")
+				}
+				if hb.auth {
+					b.WriteString("\t\t\tAuth: true,\n")
+				}
+				if hb.sign {
+					b.WriteString("\t\t\tSign: true,\n")
+				}
+				if tagMap := parseTraceTags(hb.tags); len(tagMap) > 0 {
+					b.WriteString("\t\t\tTraceTags: map[string]string{")
+					keys := make([]string, 0, len(tagMap))
+					for k := range tagMap {
+						keys = append(keys, k)
+					}
+					sort.Strings(keys)
+					for _, k := range keys {
+						b.WriteString(fmt.Sprintf("%q: %q, ", k, tagMap[k]))
+					}
+					b.WriteString("},\n")
+				}
+				b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", hb.name))
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t\tsrv.MW,\n")
+				b.WriteString(fmt.Sprintf("\t\tfunc() any { return new(%s) },\n", hb.inGo))
+				b.WriteString("\t\tfunc(ctx *ssrpc.Context, in any) (any, error) {\n")
+				b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s))\n", hb.method, hb.inGo))
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t))\n\n")
+			}
+			b.WriteString("}\n\n")
+		}
+
+		// Phase-2 output: unified dispatcher registration (cmd + http).
+		// This allows transports to mount from a single registry.
+		if hasAnyCmdMethod || len(httpBinds) > 0 {
+			b.WriteString(fmt.Sprintf("// Register%sToDispatcher registers cmd/http bindings into a unified ssrpc.Dispatcher.\n", svc))
+			b.WriteString(fmt.Sprintf("func Register%sToDispatcher(d *ssrpc.Dispatcher, srv %sSServer) {\n", svc, svc))
+			b.WriteString("\tif d == nil || srv.Impl == nil {\n")
+			b.WriteString("\t\treturn\n")
+			b.WriteString("\t}\n\n")
+
+			// cmd-bound methods
+			for _, m := range annotated {
+				ext, _, err := readSsRpcOption(m.GetOptions(), extType, extMsgDesc, extNum)
+				if err != nil {
+					return "", err
+				}
+				hasCmd := !(ext.cmd == 0 && ext.cmdEnum == 0 && strings.TrimSpace(ext.cmdName) == "")
+				if !hasCmd {
+					continue
+				}
+				cmdExpr := ""
+				if ext.cmd != 0 {
+					cmdExpr = fmt.Sprintf("g1_protocol.CMD(0x%X)", ext.cmd)
+				} else if ext.cmdEnum != 0 {
+					cmdExpr = fmt.Sprintf("g1_protocol.CMD(0x%X)", uint32(ext.cmdEnum))
+				} else {
+					cmdExpr = "g1_protocol." + strings.TrimSpace(ext.cmdName)
+				}
+
+				cmdRespExpr := ""
+				if ext.cmdResp != 0 {
+					cmdRespExpr = fmt.Sprintf("g1_protocol.CMD(0x%X)", ext.cmdResp)
+				}
+
+				method := m.GetName()
+				inGo, _, err := typeRef(m.GetInputType())
+				if err != nil {
+					return "", err
+				}
+
+				b.WriteString(fmt.Sprintf("\td.RegisterCmd(%s, ssrpc.WrapUnary(\n", cmdExpr))
+				b.WriteString("\t\tssrpc.MethodDesc{\n")
+				b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", cmdExpr))
+				if ext.cmdResp != 0 {
+					b.WriteString(fmt.Sprintf("\t\t\tCmdResp: %s,\n", cmdRespExpr))
+				}
+				if ext.oneWay {
+					b.WriteString("\t\t\tOneWay: true,\n")
+				}
+				if ext.uidLock {
+					b.WriteString("\t\t\tUIDLock: true,\n")
+				}
+				if ext.auth {
+					b.WriteString("\t\t\tAuth: true,\n")
+				}
+				if ext.sign {
+					b.WriteString("\t\t\tSign: true,\n")
+				}
+				if tagMap := parseTraceTags(ext.tags); len(tagMap) > 0 {
+					b.WriteString("\t\t\tTraceTags: map[string]string{")
+					keys := make([]string, 0, len(tagMap))
+					for k := range tagMap {
+						keys = append(keys, k)
+					}
+					sort.Strings(keys)
+					for _, k := range keys {
+						b.WriteString(fmt.Sprintf("%q: %q, ", k, tagMap[k]))
+					}
+					b.WriteString("},\n")
+				}
+				if ext.comment != "" {
+					b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", ext.comment))
+				} else {
+					b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", svc+"."+method))
+				}
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t\tsrv.MW,\n")
+				b.WriteString(fmt.Sprintf("\t\tfunc() any { return new(%s) },\n", inGo))
+				b.WriteString("\t\tfunc(ctx *ssrpc.Context, in any) (any, error) {\n")
+				b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s))\n", method, inGo))
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t))\n\n")
+			}
+
+			// http-bound methods
+			for _, hb := range httpBinds {
+				b.WriteString(fmt.Sprintf("\td.RegisterHTTP(%q, %q, ssrpc.WrapHTTPGin(\n", hb.httpMethod, hb.path))
+				b.WriteString("\t\tssrpc.MethodDesc{\n")
+				b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", hb.cmdLit))
 				if hb.oneWay {
 					b.WriteString("\t\t\tOneWay: true,\n")
 				}
@@ -477,6 +616,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 	// NOTE: base imports are only needed if we generated any register wrapper.
 	hasAnyWrapper := strings.Contains(content, "mgr.RegisterCmd(")
 	hasGinWrapper := strings.Contains(content, "gin.IRoutes") && strings.Contains(content, "WrapHTTPGin(")
+	hasDispatcher := strings.Contains(content, "Register") && strings.Contains(content, "ToDispatcher(d *ssrpc.Dispatcher")
 	imports := []importSpec{
 		{Path: "github.com/Iori372552686/GoOne/lib/service/ssrpc", Alias: ""},
 	}
@@ -495,6 +635,10 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 		imports = append(imports, importSpec{Path: "github.com/gin-gonic/gin", Alias: "gin"})
 		basePaths["github.com/gin-gonic/gin"] = struct{}{}
 	}
+
+	// If dispatcher registration is present, ensure ssrpc is imported (already) and
+	// only add g1_protocol when cmd expressions are referenced.
+	_ = hasDispatcher
 	// deterministic import order
 	extra := make([]string, 0, len(usedMsgImports))
 	for impPath := range usedMsgImports {

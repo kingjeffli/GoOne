@@ -807,3 +807,552 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 
 }
 
+// RegisterMainC2SServiceToDispatcher registers cmd/http bindings into a unified ssrpc.Dispatcher.
+func RegisterMainC2SServiceToDispatcher(d *ssrpc.Dispatcher, srv MainC2SServiceSServer) {
+	if d == nil || srv.Impl == nil {
+		return
+	}
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_LOGIN_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_LOGIN_REQ,
+			Name: "mainsvr login",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.LoginReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Login(ctx, in.(*g1_protocol.LoginReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_LOGOUT_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_LOGOUT_REQ,
+			Name: "mainsvr logout (rsp optional, see req.ByServer)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.LogoutReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Logout(ctx, in.(*g1_protocol.LogoutReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_HEARTBEAT_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_HEARTBEAT_REQ,
+			Name: "mainsvr heartbeat",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.HeartBeatReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.HeartBeat(ctx, in.(*g1_protocol.HeartBeatReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_CHANGE_NAME_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_CHANGE_NAME_REQ,
+			Name: "mainsvr change name",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.ChangeNameReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.ChangeName(ctx, in.(*g1_protocol.ChangeNameReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_CHANGE_ICON_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_CHANGE_ICON_REQ,
+			Name: "mainsvr change icon",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.ChangeIconReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.ChangeIcon(ctx, in.(*g1_protocol.ChangeIconReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GM_GET_ROLE_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GM_GET_ROLE_REQ,
+			Name: "gm get role",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.GMGetRoleReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.GmGetRole(ctx, in.(*g1_protocol.GMGetRoleReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GM_SET_ROLE_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GM_SET_ROLE_REQ,
+			Name: "gm set role",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.GMSetRoleReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.GmSetRole(ctx, in.(*g1_protocol.GMSetRoleReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GM_ADD_ITEM_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GM_ADD_ITEM_REQ,
+			Name: "gm add item",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.GMAddItemReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.GmAddItem(ctx, in.(*g1_protocol.GMAddItemReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_MALL_BUY_PACKAGE_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_MALL_BUY_PACKAGE_REQ,
+			Name: "mall buy package",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.MallBuyPackageReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.MallBuyPackage(ctx, in.(*g1_protocol.MallBuyPackageReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_CREATE_ROOM_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_CREATE_ROOM_REQ,
+			Name: "texas create room",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.CreateRoomReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.CreateRoom(ctx, in.(*g1_protocol.CreateRoomReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_JOIN_ROOM_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_JOIN_ROOM_REQ,
+			Name: "texas join room",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.JoinRoomReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.JoinRoom(ctx, in.(*g1_protocol.JoinRoomReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_QUICK_START_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_QUICK_START_REQ,
+			Name: "texas quick start",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.QuickStartReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.QuickStart(ctx, in.(*g1_protocol.QuickStartReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_ROOM_LIST_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_ROOM_LIST_REQ,
+			Name: "texas room list",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.RoomListReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.GetRoomList(ctx, in.(*g1_protocol.RoomListReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_DO_BET_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_DO_BET_REQ,
+			Name: "texas do bet",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.DoBetReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.DoBet(ctx, in.(*g1_protocol.DoBetReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_FOLD_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_FOLD_REQ,
+			Name: "texas fold",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.FoldReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Fold(ctx, in.(*g1_protocol.FoldReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_BUY_IN_DETAIL_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_BUY_IN_DETAIL_REQ,
+			Name: "texas buy-in detail",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.MainBuyInDetailReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.MainBuyInDetail(ctx, in.(*g1_protocol.MainBuyInDetailReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_LOOKERS_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_GET_LOOKERS_REQ,
+			Name: "texas get lookers",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.GetLookersReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.GetLookers(ctx, in.(*g1_protocol.GetLookersReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_SIT_DOWN_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_SIT_DOWN_REQ,
+			Name: "texas sit down",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.SitDownReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.SitDown(ctx, in.(*g1_protocol.SitDownReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_STAND_UP_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_STAND_UP_REQ,
+			Name: "texas stand up",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.StandUpReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.StandUp(ctx, in.(*g1_protocol.StandUpReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_LEAVE_GAME_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_LEAVE_GAME_REQ,
+			Name: "texas leave game",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.LeaveGameReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.LeaveGame(ctx, in.(*g1_protocol.LeaveGameReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_BUY_IN_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_BUY_IN_REQ,
+			OneWay: true,
+			Name: "texas buy in (one-way, stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.BuyInReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.BuyIn(ctx, in.(*g1_protocol.BuyInReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_MILITARY_SUCCESS_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_MILITARY_SUCCESS_REQ,
+			Name: "texas military success (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.MilitarySuccessReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.MilitarySuccess(ctx, in.(*g1_protocol.MilitarySuccessReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_GAME_LOG_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_GET_GAME_LOG_REQ,
+			Name: "texas game log (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.GetGameLogReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.GetGameLog(ctx, in.(*g1_protocol.GetGameLogReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_TIME_LEFT_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_GET_TIME_LEFT_REQ,
+			Name: "texas time left (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.GetTimeLeftReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.GetTimeLeft(ctx, in.(*g1_protocol.GetTimeLeftReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_VOICE_CALL_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_VOICE_CALL_REQ,
+			Name: "texas voice call (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.VoiceCallReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.VoiceCall(ctx, in.(*g1_protocol.VoiceCallReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_BUY_THINK_TIME_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_BUY_THINK_TIME_REQ,
+			Name: "texas buy think time (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.BuyThinkTimeReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.BuyThinkTime(ctx, in.(*g1_protocol.BuyThinkTimeReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_AUTO_BUYIN_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_AUTO_BUYIN_REQ,
+			Name: "texas auto buyin (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.AutoBuyinReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.AutoBuyin(ctx, in.(*g1_protocol.AutoBuyinReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_INTERACTION_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_INTERACTION_REQ,
+			Name: "texas interaction (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.InteractionReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Interaction(ctx, in.(*g1_protocol.InteractionReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_EMOTICON_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_EMOTICON_REQ,
+			Name: "texas emoticon (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.EmoticonReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Emoticon(ctx, in.(*g1_protocol.EmoticonReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_MILITARY_DIAGRAM_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_GET_MILITARY_DIAGRAM_REQ,
+			Name: "texas military diagram (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.GetMilitaryDiagramReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.GetMilitaryDiagram(ctx, in.(*g1_protocol.GetMilitaryDiagramReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_SHOW_CARD_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_SHOW_CARD_REQ,
+			Name: "texas show card (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.ShowCardReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.ShowCard(ctx, in.(*g1_protocol.ShowCardReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_ROLE_INFO_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_GET_ROLE_INFO_REQ,
+			Name: "texas get player info (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.GetPlayerInfoReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.GetPlayerInfo(ctx, in.(*g1_protocol.GetPlayerInfoReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_MARK_PLAYER_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_MARK_PLAYER_REQ,
+			Name: "texas mark player (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.MarkPlayerReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.MarkPlayer(ctx, in.(*g1_protocol.MarkPlayerReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_INSURANCE_BUY_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_INSURANCE_BUY_REQ,
+			Name: "texas insurance buy (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.InsuranceBuyReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.InsuranceBuy(ctx, in.(*g1_protocol.InsuranceBuyReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_ROOM_SET_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_ROOM_SET_REQ,
+			Name: "texas room set (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.RoomSetReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.RoomSet(ctx, in.(*g1_protocol.RoomSetReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_SNG_GET_BLIND_LEVEL_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_SNG_GET_BLIND_LEVEL_REQ,
+			Name: "texas sng blind level (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.SngGetBlindLevelReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.SngGetBlindLevel(ctx, in.(*g1_protocol.SngGetBlindLevelReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_ROOM_INFO_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_GET_ROOM_INFO_REQ,
+			Name: "texas get room info",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.GetRoomInfoReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.GetRoomInfo(ctx, in.(*g1_protocol.GetRoomInfoReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_INSURANCE_THINK_TIME_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_INSURANCE_THINK_TIME_REQ,
+			Name: "texas insurance think time (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.InsuranceThinkTimeReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.InsuranceThinkTime(ctx, in.(*g1_protocol.InsuranceThinkTimeReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_INSURANCE_OP_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_INSURANCE_OP_REQ,
+			Name: "texas insurance op (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.InsuranceOpReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.InsuranceOp(ctx, in.(*g1_protocol.InsuranceOpReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_GET_GAME_INFO_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_GET_GAME_INFO_REQ,
+			Name: "texas get game info",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.GetGameInfoReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.GetGameInfo(ctx, in.(*g1_protocol.GetGameInfoReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_ADD_TO_FAVORITE_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_ADD_TO_FAVORITE_REQ,
+			Name: "texas add to favorite (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.AddToFavoriteReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.AddToFavorite(ctx, in.(*g1_protocol.AddToFavoriteReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_CHANGE_SKIN_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_CHANGE_SKIN_REQ,
+			Name: "texas change skin (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.ChangeSkinReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.ChangeSkin(ctx, in.(*g1_protocol.ChangeSkinReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_RABBIT_HUNTING_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_RABBIT_HUNTING_REQ,
+			Name: "texas rabbit hunting (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.RabbitHuntingReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.RabbitHunting(ctx, in.(*g1_protocol.RabbitHuntingReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_EARLY_SETTLE_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_EARLY_SETTLE_REQ,
+			Name: "texas early settle (stub)",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.EarlySettleReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.EarlySettle(ctx, in.(*g1_protocol.EarlySettleReq))
+		},
+	))
+
+	d.RegisterCmd(g1_protocol.CMD_MAIN_GAME_PREOPERATION_REQ, ssrpc.WrapUnary(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_GAME_PREOPERATION_REQ,
+			Name: "texas preoperation",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.PreOperationReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Preoperation(ctx, in.(*g1_protocol.PreOperationReq))
+		},
+	))
+
+}
+
