@@ -290,7 +290,11 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 		b.WriteString("}\n\n")
 
 		httpBinds := make([]httpBind, 0)
+		wsBinds := make([]httpBind, 0) // reuse httpBind struct; ws methods only need cmd+method+desc
+		grpcBinds := make([]httpBind, 0) // reuse httpBind struct for grpc methods
 		hasAnyCmdMethod := false
+		hasAnyWSMethod := false
+		hasAnyGRPCMethod := false
 		for _, m := range annotated {
 			ext, _, err := readSsRpcOption(m.GetOptions(), extType, extMsgDesc, extNum)
 			if err != nil {
@@ -298,11 +302,19 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			}
 			hasCmd := !(ext.cmd == 0 && ext.cmdEnum == 0 && strings.TrimSpace(ext.cmdName) == "")
 			hasHTTP := strings.TrimSpace(ext.httpPath) != ""
+			hasWS := ext.ws && hasCmd // ws requires a cmd binding
+			hasGRPC := ext.grpc && hasCmd // grpc requires a cmd binding
 			if !hasCmd && !hasHTTP {
 				return "", fmt.Errorf("ssrpc option requires cmd/cmd_enum/cmd_name OR http_path (service=%s method=%s)", svc, m.GetName())
 			}
 			if hasCmd {
 				hasAnyCmdMethod = true
+			}
+			if hasWS {
+				hasAnyWSMethod = true
+			}
+			if hasGRPC {
+				hasAnyGRPCMethod = true
 			}
 
 			// cmd expression (prefer explicit numeric cmd; otherwise use cmd_name -> g1_protocol.<NAME>)
@@ -368,6 +380,44 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 					sign:       ext.sign,
 					tags:       ext.tags,
 					name:       name,
+				})
+			}
+
+			// Phase 2: collect WS (CSPacket) bindings for methods with ws=true.
+			if hasWS {
+				name := ext.comment
+				if name == "" {
+					name = svc + "." + method
+				}
+				wsBinds = append(wsBinds, httpBind{
+					method:  method,
+					inGo:    inGo,
+					cmdLit:  cmdExpr,
+					oneWay:  oneWay,
+					uidLock: ext.uidLock,
+					auth:    ext.auth,
+					sign:    ext.sign,
+					tags:    ext.tags,
+					name:    name,
+				})
+			}
+
+			// Phase 3: collect gRPC bindings for methods with grpc=true.
+			if hasGRPC {
+				name := ext.comment
+				if name == "" {
+					name = svc + "." + method
+				}
+				grpcBinds = append(grpcBinds, httpBind{
+					method:  method,
+					inGo:    inGo,
+					cmdLit:  cmdExpr,
+					oneWay:  oneWay,
+					uidLock: ext.uidLock,
+					auth:    ext.auth,
+					sign:    ext.sign,
+					tags:    ext.tags,
+					name:    name,
 				})
 			}
 
@@ -482,10 +532,103 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			b.WriteString("}\n\n")
 		}
 
-		// Phase-2 output: unified dispatcher registration (cmd + http).
+		// Phase-2 output: WS (CSPacket) registration for methods with ws=true.
+		if len(wsBinds) > 0 {
+			b.WriteString(fmt.Sprintf("// Register%sToWS registers WS (CSPacket) cmd -> handler wrappers.\n", svc))
+			b.WriteString(fmt.Sprintf("func Register%sToWS(d *ssrpc.Dispatcher, srv %sSServer) {\n", svc, svc))
+			b.WriteString("\tif d == nil || srv.Impl == nil {\n")
+			b.WriteString("\t\treturn\n")
+			b.WriteString("\t}\n\n")
+			for _, wb := range wsBinds {
+				b.WriteString(fmt.Sprintf("\td.RegisterWS(uint32(%s), ssrpc.WrapWS(\n", wb.cmdLit))
+				b.WriteString("\t\tssrpc.MethodDesc{\n")
+				b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", wb.cmdLit))
+				if wb.oneWay {
+					b.WriteString("\t\t\tOneWay: true,\n")
+				}
+				if wb.uidLock {
+					b.WriteString("\t\t\tUIDLock: true,\n")
+				}
+				if wb.auth {
+					b.WriteString("\t\t\tAuth: true,\n")
+				}
+				if wb.sign {
+					b.WriteString("\t\t\tSign: true,\n")
+				}
+				if tagMap := parseTraceTags(wb.tags); len(tagMap) > 0 {
+					b.WriteString("\t\t\tTraceTags: map[string]string{")
+					keys := make([]string, 0, len(tagMap))
+					for k := range tagMap {
+						keys = append(keys, k)
+					}
+					sort.Strings(keys)
+					for _, k := range keys {
+						b.WriteString(fmt.Sprintf("%q: %q, ", k, tagMap[k]))
+					}
+					b.WriteString("},\n")
+				}
+				b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", wb.name))
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t\tsrv.MW,\n")
+				b.WriteString(fmt.Sprintf("\t\tfunc() any { return new(%s) },\n", wb.inGo))
+				b.WriteString("\t\tfunc(ctx *ssrpc.Context, in any) (any, error) {\n")
+				b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s))\n", wb.method, wb.inGo))
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t))\n\n")
+			}
+			b.WriteString("}\n\n")
+		}
+
+		// Phase-3 output: gRPC registration for methods with grpc=true.
+		if len(grpcBinds) > 0 {
+			b.WriteString(fmt.Sprintf("// Register%sToGRPC registers gRPC unary handlers for %s.\n", svc, svc))
+			b.WriteString(fmt.Sprintf("func Register%sToGRPC(d *ssrpc.Dispatcher, srv %sSServer) {\n", svc, svc))
+			b.WriteString("\tif d == nil || srv.Impl == nil {\n")
+			b.WriteString("\t\treturn\n")
+			b.WriteString("\t}\n\n")
+			for _, gb := range grpcBinds {
+				b.WriteString(fmt.Sprintf("\td.RegisterGRPCUnary(%q, %q, ssrpc.WrapGRPCUnary(\n", svc, gb.method))
+				b.WriteString("\t\tssrpc.MethodDesc{\n")
+				b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", gb.cmdLit))
+				if gb.oneWay {
+					b.WriteString("\t\t\tOneWay: true,\n")
+				}
+				if gb.uidLock {
+					b.WriteString("\t\t\tUIDLock: true,\n")
+				}
+				if gb.auth {
+					b.WriteString("\t\t\tAuth: true,\n")
+				}
+				if gb.sign {
+					b.WriteString("\t\t\tSign: true,\n")
+				}
+				if tagMap := parseTraceTags(gb.tags); len(tagMap) > 0 {
+					b.WriteString("\t\t\tTraceTags: map[string]string{")
+					keys := make([]string, 0, len(tagMap))
+					for k := range tagMap {
+						keys = append(keys, k)
+					}
+					sort.Strings(keys)
+					for _, k := range keys {
+						b.WriteString(fmt.Sprintf("%q: %q, ", k, tagMap[k]))
+					}
+					b.WriteString("},\n")
+				}
+				b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", gb.name))
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t\tsrv.MW,\n")
+				b.WriteString("\t\tfunc(ctx *ssrpc.Context, in any) (any, error) {\n")
+				b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s))\n", gb.method, gb.inGo))
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t))\n\n")
+			}
+			b.WriteString("}\n\n")
+		}
+
+		// Unified dispatcher registration (cmd + http + ws + grpc).
 		// This allows transports to mount from a single registry.
-		if hasAnyCmdMethod || len(httpBinds) > 0 {
-			b.WriteString(fmt.Sprintf("// Register%sToDispatcher registers cmd/http bindings into a unified ssrpc.Dispatcher.\n", svc))
+		if hasAnyCmdMethod || len(httpBinds) > 0 || hasAnyWSMethod || hasAnyGRPCMethod {
+			b.WriteString(fmt.Sprintf("// Register%sToDispatcher registers cmd/http/ws/grpc bindings into a unified ssrpc.Dispatcher.\n", svc))
 			b.WriteString(fmt.Sprintf("func Register%sToDispatcher(d *ssrpc.Dispatcher, srv %sSServer) {\n", svc, svc))
 			b.WriteString("\tif d == nil || srv.Impl == nil {\n")
 			b.WriteString("\t\treturn\n")
@@ -603,7 +746,150 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 				b.WriteString("\t\t},\n")
 				b.WriteString("\t))\n\n")
 			}
+
+			// ws-bound methods (CSPacket over WebSocket)
+			for _, wb := range wsBinds {
+				b.WriteString(fmt.Sprintf("\td.RegisterWS(uint32(%s), ssrpc.WrapWS(\n", wb.cmdLit))
+				b.WriteString("\t\tssrpc.MethodDesc{\n")
+				b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", wb.cmdLit))
+				if wb.oneWay {
+					b.WriteString("\t\t\tOneWay: true,\n")
+				}
+				if wb.uidLock {
+					b.WriteString("\t\t\tUIDLock: true,\n")
+				}
+				if wb.auth {
+					b.WriteString("\t\t\tAuth: true,\n")
+				}
+				if wb.sign {
+					b.WriteString("\t\t\tSign: true,\n")
+				}
+				if tagMap := parseTraceTags(wb.tags); len(tagMap) > 0 {
+					b.WriteString("\t\t\tTraceTags: map[string]string{")
+					keys := make([]string, 0, len(tagMap))
+					for k := range tagMap {
+						keys = append(keys, k)
+					}
+					sort.Strings(keys)
+					for _, k := range keys {
+						b.WriteString(fmt.Sprintf("%q: %q, ", k, tagMap[k]))
+					}
+					b.WriteString("},\n")
+				}
+				b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", wb.name))
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t\tsrv.MW,\n")
+				b.WriteString(fmt.Sprintf("\t\tfunc() any { return new(%s) },\n", wb.inGo))
+				b.WriteString("\t\tfunc(ctx *ssrpc.Context, in any) (any, error) {\n")
+				b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s))\n", wb.method, wb.inGo))
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t))\n\n")
+			}
+
+			// grpc-bound methods
+			for _, gb := range grpcBinds {
+				b.WriteString(fmt.Sprintf("\td.RegisterGRPCUnary(%q, %q, ssrpc.WrapGRPCUnary(\n", svc, gb.method))
+				b.WriteString("\t\tssrpc.MethodDesc{\n")
+				b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", gb.cmdLit))
+				if gb.oneWay {
+					b.WriteString("\t\t\tOneWay: true,\n")
+				}
+				if gb.uidLock {
+					b.WriteString("\t\t\tUIDLock: true,\n")
+				}
+				if gb.auth {
+					b.WriteString("\t\t\tAuth: true,\n")
+				}
+				if gb.sign {
+					b.WriteString("\t\t\tSign: true,\n")
+				}
+				if tagMap := parseTraceTags(gb.tags); len(tagMap) > 0 {
+					b.WriteString("\t\t\tTraceTags: map[string]string{")
+					keys := make([]string, 0, len(tagMap))
+					for k := range tagMap {
+						keys = append(keys, k)
+					}
+					sort.Strings(keys)
+					for _, k := range keys {
+						b.WriteString(fmt.Sprintf("%q: %q, ", k, tagMap[k]))
+					}
+					b.WriteString("},\n")
+				}
+				b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", gb.name))
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t\tsrv.MW,\n")
+				b.WriteString("\t\tfunc(ctx *ssrpc.Context, in any) (any, error) {\n")
+				b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s))\n", gb.method, gb.inGo))
+				b.WriteString("\t\t},\n")
+				b.WriteString("\t))\n\n")
+			}
 			b.WriteString("}\n\n")
+		}
+
+		// ---------------------------------------------------------------------
+		// Client stub generation: type-safe RPC client for service-to-service calls.
+		// Only generates for methods with cmd bindings.
+		// ---------------------------------------------------------------------
+		if hasAnyCmdMethod {
+			b.WriteString(fmt.Sprintf("// %sClient provides type-safe RPC stubs for %s.\n", svc, svc))
+			b.WriteString(fmt.Sprintf("// Methods derive the target server type from CMD automatically.\n"))
+			b.WriteString(fmt.Sprintf("type %sClient struct{}\n\n", svc))
+			b.WriteString(fmt.Sprintf("// New%sClient returns a new %sClient.\n", svc, svc))
+			b.WriteString(fmt.Sprintf("func New%sClient() *%sClient {\n", svc, svc))
+			b.WriteString(fmt.Sprintf("\treturn &%sClient{}\n", svc))
+			b.WriteString("}\n\n")
+
+			for _, m := range annotated {
+				ext, _, err := readSsRpcOption(m.GetOptions(), extType, extMsgDesc, extNum)
+				if err != nil {
+					return "", err
+				}
+				hasCmd := !(ext.cmd == 0 && ext.cmdEnum == 0 && strings.TrimSpace(ext.cmdName) == "")
+				if !hasCmd {
+					continue
+				}
+				cmdExpr := ""
+				if ext.cmd != 0 {
+					cmdExpr = fmt.Sprintf("g1_protocol.CMD(0x%X)", ext.cmd)
+				} else if ext.cmdEnum != 0 {
+					cmdExpr = fmt.Sprintf("g1_protocol.CMD(0x%X)", uint32(ext.cmdEnum))
+				} else {
+					cmdExpr = "g1_protocol." + strings.TrimSpace(ext.cmdName)
+				}
+
+				method := m.GetName()
+				inGo, _, err := typeRef(m.GetInputType())
+				if err != nil {
+					return "", err
+				}
+				outGo, _, err := typeRef(m.GetOutputType())
+				if err != nil {
+					return "", err
+				}
+
+				comment := ext.comment
+				if comment == "" {
+					comment = svc + "." + method
+				}
+
+				if ext.oneWay {
+					// one_way: fire-and-forget, returns error only
+					b.WriteString(fmt.Sprintf("// %s sends %s (one-way, no response).\n", method, comment))
+					b.WriteString(fmt.Sprintf("func (c *%sClient) %s(ctx cmd_handler.IContext, req *%s) error {\n", svc, method, inGo))
+					b.WriteString(fmt.Sprintf("\treturn ssrpc.SendByCmd(ctx, %s, req)\n", cmdExpr))
+					b.WriteString("}\n\n")
+				} else {
+					// request/response: synchronous call
+					b.WriteString(fmt.Sprintf("// %s calls %s synchronously.\n", method, comment))
+					b.WriteString(fmt.Sprintf("func (c *%sClient) %s(ctx cmd_handler.IContext, req *%s) (*%s, error) {\n", svc, method, inGo, outGo))
+					b.WriteString(fmt.Sprintf("\trsp := &%s{}\n", outGo))
+					b.WriteString(fmt.Sprintf("\tif err := ssrpc.CallByCmd(ctx, %s, req, rsp); err != nil {\n", cmdExpr))
+					b.WriteString("\t\treturn nil, err\n")
+					b.WriteString("\t}\n")
+					b.WriteString("\treturn rsp, nil\n")
+					b.WriteString("}\n\n")
+				}
+			}
 		}
 	}
 
@@ -617,6 +903,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 	hasAnyWrapper := strings.Contains(content, "mgr.RegisterCmd(")
 	hasGinWrapper := strings.Contains(content, "gin.IRoutes") && strings.Contains(content, "WrapHTTPGin(")
 	hasDispatcher := strings.Contains(content, "Register") && strings.Contains(content, "ToDispatcher(d *ssrpc.Dispatcher")
+	hasClientStub := strings.Contains(content, "cmd_handler.IContext")
 	imports := []importSpec{
 		{Path: "github.com/Iori372552686/GoOne/lib/service/ssrpc", Alias: ""},
 	}
@@ -634,6 +921,13 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 	if hasGinWrapper {
 		imports = append(imports, importSpec{Path: "github.com/gin-gonic/gin", Alias: "gin"})
 		basePaths["github.com/gin-gonic/gin"] = struct{}{}
+	}
+	if hasClientStub {
+		cmdHandlerPath := "github.com/Iori372552686/GoOne/lib/api/cmd_handler"
+		if _, dup := basePaths[cmdHandlerPath]; !dup {
+			imports = append(imports, importSpec{Path: cmdHandlerPath, Alias: "cmd_handler"})
+			basePaths[cmdHandlerPath] = struct{}{}
+		}
 	}
 
 	// If dispatcher registration is present, ensure ssrpc is imported (already) and
@@ -690,6 +984,8 @@ type ssrpcOpt struct {
 	httpPath   string
 	httpMethod string
 	ws      bool
+	grpc        bool
+	grpcService string
 	comment string
 }
 
@@ -786,6 +1082,8 @@ func parseSsRpcOpt(m protoreflect.Message, extMsgDesc protoreflect.MessageDescri
 	httpPath := getString(m, extMsgDesc.Fields().ByName("http_path"))
 	httpMethod := getString(m, extMsgDesc.Fields().ByName("http_method"))
 	ws := getBool(m, extMsgDesc.Fields().ByName("ws"))
+	grpcFlag := getBool(m, extMsgDesc.Fields().ByName("grpc"))
+	grpcService := getString(m, extMsgDesc.Fields().ByName("grpc_service"))
 	comment := getString(m, extMsgDesc.Fields().ByName("comment"))
 
 	return ssrpcOpt{
@@ -793,7 +1091,7 @@ func parseSsRpcOpt(m protoreflect.Message, extMsgDesc protoreflect.MessageDescri
 		cmdEnum: cmdEnum, cmdName: cmdName,
 		auth: auth, sign: sign, tags: tags,
 		httpPath: httpPath, httpMethod: httpMethod,
-		ws: ws,
+		ws: ws, grpc: grpcFlag, grpcService: grpcService,
 		comment: comment,
 	}
 }

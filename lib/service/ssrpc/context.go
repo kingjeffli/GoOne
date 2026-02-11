@@ -10,6 +10,8 @@ type Transport string
 const (
 	TransportSS   Transport = "sspack"
 	TransportHTTP Transport = "http"
+	TransportWS   Transport = "ws"
+	TransportGRPC Transport = "grpc"
 )
 
 // Context is the unified request context for GoOne RPC handlers (Phase A).

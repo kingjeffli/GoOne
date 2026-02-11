@@ -15,6 +15,7 @@ service MainService {
       // Example cmd (uint32). Use your real CMD value here.
       cmd: 0x01020001
       // cmd_resp is optional; if omitted/0, generator will default to cmd+1.
+      ws: true
       comment: "user login"
     };
   }

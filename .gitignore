@@ -7,3 +7,5 @@ build/*
 /deploy/hosts/host_dev.txt
 /.cursor/
 /.bin/*
+/docs/
+/docs

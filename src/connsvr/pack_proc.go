@@ -2,16 +2,12 @@ package main
 
 import (
 	"net"
-	"strconv"
 
-	"github.com/Iori372552686/GoOne/lib/api/datetime"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
-	"github.com/Iori372552686/GoOne/lib/net/net_mgr"
 	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/connsvr/globals"
-	"github.com/Iori372552686/GoOne/src/connsvr/login"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"github.com/golang/protobuf/proto"
 )
@@ -37,51 +33,28 @@ func onWebSocketPacket(conn net.Conn, data []byte) {
 		return
 	}
 
+	// --- Try dispatcher: registered WS handlers (e.g. login pre-auth) ---
+	ic := newWsIContext(conn, &packetHeader, globals.ConnWsSvr)
+	if _, handled := globals.WSDispatcher.DispatchWS(ic, packetHeader.Cmd, packetBody); handled {
+		return
+	}
+
+	// --- Default path: forward to backend server via router ---
 	uid := packetHeader.Uid
-	var client *net_mgr.Client
-	if uid > 0 {
-		client = globals.ConnWsSvr.GetClientByUid(uid)
-		if client == nil {
-			logger.Errorf("Cannot find conn by uid: %v", uid)
-			return
-		}
+	if uid == 0 {
+		logger.Errorf("uid==0 and no WS handler registered for cmd %d", packetHeader.Cmd)
+		return
+	}
 
-		//前期简单测试，后期改为严谨通过rebind 与账号服验证后更新conn
-		if client.Conn != conn {
-			globals.ConnWsSvr.UpdateClientByUid(conn, uid, client.Zone) // update conn
-		}
+	client := globals.ConnWsSvr.GetClientByUid(uid)
+	if client == nil {
+		logger.Errorf("Cannot find conn by uid: %v", uid)
+		return
+	}
 
-	} else {
-		if packetHeader.Cmd == uint32(g1_protocol.CMD_MAIN_LOGIN_REQ) {
-			req := &g1_protocol.LoginReq{}
-
-			startTime := datetime.NowMs()
-			err := proto.Unmarshal(packetBody, req)
-			if err != nil {
-				logger.Errorf(" Fail to unmarshal LoginReq | %v ", err)
-				return
-			}
-
-			if req.GetAccount() == "" || req.GetChannelId() == 0 {
-				logger.Errorf(" LoginReq  -- > account or ChannelId   error !!! ")
-				return
-			}
-
-			ret, accUid := login.OnCheckAuthByAccSvr(req.Account, req.Token, req.ChannelId, req.LoginType)
-			duration := datetime.NowMs() - startTime
-			logger.Infof("LoginReq  -- > CheckAuthByAccSvr spent ms : %s  | ret=%v ", strconv.FormatInt(duration, 10), ret)
-			if !ret {
-				// 后续返回错误给前端
-				return
-			}
-
-			uid = accUid
-			zone := uint32(1)                                             //根据serverid 从配置获取 todo
-			client = globals.ConnWsSvr.UpdateClientByUid(conn, uid, zone) // update conn
-		} else {
-			logger.Errorf("Cannot find conn by uid , need login!!: %v", uid)
-			return
-		}
+	// 前期简单测试，后期改为严谨通过rebind 与账号服验证后更新conn
+	if client.Conn != conn {
+		globals.ConnWsSvr.UpdateClientByUid(conn, uid, client.Zone)
 	}
 
 	router.SendMsgByConn(uid, uid, client.Zone, packetHeader.Cmd, 0, packetBody, client.Ip, client.Port)
@@ -89,7 +62,6 @@ func onWebSocketPacket(conn net.Conn, data []byte) {
 
 // proc tcp packet
 func onTcpPacket(conn net.Conn, data []byte) {
-	startTime := datetime.NowMs()
 	headerLen := sharedstruct.ByteLenOfCSPacketHeader()
 	logger.Debugf("OnTcpPacket: {dataLen: %v, headerLen: %v, remoteAddr: %v}\n",
 		len(data), headerLen, conn.RemoteAddr())
@@ -109,53 +81,31 @@ func onTcpPacket(conn net.Conn, data []byte) {
 		return
 	}
 
-	uid := packetHeader.Uid
-	var client *net_mgr.Client
-	if uid > 0 {
-		client = globals.ConnWsSvr.GetClientByUid(uid)
-		if client == nil {
-			logger.Errorf("Cannot find conn by uid: %v", uid)
-			return
-		}
-
-		//前期简单测试，后期改为严谨通过rebind 与账号服验证后更新conn
-		if client.Conn != conn {
-			globals.ConnTcpSvr.UpdateClientByUid(conn, uid, client.Zone) // update conn
-		}
-
-	} else {
-		if packetHeader.Cmd == uint32(g1_protocol.CMD_MAIN_LOGIN_REQ) {
-			req := &g1_protocol.LoginReq{}
-
-			err := proto.Unmarshal(packetBody, req)
-			if err != nil {
-				logger.Errorf(" Fail to unmarshal LoginReq | %v ", err)
-				return
-			}
-
-			if req.GetAccount() == "" || req.GetChannelId() == 0 {
-				logger.Errorf(" LoginReq  -- > account or ChannelId   error !!! ")
-				return
-			}
-
-			ret, accUid := login.OnCheckAuthByAccSvr(req.Account, req.Token, req.ChannelId, req.LoginType)
-			duration := datetime.NowMs() - startTime
-			logger.Infof("LoginReq  -- > CheckAuthByAccSvr spent ms : %s", strconv.FormatInt(duration, 10))
-			if !ret {
-				// 后续返回错误给前端
-				return
-			}
-
-			uid = accUid
-			zone := uint32(1)                                              //根据serverid 从配置获取 todo
-			client = globals.ConnTcpSvr.UpdateClientByUid(conn, uid, zone) // update conn
-		} else {
-			logger.Errorf("Cannot find conn by uid , need login!!: %v", uid)
-			return
-		}
+	// --- Try dispatcher: registered handlers (e.g. login pre-auth) ---
+	ic := newWsIContext(conn, &packetHeader, globals.ConnTcpSvr)
+	if _, handled := globals.WSDispatcher.DispatchWS(ic, packetHeader.Cmd, packetBody); handled {
+		return
 	}
 
-	router.SendMsgByConn(uid, uid, 0, packetHeader.Cmd, 0, packetBody, client.Ip, client.Port)
+	// --- Default path: forward to backend server via router ---
+	uid := packetHeader.Uid
+	if uid == 0 {
+		logger.Errorf("uid==0 and no handler registered for cmd %d (tcp)", packetHeader.Cmd)
+		return
+	}
+
+	client := globals.ConnTcpSvr.GetClientByUid(uid)
+	if client == nil {
+		logger.Errorf("Cannot find conn by uid: %v", uid)
+		return
+	}
+
+	// 前期简单测试，后期改为严谨通过rebind 与账号服验证后更新conn
+	if client.Conn != conn {
+		globals.ConnTcpSvr.UpdateClientByUid(conn, uid, client.Zone)
+	}
+
+	router.SendMsgByConn(uid, uid, client.Zone, packetHeader.Cmd, 0, packetBody, client.Ip, client.Port)
 }
 
 // busMsg proc cb func

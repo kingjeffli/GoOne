@@ -56,6 +56,7 @@ func (self *AppSvrImpl) OnInit() error {
 	globals.RestMgr.Init(gconf.ConnSvrCfg.RestApiConf, globals.SignMgr)
 
 	cmd_handler.RegCmd()
+	regWSHandlers()
 	globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
 
 	err = globals.ConnTcpSvr.CreateTcpServer("", gconf.ConnSvrCfg.ListenPort+1, onTcpPacket)

@@ -48,9 +48,20 @@ message SsRpc {
   string http_path = 20;
   string http_method = 21; // e.g. "GET"/"POST". Empty defaults to "POST".
 
-  // ws indicates this method is exposed over WebSocket (Phase 2).
-  // This field is currently a schema placeholder; runtime wiring is TODO.
+  // ws indicates this method is exposed over WebSocket (CSPacket transport).
+  // When true, the generator emits d.RegisterWS() in RegisterToDispatcher and
+  // a standalone RegisterToWS function. Requires a cmd binding (cmd/cmd_enum/cmd_name).
   bool ws = 30;
+
+  // grpc indicates this method is exposed as a gRPC endpoint.
+  // When true, the generator emits d.RegisterGRPCUnary() in RegisterToDispatcher
+  // and a standalone RegisterToGRPC function. Requires a cmd binding for Dispatcher
+  // compatibility.
+  bool grpc = 40;
+
+  // grpc_service overrides the gRPC service name registered on grpc.Server.
+  // Default: the proto service name (e.g. "game.main.v1.MainService").
+  string grpc_service = 41;
 
   // comment is for docs / generated code comments only.
   string comment = 15;

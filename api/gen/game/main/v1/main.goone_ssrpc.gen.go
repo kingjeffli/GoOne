@@ -3,6 +3,7 @@
 package mainv1
 
 import (
+	cmd_handler "github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
@@ -34,7 +35,7 @@ func NewMainServiceSServer(impl MainServiceSS, opts ssrpc.DefaultMWOptions) Main
 
 type MainServiceSServer struct {
 	Impl MainServiceSS
-	MW []ssrpc.Middleware
+	MW   []ssrpc.Middleware
 }
 
 // RegisterMainServiceToTransactionMgr binds SSPacket cmd -> handler wrappers.
@@ -45,7 +46,7 @@ func RegisterMainServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv Ma
 
 	mgr.RegisterCmd(g1_protocol.CMD(0x1020001), ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
-			Cmd: g1_protocol.CMD(0x1020001),
+			Cmd:  g1_protocol.CMD(0x1020001),
 			Name: "user login",
 		},
 		srv.MW,
@@ -57,7 +58,27 @@ func RegisterMainServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv Ma
 
 }
 
-// RegisterMainServiceToDispatcher registers cmd/http bindings into a unified ssrpc.Dispatcher.
+// RegisterMainServiceToWS registers WS (CSPacket) cmd -> handler wrappers.
+func RegisterMainServiceToWS(d *ssrpc.Dispatcher, srv MainServiceSServer) {
+	if d == nil || srv.Impl == nil {
+		return
+	}
+
+	d.RegisterWS(uint32(g1_protocol.CMD(0x1020001)), ssrpc.WrapWS(
+		ssrpc.MethodDesc{
+			Cmd:  g1_protocol.CMD(0x1020001),
+			Name: "user login",
+		},
+		srv.MW,
+		func() any { return new(LoginReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Login(ctx, in.(*LoginReq))
+		},
+	))
+
+}
+
+// RegisterMainServiceToDispatcher registers cmd/http/ws/grpc bindings into a unified ssrpc.Dispatcher.
 func RegisterMainServiceToDispatcher(d *ssrpc.Dispatcher, srv MainServiceSServer) {
 	if d == nil || srv.Impl == nil {
 		return
@@ -65,7 +86,19 @@ func RegisterMainServiceToDispatcher(d *ssrpc.Dispatcher, srv MainServiceSServer
 
 	d.RegisterCmd(g1_protocol.CMD(0x1020001), ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
-			Cmd: g1_protocol.CMD(0x1020001),
+			Cmd:  g1_protocol.CMD(0x1020001),
+			Name: "user login",
+		},
+		srv.MW,
+		func() any { return new(LoginReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Login(ctx, in.(*LoginReq))
+		},
+	))
+
+	d.RegisterWS(uint32(g1_protocol.CMD(0x1020001)), ssrpc.WrapWS(
+		ssrpc.MethodDesc{
+			Cmd:  g1_protocol.CMD(0x1020001),
 			Name: "user login",
 		},
 		srv.MW,
@@ -77,3 +110,20 @@ func RegisterMainServiceToDispatcher(d *ssrpc.Dispatcher, srv MainServiceSServer
 
 }
 
+// MainServiceClient provides type-safe RPC stubs for MainService.
+// Methods derive the target server type from CMD automatically.
+type MainServiceClient struct{}
+
+// NewMainServiceClient returns a new MainServiceClient.
+func NewMainServiceClient() *MainServiceClient {
+	return &MainServiceClient{}
+}
+
+// Login calls user login synchronously.
+func (c *MainServiceClient) Login(ctx cmd_handler.IContext, req *LoginReq) (*LoginRsp, error) {
+	rsp := &LoginRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD(0x1020001), req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
