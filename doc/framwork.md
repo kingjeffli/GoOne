@@ -499,17 +499,11 @@ HTTP 管理/后台服务：
 - `lib/util/crypto/aes/ecb.go`：AES-ECB。
 - `lib/util/crypto/xxtea/xxtea.go`：XXTEA 实现。
 
-#### Excel 旧工具
+#### Excel 工具迁移说明
 
-- `lib/util/xlstrans/main.go`：旧版 Excel 转换 CLI 入口。
-- `lib/util/xlstrans/parse_struct.go`：旧版 Excel 结构解析。
-- `lib/util/xlstrans/xls_to_const.go`：Excel 转常量文件。
-- `lib/util/xlstrans/xls_to_data.go`：Excel 转数据文件。
-- `lib/util/xlstrans/xls_to_go.go`：Excel 转 Go 访问代码。
-- `lib/util/xlstrans/xls_to_pb.go`：Excel 转 protobuf。
-- `lib/util/xlstrans/xls_to_system_unlock.go`：功能开放表专用生成逻辑。
+`lib/util/xlstrans/` 已从当前仓库移除，`lib/util/` 下不再保留旧版 Excel 导表工具源码。
 
-说明：`lib/util/xlstrans` 是历史工具链，当前主推荐链路已经转到 `tools/cfgtool`。
+当前配置表生成、`proto` 生成、数据导出、仓库代码生成，统一由 `tools/cfgtool/` 负责。
 
 ### 8.8 `lib/contrib/`
 
@@ -682,15 +676,11 @@ HTTP 管理/后台服务：
 - 这些测试工具里存在硬编码地址、uid、token 样例，不能直接当成通用测试框架使用。
 - 更适合“服务已经跑起来后”的联调与冒烟验证。
 
-### 9.6 旧工具：`lib/util/xlstrans`
+### 9.6 历史说明：`lib/util/xlstrans` 已移除
 
-虽然当前主链路是 `tools/cfgtool`，但仓库里仍然保留旧版 Excel 转换工具：
+旧版 `lib/util/xlstrans` 导表工具已经从当前仓库删除，不再作为可维护路径。
 
-- 位置在 `lib/util/xlstrans/`
-- 这些文件是 `package main`
-- 更像历史版本保留，不建议继续扩展
-
-如果需要配置生成能力，优先读和改 `tools/cfgtool`。
+如果需要配置生成能力，统一使用 `tools/cfgtool`。
 
 ## 10. 框架共识与规范
 
@@ -883,7 +873,7 @@ HTTP 管理/后台服务：
    - `common/gconf/config.go`
    - `lib/contrib/config/factory/factory.go`
    - `lib/contrib/registry/factory/factory.go`
-8. 如果你要改配置表生成，先读 `tools/cfgtool/`，不要先碰 `lib/util/xlstrans/`。
+8. 如果你要改配置表生成，先读 `tools/cfgtool/`；当前仓库已不存在 `lib/util/xlstrans/`。
 
 ## 13. 最后总结
 
