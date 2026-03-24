@@ -9,12 +9,11 @@ import (
 // 所有的命令字对应的go需要在这里先注册
 func RegCmd() {
 	logger.Infof("register transaction commands")
-
-	globals.TransMgr.RegisterCmd(g1_protocol.CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ, NewZoneAdapter(InnerGetRoomList))
-	globals.TransMgr.RegisterCmd(g1_protocol.CMD_ROOM_CENTER_INNER_UPDATE_ROOM_INFO_REQ, NewZoneAdapter(InnerUpdateRoomInfo))
-	globals.TransMgr.RegisterCmd(g1_protocol.CMD_ROOM_CENTER_INNER_DEL_ROOM_INFO_REQ, NewZoneAdapter(InnerDelRoomInfo))
-	globals.TransMgr.RegisterCmd(g1_protocol.CMD_ROOM_CENTER_INNER_QUICK_START_REQ, NewZoneAdapter(InnerQuickStart))
-
-	//inner
-	globals.TransMgr.RegisterCmd(g1_protocol.CMD_ROOM_CENTER_INNER_TICK_REQ, NewZoneAdapter(InnerTick))
+	// Phase A migration:
+	// These cmds are now registered via IDL-driven ssrpc wrappers in api/gen/... and
+	// bound in src/roomcentersvr/app.go via RegisterRoomCenterInnerServiceToTransactionMgr.
+	//
+	// Keep this function to avoid breaking existing init flow while migration continues.
+	_ = globals.TransMgr
+	_ = g1_protocol.CMD(0)
 }

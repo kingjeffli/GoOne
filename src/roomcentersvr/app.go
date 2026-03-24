@@ -1,8 +1,11 @@
 package main
 
 import (
+	roomcenterv1 "github.com/Iori372552686/GoOne/api/gen/game/roomcenter/v1"
+	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/module/misc"
 	id "github.com/Iori372552686/GoOne/src/roomcentersvr/globals/idgen"
+	"github.com/Iori372552686/GoOne/src/roomcentersvr/service"
 	pb "github.com/Iori372552686/game_protocol/protocol"
 	"runtime"
 
@@ -55,6 +58,14 @@ func (a *RoomMgrSvrImpl) OnInit() error {
 	}
 
 	cmd_handler.RegCmd()
+	// IDL-driven ssrpc handlers (Phase A). Register AFTER legacy handlers so ssrpc wrappers can override.
+	roomcenterv1.RegisterRoomCenterInnerServiceToTransactionMgr(globals.TransMgr, roomcenterv1.RoomCenterInnerServiceSServer{
+		Impl: &service.RoomCenterInnerServiceImpl{},
+		MW: []ssrpc.Middleware{
+			ssrpc.Recover(),
+			ssrpc.Logging(),
+		},
+	})
 	globals.TransMgr.InitAndRun(misc.MaxTransNumber, true, 200)
 	if id.IDGen, err = idgen.NewIDGen(); err != nil {
 		return err

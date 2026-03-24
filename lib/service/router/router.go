@@ -188,6 +188,19 @@ func SendMsgBack(originalHeader sharedstruct.SSPacketHeader, srcTransId uint32, 
 	SendPbMsg(&originalHeader, pbMsg)
 }
 
+// SendMsgBackWithCmd is the same as SendMsgBack, but allows overriding the response cmd.
+// This is used by IDL-driven ssrpc wrappers when cmd_resp != cmd+1.
+//
+// Note: CmdSeq is kept as-is (matches request CmdSeq), to preserve Transaction.waitRsp semantics.
+func SendMsgBackWithCmd(originalHeader sharedstruct.SSPacketHeader, srcTransId uint32, cmd g1_protocol.CMD, pbMsg proto.Message) {
+	originalHeader.DstBusID = originalHeader.SrcBusID
+	originalHeader.SrcBusID = SelfBusId()
+	originalHeader.DstTransID = originalHeader.SrcTransID
+	originalHeader.SrcTransID = srcTransId
+	originalHeader.Cmd = uint32(cmd)
+	SendPbMsg(&originalHeader, pbMsg)
+}
+
 // -------------------------------- private --------------------------------
 
 var severInstanceMgr svrinstmgr.ServerInstanceMgr

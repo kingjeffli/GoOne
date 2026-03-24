@@ -1,0 +1,166 @@
+package ssrpc
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"strings"
+
+	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
+	"github.com/Iori372552686/GoOne/lib/api/logger"
+	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
+	"github.com/gin-gonic/gin"
+	jsonpb "github.com/golang/protobuf/jsonpb"
+	proto1 "github.com/golang/protobuf/proto"
+	protojson "google.golang.org/protobuf/encoding/protojson"
+	proto2 "google.golang.org/protobuf/proto"
+)
+
+type httpIContext struct {
+	gin *gin.Context
+}
+
+var _ cmd_handler.IContext = (*httpIContext)(nil)
+
+func (h *httpIContext) Uid() uint64        { return 0 }
+func (h *httpIContext) Zone() uint32       { return 0 }
+func (h *httpIContext) Rid() uint64        { return 0 }
+func (h *httpIContext) OriSrcBusId() uint32 { return 0 }
+func (h *httpIContext) Ip() uint32         { return 0 }
+func (h *httpIContext) Flag() uint32       { return 0 }
+
+func (h *httpIContext) ParseMsg(data []byte, msg proto1.Message) error {
+	return unmarshalJSONToProto(data, msg)
+}
+
+func (h *httpIContext) CallMsgBySvrType(uint32, g1_protocol.CMD, proto1.Message, proto1.Message) error {
+	return errors.New("not supported in http context")
+}
+func (h *httpIContext) CallMsgByRouter(uint32, uint64, g1_protocol.CMD, proto1.Message, proto1.Message) error {
+	return errors.New("not supported in http context")
+}
+func (h *httpIContext) CallOtherMsgBySvrType(uint32, uint64, uint64, uint32, g1_protocol.CMD, proto1.Message, proto1.Message) error {
+	return errors.New("not supported in http context")
+}
+func (h *httpIContext) SendMsgBack(proto1.Message) {}
+func (h *httpIContext) SendMsgByServerType(uint32, g1_protocol.CMD, proto1.Message) error {
+	return errors.New("not supported in http context")
+}
+func (h *httpIContext) SendMsgByRouter(uint32, uint64, g1_protocol.CMD, proto1.Message) error {
+	return errors.New("not supported in http context")
+}
+
+func (h *httpIContext) Errorf(format string, args ...interface{})   { logger.Errorf(format, args...) }
+func (h *httpIContext) Warningf(format string, args ...interface{}) { logger.Warningf(format, args...) }
+func (h *httpIContext) Infof(format string, args ...interface{})    { logger.Infof(format, args...) }
+func (h *httpIContext) Debugf(format string, args ...interface{})   { logger.Debugf(format, args...) }
+
+func unmarshalJSONToProto(data []byte, msg proto1.Message) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 {
+		data = []byte("{}")
+	}
+	// Prefer v2 protojson when available.
+	if m2, ok := any(msg).(proto2.Message); ok {
+		return protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(data, m2)
+	}
+	um := jsonpb.Unmarshaler{AllowUnknownFields: true}
+	return um.Unmarshal(bytes.NewReader(data), msg)
+}
+
+func marshalProtoToJSONRaw(msg proto1.Message) (json.RawMessage, error) {
+	if msg == nil {
+		return nil, nil
+	}
+	if m2, ok := any(msg).(proto2.Message); ok {
+		b, err := protojson.MarshalOptions{EmitUnpopulated: true, UseProtoNames: true}.Marshal(m2)
+		if err != nil {
+			return nil, err
+		}
+		return json.RawMessage(b), nil
+	}
+	var m jsonpb.Marshaler
+	m.EmitDefaults = true
+	m.OrigName = true
+	s, err := m.MarshalToString(msg)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage([]byte(s)), nil
+}
+
+// WrapHTTPGin returns a gin.HandlerFunc that decodes JSON->proto, runs middleware, and replies JSON.
+func WrapHTTPGin(desc MethodDesc, mws []Middleware, newReq func() any, invoke func(ctx *Context, req any) (any, error)) gin.HandlerFunc {
+	// Keep consistent with WrapUnary: never mutate caller slice; inject UIDLock if requested.
+	if desc.UIDLock {
+		base := append([]Middleware(nil), mws...)
+		mws = append(base, UIDLock())
+	}
+	return func(c *gin.Context) {
+		if c == nil {
+			return
+		}
+		data, _ := c.GetRawData()
+
+		ic := &httpIContext{gin: c}
+		ctx := WrapIContext(ic, desc.Cmd)
+		ctx.Transport = TransportHTTP
+		ctx.Method = desc.Name
+		ctx.AuthRequired = desc.Auth
+		ctx.SignRequired = desc.Sign
+		if desc.TraceTags != nil {
+			m := make(map[string]string, len(desc.TraceTags))
+			for k, v := range desc.TraceTags {
+				m[k] = v
+			}
+			ctx.TraceTags = m
+		}
+
+		reqAny := newReq()
+		req1, ok := reqAny.(proto1.Message)
+		if !ok || req1 == nil {
+			c.JSON(http.StatusOK, gin.H{"code": g1_protocol.ErrorCode_ERR_INTERNAL, "data": nil, "msg": "invalid req type"})
+			return
+		}
+		if err := ic.ParseMsg(data, req1); err != nil {
+			c.JSON(http.StatusOK, gin.H{"code": g1_protocol.ErrorCode_ERR_MARSHAL, "data": nil, "msg": g1_protocol.ErrorCode_ERR_MARSHAL.String()})
+			return
+		}
+
+		h := Handler(func(c2 *Context, in proto1.Message) (proto1.Message, error) {
+			outAny, err := invoke(c2, in)
+			if outAny == nil {
+				return nil, err
+			}
+			out, ok := outAny.(proto1.Message)
+			if !ok {
+				return nil, Wrap(g1_protocol.ErrorCode_ERR_INTERNAL, "invalid rsp type", nil)
+			}
+			return out, err
+		})
+		if len(mws) > 0 {
+			h = Chain(mws...)(h)
+		}
+
+		rsp, err := h(ctx, req1)
+		if err != nil {
+			code := ToErrorCode(err)
+			c.JSON(http.StatusOK, gin.H{"code": code, "data": nil, "msg": strings.TrimSpace(code.String())})
+			return
+		}
+		if desc.OneWay || rsp == nil {
+			c.JSON(http.StatusOK, gin.H{"code": g1_protocol.ErrorCode_ERR_OK, "data": nil, "msg": g1_protocol.ErrorCode_ERR_OK.String()})
+			return
+		}
+
+		raw, mErr := marshalProtoToJSONRaw(rsp)
+		if mErr != nil {
+			c.JSON(http.StatusOK, gin.H{"code": g1_protocol.ErrorCode_ERR_MARSHAL, "data": nil, "msg": g1_protocol.ErrorCode_ERR_MARSHAL.String()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"code": g1_protocol.ErrorCode_ERR_OK, "data": raw, "msg": g1_protocol.ErrorCode_ERR_OK.String()})
+	}
+}
+
+

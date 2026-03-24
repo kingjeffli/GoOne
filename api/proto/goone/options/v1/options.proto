@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package goone.options.v1;
+
+import "google/protobuf/descriptor.proto";
+import "goone/cmd/v1/cmd.proto";
+
+option go_package = "github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1";
+
+// SsRpc describes how a proto service method is exposed via GoOne's SSPacket RPC.
+//
+// - cmd is the request CMD (SSPacketHeader.Cmd)
+// - cmd_resp defaults to cmd+1 if 0 (keeps GoOne's existing convention)
+// - one_way means no response should be sent
+// - uid_lock is reserved for Phase A+ (route to UID-serialized executor)
+//
+// Cmd binding priority:
+// - if cmd != 0: use cmd
+// - else if cmd_enum != 0: use cmd_enum numeric value
+// - else if cmd_name != "": use g1_protocol.<cmd_name>
+message SsRpc {
+  // cmd is the numeric request CMD (SSPacketHeader.Cmd).
+  // Prefer cmd_enum/cmd_name if you want to avoid hardcoding numbers.
+  uint32 cmd = 1;
+  uint32 cmd_resp = 2;
+  bool one_way = 3;
+  bool uid_lock = 4;
+
+  // cmd_enum is an optional readable enum generated from g1_protocol.CMD.
+  // If cmd==0 and cmd_enum!=0, generator will use its numeric value.
+  goone.cmd.v1.CMD cmd_enum = 6;
+
+  // cmd_name is the Go enum constant name from g1_protocol, e.g. "CMD_MAIN_LOGIN_REQ".
+  // If cmd==0 and cmd_name is non-empty, generator will use g1_protocol.<cmd_name>.
+  string cmd_name = 5;
+
+  // auth indicates this method requires authentication (pluggable via ssrpc.Auth middleware).
+  bool auth = 7;
+
+  // sign indicates this method requires signature verification (pluggable via ssrpc.Sign middleware).
+  bool sign = 8;
+
+  // trace_tags provides extra trace tags in "k=v" form (pluggable via ssrpc.Trace middleware).
+  repeated string trace_tags = 9;
+
+  // http_path/http_method binds this method to an HTTP endpoint (Phase 2).
+  // The generator can optionally emit gin route registration wrappers.
+  string http_path = 20;
+  string http_method = 21; // e.g. "GET"/"POST". Empty defaults to "POST".
+
+  // ws indicates this method is exposed over WebSocket (CSPacket transport).
+  // When true, the generator emits d.RegisterWS() in RegisterToDispatcher and
+  // a standalone RegisterToWS function. Requires a cmd binding (cmd/cmd_enum/cmd_name).
+  bool ws = 30;
+
+  // grpc indicates this method is exposed as a gRPC endpoint.
+  // When true, the generator emits d.RegisterGRPCUnary() in RegisterToDispatcher
+  // and a standalone RegisterToGRPC function. Requires a cmd binding for Dispatcher
+  // compatibility.
+  bool grpc = 40;
+
+  // grpc_service overrides the gRPC service name registered on grpc.Server.
+  // Default: the proto service name (e.g. "game.main.v1.MainService").
+  string grpc_service = 41;
+
+  // comment is for docs / generated code comments only.
+  string comment = 15;
+}
+
+extend google.protobuf.MethodOptions {
+  // NOTE: pick a high extension number to avoid conflicts with other ecosystems.
+  SsRpc ssrpc = 61001;
+}
+
+
