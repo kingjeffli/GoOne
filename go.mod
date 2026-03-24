@@ -214,3 +214,5 @@ require (
 	xorm.io/builder v0.3.6 // indirect
 	xorm.io/core v0.7.2-0.20190928055935-90aeac8d08eb // indirect
 )
+
+replace github.com/Iori372552686/game_protocol => ./game_protocol
