@@ -115,13 +115,18 @@ func (b *BusImplRabbitMQ) process(rabbitmqAddr string, myQueueName string) error
 			if !ok {
 				return fmt.Errorf("chanRecv of bus is closed")
 			}
+			if len(delivery.Body) < byteLenOfBusPacketHeader() {
+				logger.Warningf("Received a too short rabbitmq bus message {len:%v, expect:%v}",
+					len(delivery.Body), byteLenOfBusPacketHeader())
+				continue
+			}
 
 			header := busPacketHeader{}
 			header.From(delivery.Body)
 			//logger.Debugf("Received message from MQ: %+v", header)
 			if header.passCode != passCode {
 				logger.Warningf("Received a bus message with wrong pass code: %#v", header)
-				break
+				continue
 			}
 
 			if b.onRecv != nil {

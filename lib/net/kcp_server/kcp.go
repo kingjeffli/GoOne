@@ -71,6 +71,7 @@ func (self *KcpSvr) runListener(listener *Kcp.Listener) {
 		conn, err := listener.AcceptKCP()
 		if err != nil {
 			logger.Errorf(err.Error())
+			continue
 		}
 
 		chanWrite := make(chan []byte, 100)

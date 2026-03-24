@@ -36,6 +36,11 @@ func (s *TcpPacketSvr) OnRead(conn net.Conn, data []byte) int {
 	for { // There likely be more than one packet
 		if dataLen >= consumed+headerLen { // header is ready
 			bodyLen := s.packetInfo.BodyLen(data[consumed : consumed+headerLen])
+			if bodyLen < 0 {
+				logger.Warningf("Received an invalid tcp packet header, closing connection {remote:%v}", conn.RemoteAddr())
+				_ = conn.Close()
+				return dataLen
+			}
 			if dataLen >= consumed+headerLen+bodyLen { // header and body is ready
 				s.handler.OnPacket(conn, data[consumed:consumed+headerLen+bodyLen])
 				consumed += headerLen + bodyLen

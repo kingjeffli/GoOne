@@ -168,10 +168,8 @@ func (b *BusImplNsqMQ) process() error {
 			}
 			buf := make([]byte, len(data))
 			copy(buf, data)
-			select {
-			case b.chanIn <- buf:
-			default:
-			}
+			// Apply backpressure instead of silently dropping messages.
+			b.chanIn <- buf
 			return nil
 		},
 	)

@@ -23,12 +23,21 @@ type CSPacketHeader struct {
 	BodyLen uint32
 }
 
+const MaxByteLenOfCSPacketBody = 4 * 1024 * 1024
+
 func ByteLenOfCSPacketHeader() int {
 	return 28
 }
 
 func ByteLenOfCSPacketBody(header []byte) int {
-	return int(binary.BigEndian.Uint32(header[ByteLenOfCSPacketHeader()-4:]))
+	if len(header) < ByteLenOfCSPacketHeader() {
+		return -1
+	}
+	bodyLen := binary.BigEndian.Uint32(header[ByteLenOfCSPacketHeader()-4:])
+	if bodyLen > MaxByteLenOfCSPacketBody {
+		return -1
+	}
+	return int(bodyLen)
 }
 
 func (h *CSPacketHeader) From(b []byte) {

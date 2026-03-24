@@ -114,10 +114,8 @@ func (b *BusImplRocketMQ) process() error {
 				}
 				buf := make([]byte, len(m.Body))
 				copy(buf, m.Body)
-				select {
-				case b.chanIn <- buf:
-				default:
-				}
+				// Apply backpressure instead of silently dropping messages.
+				b.chanIn <- buf
 			}
 			return consumer.ConsumeSuccess, nil
 		}); err != nil {

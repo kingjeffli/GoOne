@@ -96,19 +96,15 @@ func (b *BusImplNatsMQ) process() error {
 		sub, err = nc.QueueSubscribe(mySubject, b.queueGroup, func(m *nats.Msg) {
 			buf := make([]byte, len(m.Data))
 			copy(buf, m.Data)
-			select {
-			case b.chanIn <- buf:
-			default:
-			}
+			// Apply backpressure instead of silently dropping messages.
+			b.chanIn <- buf
 		})
 	} else {
 		sub, err = nc.Subscribe(mySubject, func(m *nats.Msg) {
 			buf := make([]byte, len(m.Data))
 			copy(buf, m.Data)
-			select {
-			case b.chanIn <- buf:
-			default:
-			}
+			// Apply backpressure instead of silently dropping messages.
+			b.chanIn <- buf
 		})
 	}
 	if err != nil {

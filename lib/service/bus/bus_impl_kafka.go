@@ -117,10 +117,8 @@ func (b *BusImplKafkaMQ) process() error {
 			}
 			buf := make([]byte, len(m.Value))
 			copy(buf, m.Value)
-			select {
-			case b.chanIn <- buf:
-			default:
-			}
+			// Apply backpressure instead of silently dropping messages.
+			b.chanIn <- buf
 		}
 	}()
 
