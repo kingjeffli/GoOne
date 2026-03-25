@@ -3,6 +3,7 @@ package role
 import (
 	"errors"
 	"fmt"
+	mysqlsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/mysqlsvr/v1"
 	"github.com/Iori372552686/GoOne/lib/util/safego"
 	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/mainsvr/globals/rds"
@@ -153,15 +154,18 @@ func (r *Role) SaveToDB(trans cmd_handler.IContext) error {
 
 func (r *Role) SaveToMysql(trans cmd_handler.IContext) error {
 	req := g1_protocol.MysqlInnerUpdateRoleInfoReq{}
-	rsp := g1_protocol.MysqlInnerUpdateRoleInfoRsp{Ret: &g1_protocol.Ret{}}
 	req.Name = r.PbRole.BasicInfo.Name
 	r.Infof("update mysql")
-	err := trans.CallMsgBySvrType(misc.ServerType_MysqlSvr, g1_protocol.CMD_MYSQL_INNER_UPDATE_ROLE_INFO_REQ, &req, &rsp)
+	rsp, err := mysqlsvrv1.NewMysqlServiceClient().UpdateRoleInfo(trans, &req)
 	if err != nil {
 		return err
 	}
 	r.Infof("update mysql")
 
+	if rsp == nil || rsp.Ret == nil {
+		r.Errorf("save role to mysql error {ret:nil}")
+		return nil
+	}
 	if rsp.Ret.Code != 0 {
 		r.Errorf("save role to mysql error {ret:%v}", rsp.Ret.Code)
 	}

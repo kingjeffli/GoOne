@@ -3,14 +3,17 @@ package main
 import (
 	"runtime"
 
+	infosvrv1 "github.com/Iori372552686/GoOne/api/gen/game/infosvr/v1"
 	"github.com/Iori372552686/GoOne/common/gconf"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
 	"github.com/Iori372552686/GoOne/lib/service/router"
+	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/infosvr/cmd_handler"
 	"github.com/Iori372552686/GoOne/src/infosvr/globals"
+	"github.com/Iori372552686/GoOne/src/infosvr/service"
 )
 
 func onRecvSSPacket(packet *sharedstruct.SSPacket) {
@@ -50,6 +53,16 @@ func (a *InfoSvrImpl) OnInit() error {
 	}
 
 	cmd_handler.RegCmd()
+	srv := infosvrv1.InfoServiceSServer{
+		Impl: &service.InfoServiceImpl{},
+		MW: []ssrpc.Middleware{
+			ssrpc.Recover(),
+			ssrpc.Logging(),
+		},
+	}
+	d := ssrpc.NewDispatcher()
+	infosvrv1.RegisterInfoServiceToDispatcher(d, srv)
+	d.RegisterToTransactionMgr(globals.TransMgr)
 	globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
 
 	logger.Infof("infosvr init success")

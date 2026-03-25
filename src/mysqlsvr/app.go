@@ -3,15 +3,18 @@ package main
 import (
 	"runtime"
 
+	mysqlsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/mysqlsvr/v1"
 	"github.com/Iori372552686/GoOne/common/gconf"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
 	"github.com/Iori372552686/GoOne/lib/service/router"
+	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/mysqlsvr/cmd_handler"
 	"github.com/Iori372552686/GoOne/src/mysqlsvr/globals"
 	"github.com/Iori372552686/GoOne/src/mysqlsvr/manager"
+	"github.com/Iori372552686/GoOne/src/mysqlsvr/service"
 )
 
 type MysqlSvrImpl struct {
@@ -66,6 +69,16 @@ func (a *MysqlSvrImpl) OnInit() error {
 	}
 
 	cmd_handler.RegCmd()
+	srv := mysqlsvrv1.MysqlServiceSServer{
+		Impl: &service.MysqlServiceImpl{},
+		MW: []ssrpc.Middleware{
+			ssrpc.Recover(),
+			ssrpc.Logging(),
+		},
+	}
+	d := ssrpc.NewDispatcher()
+	mysqlsvrv1.RegisterMysqlServiceToDispatcher(d, srv)
+	d.RegisterToTransactionMgr(globals.TransMgr)
 	globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
 
 	logger.Infof("mysqlsvr init success")
