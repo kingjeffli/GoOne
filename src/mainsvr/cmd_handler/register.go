@@ -20,6 +20,7 @@ func RegisterCmd() {
 
 	//------- 德州游戏房间操作  start--------
 	// Phase A migration:
-	// All Texas cmds are now migrated to ssrpc via MainC2SService (see api/proto/game/mainsvr/v1/c2s.proto).
+	// All Texas cmds are now migrated to ssrpc via MainC2SService
+	// (source-of-truth: game_protocol/mainsvrc2s.proto).
 	//------- 德州游戏房间操作  end--------
 }

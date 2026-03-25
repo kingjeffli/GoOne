@@ -3,10 +3,10 @@
 package mainv1
 
 import (
-	cmd_handler "github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
+	cmd_handler "github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 )
 
 // MainServiceSS is the SSPacket RPC interface for MainService.
@@ -35,7 +35,7 @@ func NewMainServiceSServer(impl MainServiceSS, opts ssrpc.DefaultMWOptions) Main
 
 type MainServiceSServer struct {
 	Impl MainServiceSS
-	MW   []ssrpc.Middleware
+	MW []ssrpc.Middleware
 }
 
 // RegisterMainServiceToTransactionMgr binds SSPacket cmd -> handler wrappers.
@@ -46,7 +46,7 @@ func RegisterMainServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv Ma
 
 	mgr.RegisterCmd(g1_protocol.CMD(0x1020001), ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
-			Cmd:  g1_protocol.CMD(0x1020001),
+			Cmd: g1_protocol.CMD(0x1020001),
 			Name: "user login",
 		},
 		srv.MW,
@@ -66,7 +66,7 @@ func RegisterMainServiceToWS(d *ssrpc.Dispatcher, srv MainServiceSServer) {
 
 	d.RegisterWS(uint32(g1_protocol.CMD(0x1020001)), ssrpc.WrapWS(
 		ssrpc.MethodDesc{
-			Cmd:  g1_protocol.CMD(0x1020001),
+			Cmd: g1_protocol.CMD(0x1020001),
 			Name: "user login",
 		},
 		srv.MW,
@@ -86,7 +86,7 @@ func RegisterMainServiceToDispatcher(d *ssrpc.Dispatcher, srv MainServiceSServer
 
 	d.RegisterCmd(g1_protocol.CMD(0x1020001), ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
-			Cmd:  g1_protocol.CMD(0x1020001),
+			Cmd: g1_protocol.CMD(0x1020001),
 			Name: "user login",
 		},
 		srv.MW,
@@ -98,7 +98,7 @@ func RegisterMainServiceToDispatcher(d *ssrpc.Dispatcher, srv MainServiceSServer
 
 	d.RegisterWS(uint32(g1_protocol.CMD(0x1020001)), ssrpc.WrapWS(
 		ssrpc.MethodDesc{
-			Cmd:  g1_protocol.CMD(0x1020001),
+			Cmd: g1_protocol.CMD(0x1020001),
 			Name: "user login",
 		},
 		srv.MW,
@@ -127,3 +127,4 @@ func (c *MainServiceClient) Login(ctx cmd_handler.IContext, req *LoginReq) (*Log
 	}
 	return rsp, nil
 }
+

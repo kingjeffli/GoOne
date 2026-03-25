@@ -6,6 +6,7 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
+	cmd_handler "github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -807,7 +808,7 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 
 }
 
-// RegisterMainC2SServiceToDispatcher registers cmd/http bindings into a unified ssrpc.Dispatcher.
+// RegisterMainC2SServiceToDispatcher registers cmd/http/ws/grpc bindings into a unified ssrpc.Dispatcher.
 func RegisterMainC2SServiceToDispatcher(d *ssrpc.Dispatcher, srv MainC2SServiceSServer) {
 	if d == nil || srv.Impl == nil {
 		return
@@ -1354,5 +1355,415 @@ func RegisterMainC2SServiceToDispatcher(d *ssrpc.Dispatcher, srv MainC2SServiceS
 		},
 	))
 
+}
+
+// MainC2SServiceClient provides type-safe RPC stubs for MainC2SService.
+// Methods derive the target server type from CMD automatically.
+type MainC2SServiceClient struct{}
+
+// NewMainC2SServiceClient returns a new MainC2SServiceClient.
+func NewMainC2SServiceClient() *MainC2SServiceClient {
+	return &MainC2SServiceClient{}
+}
+
+// Login calls mainsvr login synchronously.
+func (c *MainC2SServiceClient) Login(ctx cmd_handler.IContext, req *g1_protocol.LoginReq) (*g1_protocol.LoginRsp, error) {
+	rsp := &g1_protocol.LoginRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_LOGIN_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// Logout calls mainsvr logout (rsp optional, see req.ByServer) synchronously.
+func (c *MainC2SServiceClient) Logout(ctx cmd_handler.IContext, req *g1_protocol.LogoutReq) (*g1_protocol.LogoutRsp, error) {
+	rsp := &g1_protocol.LogoutRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_LOGOUT_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// HeartBeat calls mainsvr heartbeat synchronously.
+func (c *MainC2SServiceClient) HeartBeat(ctx cmd_handler.IContext, req *g1_protocol.HeartBeatReq) (*g1_protocol.HeartBeatRsp, error) {
+	rsp := &g1_protocol.HeartBeatRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_HEARTBEAT_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// ChangeName calls mainsvr change name synchronously.
+func (c *MainC2SServiceClient) ChangeName(ctx cmd_handler.IContext, req *g1_protocol.ChangeNameReq) (*g1_protocol.ChangeNameRsp, error) {
+	rsp := &g1_protocol.ChangeNameRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_CHANGE_NAME_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// ChangeIcon calls mainsvr change icon synchronously.
+func (c *MainC2SServiceClient) ChangeIcon(ctx cmd_handler.IContext, req *g1_protocol.ChangeIconReq) (*g1_protocol.ChangeIconRsp, error) {
+	rsp := &g1_protocol.ChangeIconRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_CHANGE_ICON_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// GmGetRole calls gm get role synchronously.
+func (c *MainC2SServiceClient) GmGetRole(ctx cmd_handler.IContext, req *g1_protocol.GMGetRoleReq) (*g1_protocol.GMGetRoleRsp, error) {
+	rsp := &g1_protocol.GMGetRoleRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GM_GET_ROLE_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// GmSetRole calls gm set role synchronously.
+func (c *MainC2SServiceClient) GmSetRole(ctx cmd_handler.IContext, req *g1_protocol.GMSetRoleReq) (*g1_protocol.GMSetRoleRsp, error) {
+	rsp := &g1_protocol.GMSetRoleRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GM_SET_ROLE_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// GmAddItem calls gm add item synchronously.
+func (c *MainC2SServiceClient) GmAddItem(ctx cmd_handler.IContext, req *g1_protocol.GMAddItemReq) (*g1_protocol.GMAddItemRsp, error) {
+	rsp := &g1_protocol.GMAddItemRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GM_ADD_ITEM_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// MallBuyPackage calls mall buy package synchronously.
+func (c *MainC2SServiceClient) MallBuyPackage(ctx cmd_handler.IContext, req *g1_protocol.MallBuyPackageReq) (*g1_protocol.MallBuyPackageRsp, error) {
+	rsp := &g1_protocol.MallBuyPackageRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_MALL_BUY_PACKAGE_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// CreateRoom calls texas create room synchronously.
+func (c *MainC2SServiceClient) CreateRoom(ctx cmd_handler.IContext, req *g1_protocol.CreateRoomReq) (*g1_protocol.CreateRoomRsp, error) {
+	rsp := &g1_protocol.CreateRoomRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_CREATE_ROOM_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// JoinRoom calls texas join room synchronously.
+func (c *MainC2SServiceClient) JoinRoom(ctx cmd_handler.IContext, req *g1_protocol.JoinRoomReq) (*g1_protocol.JoinRoomRsp, error) {
+	rsp := &g1_protocol.JoinRoomRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_JOIN_ROOM_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// QuickStart calls texas quick start synchronously.
+func (c *MainC2SServiceClient) QuickStart(ctx cmd_handler.IContext, req *g1_protocol.QuickStartReq) (*g1_protocol.QuickStartRsp, error) {
+	rsp := &g1_protocol.QuickStartRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_QUICK_START_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// GetRoomList calls texas room list synchronously.
+func (c *MainC2SServiceClient) GetRoomList(ctx cmd_handler.IContext, req *g1_protocol.RoomListReq) (*g1_protocol.RoomListRsp, error) {
+	rsp := &g1_protocol.RoomListRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_ROOM_LIST_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// DoBet calls texas do bet synchronously.
+func (c *MainC2SServiceClient) DoBet(ctx cmd_handler.IContext, req *g1_protocol.DoBetReq) (*g1_protocol.DoBetRsp, error) {
+	rsp := &g1_protocol.DoBetRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_DO_BET_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// Fold calls texas fold synchronously.
+func (c *MainC2SServiceClient) Fold(ctx cmd_handler.IContext, req *g1_protocol.FoldReq) (*g1_protocol.FoldRsp, error) {
+	rsp := &g1_protocol.FoldRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_FOLD_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// MainBuyInDetail calls texas buy-in detail synchronously.
+func (c *MainC2SServiceClient) MainBuyInDetail(ctx cmd_handler.IContext, req *g1_protocol.MainBuyInDetailReq) (*g1_protocol.MainBuyInDetailRsp, error) {
+	rsp := &g1_protocol.MainBuyInDetailRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_BUY_IN_DETAIL_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// GetLookers calls texas get lookers synchronously.
+func (c *MainC2SServiceClient) GetLookers(ctx cmd_handler.IContext, req *g1_protocol.GetLookersReq) (*g1_protocol.GetLookersRsp, error) {
+	rsp := &g1_protocol.GetLookersRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_GET_LOOKERS_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// SitDown calls texas sit down synchronously.
+func (c *MainC2SServiceClient) SitDown(ctx cmd_handler.IContext, req *g1_protocol.SitDownReq) (*g1_protocol.SitDownRsp, error) {
+	rsp := &g1_protocol.SitDownRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_SIT_DOWN_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// StandUp calls texas stand up synchronously.
+func (c *MainC2SServiceClient) StandUp(ctx cmd_handler.IContext, req *g1_protocol.StandUpReq) (*g1_protocol.StandUpRsp, error) {
+	rsp := &g1_protocol.StandUpRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_STAND_UP_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// LeaveGame calls texas leave game synchronously.
+func (c *MainC2SServiceClient) LeaveGame(ctx cmd_handler.IContext, req *g1_protocol.LeaveGameReq) (*g1_protocol.LeaveGameRsp, error) {
+	rsp := &g1_protocol.LeaveGameRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_LEAVE_GAME_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// BuyIn sends texas buy in (one-way, stub) (one-way, no response).
+func (c *MainC2SServiceClient) BuyIn(ctx cmd_handler.IContext, req *g1_protocol.BuyInReq) error {
+	return ssrpc.SendByCmd(ctx, g1_protocol.CMD_MAIN_GAME_BUY_IN_REQ, req)
+}
+
+// MilitarySuccess calls texas military success (stub) synchronously.
+func (c *MainC2SServiceClient) MilitarySuccess(ctx cmd_handler.IContext, req *g1_protocol.MilitarySuccessReq) (*g1_protocol.MilitarySuccessRsp, error) {
+	rsp := &g1_protocol.MilitarySuccessRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_MILITARY_SUCCESS_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// GetGameLog calls texas game log (stub) synchronously.
+func (c *MainC2SServiceClient) GetGameLog(ctx cmd_handler.IContext, req *g1_protocol.GetGameLogReq) (*g1_protocol.GetGameLogRsp, error) {
+	rsp := &g1_protocol.GetGameLogRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_GET_GAME_LOG_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// GetTimeLeft calls texas time left (stub) synchronously.
+func (c *MainC2SServiceClient) GetTimeLeft(ctx cmd_handler.IContext, req *g1_protocol.GetTimeLeftReq) (*g1_protocol.GetTimeLeftRsp, error) {
+	rsp := &g1_protocol.GetTimeLeftRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_GET_TIME_LEFT_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// VoiceCall calls texas voice call (stub) synchronously.
+func (c *MainC2SServiceClient) VoiceCall(ctx cmd_handler.IContext, req *g1_protocol.VoiceCallReq) (*g1_protocol.VoiceCallRsp, error) {
+	rsp := &g1_protocol.VoiceCallRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_VOICE_CALL_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// BuyThinkTime calls texas buy think time (stub) synchronously.
+func (c *MainC2SServiceClient) BuyThinkTime(ctx cmd_handler.IContext, req *g1_protocol.BuyThinkTimeReq) (*g1_protocol.BuyThinkTimeRsp, error) {
+	rsp := &g1_protocol.BuyThinkTimeRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_BUY_THINK_TIME_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// AutoBuyin calls texas auto buyin (stub) synchronously.
+func (c *MainC2SServiceClient) AutoBuyin(ctx cmd_handler.IContext, req *g1_protocol.AutoBuyinReq) (*g1_protocol.AutoBuyinRsp, error) {
+	rsp := &g1_protocol.AutoBuyinRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_AUTO_BUYIN_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// Interaction calls texas interaction (stub) synchronously.
+func (c *MainC2SServiceClient) Interaction(ctx cmd_handler.IContext, req *g1_protocol.InteractionReq) (*g1_protocol.InteractionRsp, error) {
+	rsp := &g1_protocol.InteractionRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_INTERACTION_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// Emoticon calls texas emoticon (stub) synchronously.
+func (c *MainC2SServiceClient) Emoticon(ctx cmd_handler.IContext, req *g1_protocol.EmoticonReq) (*g1_protocol.EmoticonRsp, error) {
+	rsp := &g1_protocol.EmoticonRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_EMOTICON_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// GetMilitaryDiagram calls texas military diagram (stub) synchronously.
+func (c *MainC2SServiceClient) GetMilitaryDiagram(ctx cmd_handler.IContext, req *g1_protocol.GetMilitaryDiagramReq) (*g1_protocol.GetMilitaryDiagramRsp, error) {
+	rsp := &g1_protocol.GetMilitaryDiagramRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_GET_MILITARY_DIAGRAM_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// ShowCard calls texas show card (stub) synchronously.
+func (c *MainC2SServiceClient) ShowCard(ctx cmd_handler.IContext, req *g1_protocol.ShowCardReq) (*g1_protocol.ShowCardRsp, error) {
+	rsp := &g1_protocol.ShowCardRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_SHOW_CARD_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// GetPlayerInfo calls texas get player info (stub) synchronously.
+func (c *MainC2SServiceClient) GetPlayerInfo(ctx cmd_handler.IContext, req *g1_protocol.GetPlayerInfoReq) (*g1_protocol.GetPlayerInfoRsp, error) {
+	rsp := &g1_protocol.GetPlayerInfoRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_GET_ROLE_INFO_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// MarkPlayer calls texas mark player (stub) synchronously.
+func (c *MainC2SServiceClient) MarkPlayer(ctx cmd_handler.IContext, req *g1_protocol.MarkPlayerReq) (*g1_protocol.MarkPlayerRsp, error) {
+	rsp := &g1_protocol.MarkPlayerRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_MARK_PLAYER_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// InsuranceBuy calls texas insurance buy (stub) synchronously.
+func (c *MainC2SServiceClient) InsuranceBuy(ctx cmd_handler.IContext, req *g1_protocol.InsuranceBuyReq) (*g1_protocol.InsuranceBuyRsp, error) {
+	rsp := &g1_protocol.InsuranceBuyRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_INSURANCE_BUY_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// RoomSet calls texas room set (stub) synchronously.
+func (c *MainC2SServiceClient) RoomSet(ctx cmd_handler.IContext, req *g1_protocol.RoomSetReq) (*g1_protocol.RoomSetRsp, error) {
+	rsp := &g1_protocol.RoomSetRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_ROOM_SET_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// SngGetBlindLevel calls texas sng blind level (stub) synchronously.
+func (c *MainC2SServiceClient) SngGetBlindLevel(ctx cmd_handler.IContext, req *g1_protocol.SngGetBlindLevelReq) (*g1_protocol.SngGetBlindLevelRsp, error) {
+	rsp := &g1_protocol.SngGetBlindLevelRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_SNG_GET_BLIND_LEVEL_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// GetRoomInfo calls texas get room info synchronously.
+func (c *MainC2SServiceClient) GetRoomInfo(ctx cmd_handler.IContext, req *g1_protocol.GetRoomInfoReq) (*g1_protocol.GetRoomInfoRsp, error) {
+	rsp := &g1_protocol.GetRoomInfoRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_GET_ROOM_INFO_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// InsuranceThinkTime calls texas insurance think time (stub) synchronously.
+func (c *MainC2SServiceClient) InsuranceThinkTime(ctx cmd_handler.IContext, req *g1_protocol.InsuranceThinkTimeReq) (*g1_protocol.InsuranceThinkTimeRsp, error) {
+	rsp := &g1_protocol.InsuranceThinkTimeRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_INSURANCE_THINK_TIME_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// InsuranceOp calls texas insurance op (stub) synchronously.
+func (c *MainC2SServiceClient) InsuranceOp(ctx cmd_handler.IContext, req *g1_protocol.InsuranceOpReq) (*g1_protocol.InsuranceOpRsp, error) {
+	rsp := &g1_protocol.InsuranceOpRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_INSURANCE_OP_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// GetGameInfo calls texas get game info synchronously.
+func (c *MainC2SServiceClient) GetGameInfo(ctx cmd_handler.IContext, req *g1_protocol.GetGameInfoReq) (*g1_protocol.GetGameInfoRsp, error) {
+	rsp := &g1_protocol.GetGameInfoRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_GET_GAME_INFO_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// AddToFavorite calls texas add to favorite (stub) synchronously.
+func (c *MainC2SServiceClient) AddToFavorite(ctx cmd_handler.IContext, req *g1_protocol.AddToFavoriteReq) (*g1_protocol.AddToFavoriteRsp, error) {
+	rsp := &g1_protocol.AddToFavoriteRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_ADD_TO_FAVORITE_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// ChangeSkin calls texas change skin (stub) synchronously.
+func (c *MainC2SServiceClient) ChangeSkin(ctx cmd_handler.IContext, req *g1_protocol.ChangeSkinReq) (*g1_protocol.ChangeSkinRsp, error) {
+	rsp := &g1_protocol.ChangeSkinRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_CHANGE_SKIN_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// RabbitHunting calls texas rabbit hunting (stub) synchronously.
+func (c *MainC2SServiceClient) RabbitHunting(ctx cmd_handler.IContext, req *g1_protocol.RabbitHuntingReq) (*g1_protocol.RabbitHuntingRsp, error) {
+	rsp := &g1_protocol.RabbitHuntingRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_RABBIT_HUNTING_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// EarlySettle calls texas early settle (stub) synchronously.
+func (c *MainC2SServiceClient) EarlySettle(ctx cmd_handler.IContext, req *g1_protocol.EarlySettleReq) (*g1_protocol.EarlySettleRsp, error) {
+	rsp := &g1_protocol.EarlySettleRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_EARLY_SETTLE_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// Preoperation calls texas preoperation synchronously.
+func (c *MainC2SServiceClient) Preoperation(ctx cmd_handler.IContext, req *g1_protocol.PreOperationReq) (*g1_protocol.PreOperationRsp, error) {
+	rsp := &g1_protocol.PreOperationRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MAIN_GAME_PREOPERATION_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"github.com/golang/protobuf/proto"
+	"time"
 )
 
 // MethodDesc describes one RPC method exposed via any transport.
@@ -16,6 +17,7 @@ type MethodDesc struct {
 	UIDLock   bool
 	Auth      bool
 	Sign      bool
+	Timeout   time.Duration
 	TraceTags map[string]string
 	Name      string
 }
@@ -37,7 +39,8 @@ func prepareMW(mws []Middleware, uidLock bool) []Middleware {
 
 // applyDesc stamps MethodDesc metadata onto a Context.
 func applyDesc(ctx *Context, desc *MethodDesc) {
-	ctx.Method = desc.Name
+	ctx.SetCmd(desc.Cmd)
+	ctx.SetMethod(desc.Name)
 	ctx.AuthRequired = desc.Auth
 	ctx.SignRequired = desc.Sign
 	if desc.TraceTags != nil {
@@ -87,7 +90,10 @@ func WrapUnary(desc MethodDesc, mws []Middleware, newReq func() any, invoke func
 			return g1_protocol.ErrorCode_ERR_INTERNAL
 		}
 		ctx := WrapIContext(c, desc.Cmd)
+		ctx.SetTransport(TransportSS)
 		applyDesc(ctx, &desc)
+		ctx.ApplyTimeout(desc.Timeout)
+		defer ctx.Close()
 
 		reqAny := newReq()
 		req, ok := reqAny.(proto.Message)
@@ -117,5 +123,3 @@ func WrapUnary(desc MethodDesc, mws []Middleware, newReq func() any, invoke func
 		return g1_protocol.ErrorCode_ERR_OK
 	}
 }
-
-

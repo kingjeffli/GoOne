@@ -181,12 +181,13 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 
 		cmdLit string // literal for MethodDesc.Cmd, can be "0" for HTTP-only
 
-		oneWay  bool
-		uidLock bool
-		auth    bool
-		sign    bool
-		tags    []string
-		name    string
+		oneWay    bool
+		uidLock   bool
+		auth      bool
+		sign      bool
+		timeoutMs uint32
+		tags      []string
+		name      string
 	}
 
 	typeRef := func(fullType string) (string, string, error) {
@@ -290,7 +291,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 		b.WriteString("}\n\n")
 
 		httpBinds := make([]httpBind, 0)
-		wsBinds := make([]httpBind, 0) // reuse httpBind struct; ws methods only need cmd+method+desc
+		wsBinds := make([]httpBind, 0)   // reuse httpBind struct; ws methods only need cmd+method+desc
 		grpcBinds := make([]httpBind, 0) // reuse httpBind struct for grpc methods
 		hasAnyCmdMethod := false
 		hasAnyWSMethod := false
@@ -302,7 +303,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			}
 			hasCmd := !(ext.cmd == 0 && ext.cmdEnum == 0 && strings.TrimSpace(ext.cmdName) == "")
 			hasHTTP := strings.TrimSpace(ext.httpPath) != ""
-			hasWS := ext.ws && hasCmd // ws requires a cmd binding
+			hasWS := ext.ws && hasCmd     // ws requires a cmd binding
 			hasGRPC := ext.grpc && hasCmd // grpc requires a cmd binding
 			if !hasCmd && !hasHTTP {
 				return "", fmt.Errorf("ssrpc option requires cmd/cmd_enum/cmd_name OR http_path (service=%s method=%s)", svc, m.GetName())
@@ -373,13 +374,19 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 					inGo:       inGo,
 					path:       p,
 					httpMethod: hm,
-					cmdLit:     func() string { if hasCmd { return cmdExpr }; return "0" }(),
-					oneWay:     oneWay,
-					uidLock:    ext.uidLock,
-					auth:       ext.auth,
-					sign:       ext.sign,
-					tags:       ext.tags,
-					name:       name,
+					cmdLit: func() string {
+						if hasCmd {
+							return cmdExpr
+						}
+						return "0"
+					}(),
+					oneWay:    oneWay,
+					uidLock:   ext.uidLock,
+					auth:      ext.auth,
+					sign:      ext.sign,
+					timeoutMs: ext.timeoutMs,
+					tags:      ext.tags,
+					name:      name,
 				})
 			}
 
@@ -390,15 +397,16 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 					name = svc + "." + method
 				}
 				wsBinds = append(wsBinds, httpBind{
-					method:  method,
-					inGo:    inGo,
-					cmdLit:  cmdExpr,
-					oneWay:  oneWay,
-					uidLock: ext.uidLock,
-					auth:    ext.auth,
-					sign:    ext.sign,
-					tags:    ext.tags,
-					name:    name,
+					method:    method,
+					inGo:      inGo,
+					cmdLit:    cmdExpr,
+					oneWay:    oneWay,
+					uidLock:   ext.uidLock,
+					auth:      ext.auth,
+					sign:      ext.sign,
+					timeoutMs: ext.timeoutMs,
+					tags:      ext.tags,
+					name:      name,
 				})
 			}
 
@@ -409,15 +417,16 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 					name = svc + "." + method
 				}
 				grpcBinds = append(grpcBinds, httpBind{
-					method:  method,
-					inGo:    inGo,
-					cmdLit:  cmdExpr,
-					oneWay:  oneWay,
-					uidLock: ext.uidLock,
-					auth:    ext.auth,
-					sign:    ext.sign,
-					tags:    ext.tags,
-					name:    name,
+					method:    method,
+					inGo:      inGo,
+					cmdLit:    cmdExpr,
+					oneWay:    oneWay,
+					uidLock:   ext.uidLock,
+					auth:      ext.auth,
+					sign:      ext.sign,
+					timeoutMs: ext.timeoutMs,
+					tags:      ext.tags,
+					name:      name,
 				})
 			}
 
@@ -454,6 +463,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			if ext.sign {
 				b.WriteString("\t\t\tSign: true,\n")
 			}
+			writeTimeoutField(&b, ext.timeoutMs)
 			if tagMap := parseTraceTags(ext.tags); len(tagMap) > 0 {
 				b.WriteString("\t\t\tTraceTags: map[string]string{")
 				keys := make([]string, 0, len(tagMap))
@@ -508,6 +518,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 				if hb.sign {
 					b.WriteString("\t\t\tSign: true,\n")
 				}
+				writeTimeoutField(&b, hb.timeoutMs)
 				if tagMap := parseTraceTags(hb.tags); len(tagMap) > 0 {
 					b.WriteString("\t\t\tTraceTags: map[string]string{")
 					keys := make([]string, 0, len(tagMap))
@@ -555,6 +566,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 				if wb.sign {
 					b.WriteString("\t\t\tSign: true,\n")
 				}
+				writeTimeoutField(&b, wb.timeoutMs)
 				if tagMap := parseTraceTags(wb.tags); len(tagMap) > 0 {
 					b.WriteString("\t\t\tTraceTags: map[string]string{")
 					keys := make([]string, 0, len(tagMap))
@@ -602,6 +614,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 				if gb.sign {
 					b.WriteString("\t\t\tSign: true,\n")
 				}
+				writeTimeoutField(&b, gb.timeoutMs)
 				if tagMap := parseTraceTags(gb.tags); len(tagMap) > 0 {
 					b.WriteString("\t\t\tTraceTags: map[string]string{")
 					keys := make([]string, 0, len(tagMap))
@@ -682,6 +695,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 				if ext.sign {
 					b.WriteString("\t\t\tSign: true,\n")
 				}
+				writeTimeoutField(&b, ext.timeoutMs)
 				if tagMap := parseTraceTags(ext.tags); len(tagMap) > 0 {
 					b.WriteString("\t\t\tTraceTags: map[string]string{")
 					keys := make([]string, 0, len(tagMap))
@@ -725,6 +739,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 				if hb.sign {
 					b.WriteString("\t\t\tSign: true,\n")
 				}
+				writeTimeoutField(&b, hb.timeoutMs)
 				if tagMap := parseTraceTags(hb.tags); len(tagMap) > 0 {
 					b.WriteString("\t\t\tTraceTags: map[string]string{")
 					keys := make([]string, 0, len(tagMap))
@@ -764,6 +779,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 				if wb.sign {
 					b.WriteString("\t\t\tSign: true,\n")
 				}
+				writeTimeoutField(&b, wb.timeoutMs)
 				if tagMap := parseTraceTags(wb.tags); len(tagMap) > 0 {
 					b.WriteString("\t\t\tTraceTags: map[string]string{")
 					keys := make([]string, 0, len(tagMap))
@@ -803,6 +819,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 				if gb.sign {
 					b.WriteString("\t\t\tSign: true,\n")
 				}
+				writeTimeoutField(&b, gb.timeoutMs)
 				if tagMap := parseTraceTags(gb.tags); len(tagMap) > 0 {
 					b.WriteString("\t\t\tTraceTags: map[string]string{")
 					keys := make([]string, 0, len(tagMap))
@@ -929,6 +946,12 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			basePaths[cmdHandlerPath] = struct{}{}
 		}
 	}
+	if strings.Contains(content, "time.Millisecond") {
+		if _, dup := basePaths["time"]; !dup {
+			imports = append(imports, importSpec{Path: "time", Alias: ""})
+			basePaths["time"] = struct{}{}
+		}
+	}
 
 	// If dispatcher registration is present, ensure ssrpc is imported (already) and
 	// only add g1_protocol when cmd expressions are referenced.
@@ -972,21 +995,22 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 }
 
 type ssrpcOpt struct {
-	cmd     uint32
-	cmdResp uint32
-	oneWay  bool
-	uidLock bool
-	cmdEnum int32
-	cmdName string
-	auth    bool
-	sign    bool
-	tags    []string
-	httpPath   string
-	httpMethod string
-	ws      bool
+	cmd         uint32
+	cmdResp     uint32
+	oneWay      bool
+	uidLock     bool
+	cmdEnum     int32
+	cmdName     string
+	auth        bool
+	sign        bool
+	timeoutMs   uint32
+	tags        []string
+	httpPath    string
+	httpMethod  string
+	ws          bool
 	grpc        bool
 	grpcService string
-	comment string
+	comment     string
 }
 
 func buildSsRpcExtension(fds []*descriptorpb.FileDescriptorProto) (protoreflect.ExtensionType, protoreflect.MessageDescriptor, protowire.Number, error) {
@@ -1078,6 +1102,7 @@ func parseSsRpcOpt(m protoreflect.Message, extMsgDesc protoreflect.MessageDescri
 	cmdName := getString(m, extMsgDesc.Fields().ByName("cmd_name"))
 	auth := getBool(m, extMsgDesc.Fields().ByName("auth"))
 	sign := getBool(m, extMsgDesc.Fields().ByName("sign"))
+	timeoutMs := getUint32(m, extMsgDesc.Fields().ByName("timeout_ms"))
 	tags := getStringList(m, extMsgDesc.Fields().ByName("trace_tags"))
 	httpPath := getString(m, extMsgDesc.Fields().ByName("http_path"))
 	httpMethod := getString(m, extMsgDesc.Fields().ByName("http_method"))
@@ -1089,11 +1114,18 @@ func parseSsRpcOpt(m protoreflect.Message, extMsgDesc protoreflect.MessageDescri
 	return ssrpcOpt{
 		cmd: cmd, cmdResp: cmdResp, oneWay: oneWay, uidLock: uidLock,
 		cmdEnum: cmdEnum, cmdName: cmdName,
-		auth: auth, sign: sign, tags: tags,
+		auth: auth, sign: sign, timeoutMs: timeoutMs, tags: tags,
 		httpPath: httpPath, httpMethod: httpMethod,
 		ws: ws, grpc: grpcFlag, grpcService: grpcService,
 		comment: comment,
 	}
+}
+
+func writeTimeoutField(b *strings.Builder, timeoutMs uint32) {
+	if timeoutMs == 0 {
+		return
+	}
+	b.WriteString(fmt.Sprintf("\t\t\tTimeout: %d * time.Millisecond,\n", timeoutMs))
 }
 
 // findLenDelimitedField finds the first length-delimited (bytes) field for the given field number

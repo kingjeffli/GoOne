@@ -73,7 +73,7 @@ func RegisterWebApiServiceToGin(r gin.IRoutes, srv WebApiServiceSServer) {
 
 }
 
-// RegisterWebApiServiceToDispatcher registers cmd/http bindings into a unified ssrpc.Dispatcher.
+// RegisterWebApiServiceToDispatcher registers cmd/http/ws/grpc bindings into a unified ssrpc.Dispatcher.
 func RegisterWebApiServiceToDispatcher(d *ssrpc.Dispatcher, srv WebApiServiceSServer) {
 	if d == nil || srv.Impl == nil {
 		return

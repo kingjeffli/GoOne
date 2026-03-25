@@ -17,8 +17,10 @@ func WrapWS(desc MethodDesc, mws []Middleware, newReq func() any, invoke func(ct
 			return g1_protocol.ErrorCode_ERR_INTERNAL
 		}
 		ctx := WrapIContext(c, desc.Cmd)
-		ctx.Transport = TransportWS
+		ctx.SetTransport(TransportWS)
 		applyDesc(ctx, &desc)
+		ctx.ApplyTimeout(desc.Timeout)
+		defer ctx.Close()
 
 		reqAny := newReq()
 		req, ok := reqAny.(proto.Message)

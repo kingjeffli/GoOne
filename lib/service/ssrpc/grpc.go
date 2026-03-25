@@ -100,8 +100,10 @@ func WrapGRPCUnary(desc MethodDesc, mws []Middleware, invoke func(ctx *Context, 
 	return func(grpcCtx context.Context, reqAny any) (any, error) {
 		ic := newGRPCIContext(grpcCtx)
 		ctx := WrapIContext(ic, desc.Cmd)
-		ctx.Transport = TransportGRPC
+		ctx.SetTransport(TransportGRPC)
 		applyDesc(ctx, &desc)
+		ctx.ApplyTimeout(desc.Timeout)
+		defer ctx.Close()
 
 		req, ok := reqAny.(proto.Message)
 		if !ok || req == nil {

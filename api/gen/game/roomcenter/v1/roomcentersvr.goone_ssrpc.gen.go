@@ -6,6 +6,7 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
+	cmd_handler "github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -129,7 +130,7 @@ func RegisterRoomCenterInnerServiceToTransactionMgr(mgr transaction.ITransaction
 
 }
 
-// RegisterRoomCenterInnerServiceToDispatcher registers cmd/http bindings into a unified ssrpc.Dispatcher.
+// RegisterRoomCenterInnerServiceToDispatcher registers cmd/http/ws/grpc bindings into a unified ssrpc.Dispatcher.
 func RegisterRoomCenterInnerServiceToDispatcher(d *ssrpc.Dispatcher, srv RoomCenterInnerServiceSServer) {
 	if d == nil || srv.Impl == nil {
 		return
@@ -198,5 +199,47 @@ func RegisterRoomCenterInnerServiceToDispatcher(d *ssrpc.Dispatcher, srv RoomCen
 		},
 	))
 
+}
+
+// RoomCenterInnerServiceClient provides type-safe RPC stubs for RoomCenterInnerService.
+// Methods derive the target server type from CMD automatically.
+type RoomCenterInnerServiceClient struct{}
+
+// NewRoomCenterInnerServiceClient returns a new RoomCenterInnerServiceClient.
+func NewRoomCenterInnerServiceClient() *RoomCenterInnerServiceClient {
+	return &RoomCenterInnerServiceClient{}
+}
+
+// Tick sends roomcentersvr tick (one-way) (one-way, no response).
+func (c *RoomCenterInnerServiceClient) Tick(ctx cmd_handler.IContext, req *g1_protocol.InnerTickReq) error {
+	return ssrpc.SendByCmd(ctx, g1_protocol.CMD(0xB1008), req)
+}
+
+// RoomList calls room list synchronously.
+func (c *RoomCenterInnerServiceClient) RoomList(ctx cmd_handler.IContext, req *g1_protocol.RoomListReq) (*g1_protocol.RoomListRsp, error) {
+	rsp := &g1_protocol.RoomListRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// QuickStart calls quick start synchronously.
+func (c *RoomCenterInnerServiceClient) QuickStart(ctx cmd_handler.IContext, req *g1_protocol.QuickStartReq) (*g1_protocol.QuickStartRsp, error) {
+	rsp := &g1_protocol.QuickStartRsp{}
+	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_ROOM_CENTER_INNER_QUICK_START_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// UpdateRoomInfo sends update room info (one-way) (one-way, no response).
+func (c *RoomCenterInnerServiceClient) UpdateRoomInfo(ctx cmd_handler.IContext, req *g1_protocol.RoomShowInfo) error {
+	return ssrpc.SendByCmd(ctx, g1_protocol.CMD_ROOM_CENTER_INNER_UPDATE_ROOM_INFO_REQ, req)
+}
+
+// DelRoomInfo sends delete room info (one-way) (one-way, no response).
+func (c *RoomCenterInnerServiceClient) DelRoomInfo(ctx cmd_handler.IContext, req *g1_protocol.RoomShowInfo) error {
+	return ssrpc.SendByCmd(ctx, g1_protocol.CMD_ROOM_CENTER_INNER_DEL_ROOM_INFO_REQ, req)
 }
 

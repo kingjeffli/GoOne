@@ -146,10 +146,10 @@ const file_game_main_v1_main_proto_rawDesc = "" +
 	"\bLoginRsp\x12%\n" +
 	"\x03ret\x18\x01 \x01(\v2\x13.game.common.v1.RetR\x03ret\x12\x10\n" +
 	"\x03uid\x18\x02 \x01(\x04R\x03uid\x12\x18\n" +
-	"\awelcome\x18\x03 \x01(\tR\awelcome2]\n" +
-	"\vMainService\x12N\n" +
-	"\x05Login\x12\x16.game.main.v1.LoginReq\x1a\x16.game.main.v1.LoginRsp\"\x15\xca\xe4\x1d\x11\b\x81\x80\x88\bz\n" +
-	"user loginB<Z:github.com/Iori372552686/GoOne/api/gen/game/main/v1;mainv1b\x06proto3"
+	"\awelcome\x18\x03 \x01(\tR\awelcome2`\n" +
+	"\vMainService\x12Q\n" +
+	"\x05Login\x12\x16.game.main.v1.LoginReq\x1a\x16.game.main.v1.LoginRsp\"\x18\xca\xe4\x1d\x14\b\x81\x80\x88\bz\n" +
+	"user login\xf0\x01\x01B<Z:github.com/Iori372552686/GoOne/api/gen/game/main/v1;mainv1b\x06proto3"
 
 var (
 	file_game_main_v1_main_proto_rawDescOnce sync.Once

@@ -2,6 +2,7 @@ package ssrpc
 
 import (
 	"strconv"
+
 	"github.com/golang/protobuf/proto"
 )
 
@@ -20,8 +21,21 @@ func TraceWith(tp TraceProvider) Middleware {
 				return next(ctx, req)
 			}
 			tags := map[string]string{
-				"cmd":    strconv.FormatUint(uint64(ctx.Cmd), 10),
-				"method": ctx.Method,
+				"cmd":       strconv.FormatUint(uint64(ctx.Cmd), 10),
+				"method":    ctx.Method,
+				"transport": string(ctx.Session.Transport),
+			}
+			if ctx.Session.UID != 0 {
+				tags["uid"] = strconv.FormatUint(ctx.Session.UID, 10)
+			}
+			if ctx.Session.Zone != 0 {
+				tags["zone"] = strconv.FormatUint(uint64(ctx.Session.Zone), 10)
+			}
+			if ctx.Session.RID != 0 {
+				tags["rid"] = strconv.FormatUint(ctx.Session.RID, 10)
+			}
+			if ctx.Session.TransID != 0 {
+				tags["trans_id"] = strconv.FormatUint(uint64(ctx.Session.TransID), 10)
 			}
 			if ctx.TraceTags != nil {
 				for k, v := range ctx.TraceTags {

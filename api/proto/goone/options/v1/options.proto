@@ -13,6 +13,7 @@ option go_package = "github.com/Iori372552686/GoOne/api/gen/goone/options/v1;opt
 // - cmd_resp defaults to cmd+1 if 0 (keeps GoOne's existing convention)
 // - one_way means no response should be sent
 // - uid_lock is reserved for Phase A+ (route to UID-serialized executor)
+// - timeout_ms applies a per-method request timeout in runtime wrappers
 //
 // Cmd binding priority:
 // - if cmd != 0: use cmd
@@ -42,6 +43,10 @@ message SsRpc {
 
   // trace_tags provides extra trace tags in "k=v" form (pluggable via ssrpc.Trace middleware).
   repeated string trace_tags = 9;
+
+  // timeout_ms applies a per-method timeout at the ssrpc runtime layer.
+  // 0 means no explicit timeout and lets the transport/request context decide.
+  uint32 timeout_ms = 10;
 
   // http_path/http_method binds this method to an HTTP endpoint (Phase 2).
   // The generator can optionally emit gin route registration wrappers.

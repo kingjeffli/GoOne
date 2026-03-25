@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -28,6 +29,7 @@ func main() {
 
 	absOut := filepath.Join(repoRoot, *outDir)
 	absProtoRoot := filepath.Join(repoRoot, *protoRoot)
+	gameProtocolRoot := filepath.Join(repoRoot, "game_protocol")
 
 	// Ensure cmd.proto exists (new checkouts shouldn't fail due to missing generated IDL).
 	if err := ensureCmdProto(repoRoot, absProtoRoot); err != nil {
@@ -55,50 +57,40 @@ func main() {
 		die(err)
 	}
 
-	// proto inputs: only api/proto/goone and api/proto/game
-	inputs, err := collectProtoInputs(absProtoRoot)
+	// proto inputs are split into two protoc invocations:
+	// 1) repo-owned api/proto/** inputs (legacy + current main-repo service protos)
+	// 2) protocol-owned service protos from game_protocol/** that declare services
+	//
+	// We must keep them separate because repo-owned service protos still import the
+	// temporary third_party stubs, while protocol-owned service protos import the
+	// real game_protocol messages. Mixing both worlds in one protoc invocation
+	// causes duplicate symbol errors for g1.protocol message types.
+	repoInputs, protocolInputs, err := collectProtoInputs(absProtoRoot, gameProtocolRoot)
 	if err != nil {
 		die(err)
 	}
-	if len(inputs) == 0 {
-		die(errors.New("no proto files found under api/proto/{goone,game}"))
+	if len(repoInputs) == 0 && len(protocolInputs) == 0 {
+		die(errors.New("no proto files found under api/proto/{goone,game,web} or game_protocol service protos"))
 	}
 
-	// include paths:
-	// - api/proto
-	// - google well-known types from vendored protoc include dirs (if present)
-	includePaths := []string{absProtoRoot}
-	includePaths = append(includePaths, existingGoogleIncludes(repoRoot)...)
+	googleIncludes := existingGoogleIncludes(repoRoot)
 
-	args := []string{}
-	for _, inc := range includePaths {
-		args = append(args, "-I", inc)
+	if len(repoInputs) > 0 {
+		repoIncludePaths := []string{absProtoRoot}
+		repoIncludePaths = append(repoIncludePaths, googleIncludes...)
+		if err := runProtoc(protocPath, repoRoot, absOut, *module, protocGenGo, protocGenGoone, repoIncludePaths, repoInputs, "repo"); err != nil {
+			die(err)
+		}
 	}
 
-	args = append(args,
-		fmt.Sprintf("--plugin=protoc-gen-go=%s", protocGenGo),
-		fmt.Sprintf("--plugin=protoc-gen-goone=%s", protocGenGoone),
-		fmt.Sprintf("--go_out=%s", absOut),
-		fmt.Sprintf("--go_opt=module=%s", *module),
-		"--go_opt=paths=import",
-		fmt.Sprintf("--goone_out=%s", absOut),
-		fmt.Sprintf("--goone_opt=module=%s", *module),
-		"--goone_opt=paths=import",
-	)
-
-	args = append(args, inputs...)
-
-	cmd := exec.Command(protocPath, args...)
-	cmd.Dir = repoRoot
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	fmt.Printf("[genproto] protoc=%s\n", protocPath)
-	fmt.Printf("[genproto] module=%s\n", *module)
-	fmt.Printf("[genproto] inputs=%d\n", len(inputs))
-	if err := cmd.Run(); err != nil {
-		die(fmt.Errorf("protoc failed: %w", err))
+	if len(protocolInputs) > 0 {
+		protocolIncludePaths := []string{gameProtocolRoot, absProtoRoot}
+		protocolIncludePaths = append(protocolIncludePaths, googleIncludes...)
+		if err := runProtoc(protocPath, repoRoot, absOut, *module, protocGenGo, protocGenGoone, protocolIncludePaths, protocolInputs, "protocol"); err != nil {
+			die(err)
+		}
 	}
+
 	fmt.Println("[genproto] done")
 }
 
@@ -174,27 +166,16 @@ func findProtoc(repoRoot string, override string) (string, error) {
 	if p, err := exec.LookPath(exeName("protoc")); err == nil {
 		return p, nil
 	}
-	// fallback: vendored linux protoc (works in WSL/Linux)
-	if runtime.GOOS == "linux" {
-		p := filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-linux-x86_64", "bin", "protoc")
+	for _, p := range vendoredProtocCandidates(repoRoot) {
 		if _, err := os.Stat(p); err == nil {
 			return p, nil
 		}
-		p2 := filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-33.2-linux-x86_64", "bin", "protoc")
-		if _, err := os.Stat(p2); err == nil {
-			return p2, nil
-		}
 	}
-	return "", errors.New("protoc not found on PATH. On Windows, install protoc or run from WSL; on Linux, ensure protoc exists or use vendored one.")
+	return "", errors.New("protoc not found on PATH or in vendored locations under lib/contrib/protoc or lib/util/deps/protoc")
 }
 
 func existingGoogleIncludes(repoRoot string) []string {
-	candidates := []string{
-		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-win64", "include"),
-		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-linux-x86_64", "include"),
-		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-win64", "include"),
-		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-33.2-linux-x86_64", "include"),
-	}
+	candidates := vendoredIncludeCandidates(repoRoot)
 	out := make([]string, 0, len(candidates))
 	seen := map[string]bool{}
 	for _, c := range candidates {
@@ -209,12 +190,60 @@ func existingGoogleIncludes(repoRoot string) []string {
 	return out
 }
 
-func collectProtoInputs(absProtoRoot string) ([]string, error) {
+func vendoredProtocCandidates(repoRoot string) []string {
+	switch runtime.GOOS {
+	case "windows":
+		return []string{
+			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-win64", "bin", "protoc.exe"),
+			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-win64", "bin", "protoc.exe"),
+			filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-win64", "bin", "protoc.exe"),
+		}
+	case "darwin":
+		return []string{
+			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-osx-aarch_64", "bin", "protoc"),
+			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-osx-aarch_64", "bin", "protoc"),
+			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-osx-x86_64", "bin", "protoc"),
+			filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-osx-x86_64", "bin", "protoc"),
+		}
+	default:
+		return []string{
+			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-linux-x86_64", "bin", "protoc"),
+			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-linux-x86_64", "bin", "protoc"),
+			filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-33.2-linux-x86_64", "bin", "protoc"),
+			filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-linux-x86_64", "bin", "protoc"),
+		}
+	}
+}
+
+func vendoredIncludeCandidates(repoRoot string) []string {
+	return []string{
+		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-win64", "include"),
+		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-win64", "include"),
+		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-linux-x86_64", "include"),
+		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-linux-x86_64", "include"),
+		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-osx-aarch_64", "include"),
+		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-osx-aarch_64", "include"),
+		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-osx-x86_64", "include"),
+		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-33.2-win64", "include"),
+		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-win64", "include"),
+		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-33.2-linux-x86_64", "include"),
+		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-linux-x86_64", "include"),
+		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-osx-x86_64", "include"),
+	}
+}
+
+var serviceDeclRE = regexp.MustCompile(`(?m)^\s*service\s+[A-Za-z_][A-Za-z0-9_]*\s*\{`)
+
+func collectProtoInputs(absProtoRoot, gameProtocolRoot string) ([]string, []string, error) {
 	roots := []string{
 		filepath.Join(absProtoRoot, "goone"),
 		filepath.Join(absProtoRoot, "game"),
 	}
-	var protos []string
+	webRoot := filepath.Join(absProtoRoot, "web")
+	if st, err := os.Stat(webRoot); err == nil && st.IsDir() {
+		roots = append(roots, webRoot)
+	}
+	var repoProtos []string
 	for _, r := range roots {
 		_ = filepath.WalkDir(r, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
@@ -230,11 +259,77 @@ func collectProtoInputs(absProtoRoot string) ([]string, error) {
 					return err
 				}
 				rel = filepath.ToSlash(rel)
-				protos = append(protos, rel)
+				repoProtos = append(repoProtos, rel)
 			}
 			return nil
 		})
 	}
-	sort.Strings(protos)
-	return protos, nil
+	var protocolProtos []string
+	if st, err := os.Stat(gameProtocolRoot); err == nil && st.IsDir() {
+		_ = filepath.WalkDir(gameProtocolRoot, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || !strings.HasSuffix(strings.ToLower(d.Name()), ".proto") {
+				return nil
+			}
+			data, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			if !serviceDeclRE.Match(data) {
+				return nil
+			}
+			rel, relErr := filepath.Rel(gameProtocolRoot, path)
+			if relErr != nil {
+				return relErr
+			}
+			protocolProtos = append(protocolProtos, filepath.ToSlash(rel))
+			return nil
+		})
+	}
+	sort.Strings(repoProtos)
+	sort.Strings(protocolProtos)
+	return repoProtos, protocolProtos, nil
+}
+
+func runProtoc(
+	protocPath string,
+	repoRoot string,
+	outDir string,
+	module string,
+	protocGenGo string,
+	protocGenGoone string,
+	includePaths []string,
+	inputs []string,
+	label string,
+) error {
+	args := make([]string, 0, len(includePaths)*2+len(inputs)+8)
+	for _, inc := range includePaths {
+		args = append(args, "-I", inc)
+	}
+	args = append(args,
+		fmt.Sprintf("--plugin=protoc-gen-go=%s", protocGenGo),
+		fmt.Sprintf("--plugin=protoc-gen-goone=%s", protocGenGoone),
+		fmt.Sprintf("--go_out=%s", outDir),
+		fmt.Sprintf("--go_opt=module=%s", module),
+		"--go_opt=paths=import",
+		fmt.Sprintf("--goone_out=%s", outDir),
+		fmt.Sprintf("--goone_opt=module=%s", module),
+		"--goone_opt=paths=import",
+	)
+	args = append(args, inputs...)
+
+	cmd := exec.Command(protocPath, args...)
+	cmd.Dir = repoRoot
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	fmt.Printf("[genproto] protoc=%s\n", protocPath)
+	fmt.Printf("[genproto] module=%s\n", module)
+	fmt.Printf("[genproto] %s_inputs=%d\n", label, len(inputs))
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("protoc failed for %s inputs: %w", label, err)
+	}
+	return nil
 }

@@ -29,6 +29,7 @@ const (
 // - cmd_resp defaults to cmd+1 if 0 (keeps GoOne's existing convention)
 // - one_way means no response should be sent
 // - uid_lock is reserved for Phase A+ (route to UID-serialized executor)
+// - timeout_ms applies a per-method request timeout in runtime wrappers
 //
 // Cmd binding priority:
 // - if cmd != 0: use cmd
@@ -54,13 +55,25 @@ type SsRpc struct {
 	Sign bool `protobuf:"varint,8,opt,name=sign,proto3" json:"sign,omitempty"`
 	// trace_tags provides extra trace tags in "k=v" form (pluggable via ssrpc.Trace middleware).
 	TraceTags []string `protobuf:"bytes,9,rep,name=trace_tags,json=traceTags,proto3" json:"trace_tags,omitempty"`
+	// timeout_ms applies a per-method timeout at the ssrpc runtime layer.
+	// 0 means no explicit timeout and lets the transport/request context decide.
+	TimeoutMs uint32 `protobuf:"varint,10,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
 	// http_path/http_method binds this method to an HTTP endpoint (Phase 2).
 	// The generator can optionally emit gin route registration wrappers.
 	HttpPath   string `protobuf:"bytes,20,opt,name=http_path,json=httpPath,proto3" json:"http_path,omitempty"`
 	HttpMethod string `protobuf:"bytes,21,opt,name=http_method,json=httpMethod,proto3" json:"http_method,omitempty"` // e.g. "GET"/"POST". Empty defaults to "POST".
-	// ws indicates this method is exposed over WebSocket (Phase 2).
-	// This field is currently a schema placeholder; runtime wiring is TODO.
+	// ws indicates this method is exposed over WebSocket (CSPacket transport).
+	// When true, the generator emits d.RegisterWS() in RegisterToDispatcher and
+	// a standalone RegisterToWS function. Requires a cmd binding (cmd/cmd_enum/cmd_name).
 	Ws bool `protobuf:"varint,30,opt,name=ws,proto3" json:"ws,omitempty"`
+	// grpc indicates this method is exposed as a gRPC endpoint.
+	// When true, the generator emits d.RegisterGRPCUnary() in RegisterToDispatcher
+	// and a standalone RegisterToGRPC function. Requires a cmd binding for Dispatcher
+	// compatibility.
+	Grpc bool `protobuf:"varint,40,opt,name=grpc,proto3" json:"grpc,omitempty"`
+	// grpc_service overrides the gRPC service name registered on grpc.Server.
+	// Default: the proto service name (e.g. "game.main.v1.MainService").
+	GrpcService string `protobuf:"bytes,41,opt,name=grpc_service,json=grpcService,proto3" json:"grpc_service,omitempty"`
 	// comment is for docs / generated code comments only.
 	Comment       string `protobuf:"bytes,15,opt,name=comment,proto3" json:"comment,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -160,6 +173,13 @@ func (x *SsRpc) GetTraceTags() []string {
 	return nil
 }
 
+func (x *SsRpc) GetTimeoutMs() uint32 {
+	if x != nil {
+		return x.TimeoutMs
+	}
+	return 0
+}
+
 func (x *SsRpc) GetHttpPath() string {
 	if x != nil {
 		return x.HttpPath
@@ -179,6 +199,20 @@ func (x *SsRpc) GetWs() bool {
 		return x.Ws
 	}
 	return false
+}
+
+func (x *SsRpc) GetGrpc() bool {
+	if x != nil {
+		return x.Grpc
+	}
+	return false
+}
+
+func (x *SsRpc) GetGrpcService() string {
+	if x != nil {
+		return x.GrpcService
+	}
+	return ""
 }
 
 func (x *SsRpc) GetComment() string {
@@ -211,7 +245,7 @@ var File_goone_options_v1_options_proto protoreflect.FileDescriptor
 
 const file_goone_options_v1_options_proto_rawDesc = "" +
 	"\n" +
-	"\x1egoone/options/v1/options.proto\x12\x10goone.options.v1\x1a google/protobuf/descriptor.proto\x1a\x16goone/cmd/v1/cmd.proto\"\xe0\x02\n" +
+	"\x1egoone/options/v1/options.proto\x12\x10goone.options.v1\x1a google/protobuf/descriptor.proto\x1a\x16goone/cmd/v1/cmd.proto\"\xb6\x03\n" +
 	"\x05SsRpc\x12\x10\n" +
 	"\x03cmd\x18\x01 \x01(\rR\x03cmd\x12\x19\n" +
 	"\bcmd_resp\x18\x02 \x01(\rR\acmdResp\x12\x17\n" +
@@ -222,11 +256,16 @@ const file_goone_options_v1_options_proto_rawDesc = "" +
 	"\x04auth\x18\a \x01(\bR\x04auth\x12\x12\n" +
 	"\x04sign\x18\b \x01(\bR\x04sign\x12\x1d\n" +
 	"\n" +
-	"trace_tags\x18\t \x03(\tR\ttraceTags\x12\x1b\n" +
+	"trace_tags\x18\t \x03(\tR\ttraceTags\x12\x1d\n" +
+	"\n" +
+	"timeout_ms\x18\n" +
+	" \x01(\rR\ttimeoutMs\x12\x1b\n" +
 	"\thttp_path\x18\x14 \x01(\tR\bhttpPath\x12\x1f\n" +
 	"\vhttp_method\x18\x15 \x01(\tR\n" +
 	"httpMethod\x12\x0e\n" +
-	"\x02ws\x18\x1e \x01(\bR\x02ws\x12\x18\n" +
+	"\x02ws\x18\x1e \x01(\bR\x02ws\x12\x12\n" +
+	"\x04grpc\x18( \x01(\bR\x04grpc\x12!\n" +
+	"\fgrpc_service\x18) \x01(\tR\vgrpcService\x12\x18\n" +
 	"\acomment\x18\x0f \x01(\tR\acomment:O\n" +
 	"\x05ssrpc\x12\x1e.google.protobuf.MethodOptions\x18\xc9\xdc\x03 \x01(\v2\x17.goone.options.v1.SsRpcR\x05ssrpcBCZAgithub.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1b\x06proto3"
 

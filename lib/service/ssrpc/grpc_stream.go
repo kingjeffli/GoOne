@@ -47,8 +47,10 @@ func WrapGRPCServerStream(
 	return func(_ any, stream grpc.ServerStream) error {
 		ic := newGRPCIContext(stream.Context())
 		ctx := WrapIContext(ic, desc.Cmd)
-		ctx.Transport = TransportGRPC
+		ctx.SetTransport(TransportGRPC)
 		applyDesc(ctx, &desc)
+		ctx.ApplyTimeout(desc.Timeout)
+		defer ctx.Close()
 
 		// Decode request from stream.
 		reqAny := newReq()

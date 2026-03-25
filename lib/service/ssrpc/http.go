@@ -2,6 +2,7 @@ package ssrpc
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -23,12 +24,19 @@ type httpIContext struct {
 
 var _ cmd_handler.IContext = (*httpIContext)(nil)
 
-func (h *httpIContext) Uid() uint64        { return 0 }
-func (h *httpIContext) Zone() uint32       { return 0 }
-func (h *httpIContext) Rid() uint64        { return 0 }
+func (h *httpIContext) Uid() uint64         { return 0 }
+func (h *httpIContext) Zone() uint32        { return 0 }
+func (h *httpIContext) Rid() uint64         { return 0 }
 func (h *httpIContext) OriSrcBusId() uint32 { return 0 }
-func (h *httpIContext) Ip() uint32         { return 0 }
-func (h *httpIContext) Flag() uint32       { return 0 }
+func (h *httpIContext) Ip() uint32          { return 0 }
+func (h *httpIContext) Flag() uint32        { return 0 }
+
+func (h *httpIContext) Context() context.Context {
+	if h == nil || h.gin == nil || h.gin.Request == nil {
+		return context.Background()
+	}
+	return h.gin.Request.Context()
+}
 
 func (h *httpIContext) ParseMsg(data []byte, msg proto1.Message) error {
 	return unmarshalJSONToProto(data, msg)
@@ -105,17 +113,10 @@ func WrapHTTPGin(desc MethodDesc, mws []Middleware, newReq func() any, invoke fu
 
 		ic := &httpIContext{gin: c}
 		ctx := WrapIContext(ic, desc.Cmd)
-		ctx.Transport = TransportHTTP
-		ctx.Method = desc.Name
-		ctx.AuthRequired = desc.Auth
-		ctx.SignRequired = desc.Sign
-		if desc.TraceTags != nil {
-			m := make(map[string]string, len(desc.TraceTags))
-			for k, v := range desc.TraceTags {
-				m[k] = v
-			}
-			ctx.TraceTags = m
-		}
+		ctx.SetTransport(TransportHTTP)
+		applyDesc(ctx, &desc)
+		ctx.ApplyTimeout(desc.Timeout)
+		defer ctx.Close()
 
 		reqAny := newReq()
 		req1, ok := reqAny.(proto1.Message)
@@ -162,5 +163,3 @@ func WrapHTTPGin(desc MethodDesc, mws []Middleware, newReq func() any, invoke fu
 		c.JSON(http.StatusOK, gin.H{"code": g1_protocol.ErrorCode_ERR_OK, "data": raw, "msg": g1_protocol.ErrorCode_ERR_OK.String()})
 	}
 }
-
-
