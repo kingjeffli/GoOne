@@ -241,10 +241,10 @@ const file_websvr_proto_rawDesc = "" +
 	"msgContent\x12\x12\n" +
 	"\x04time\x18\x03 \x01(\tR\x04time\"\"\n" +
 	"\x0eMsgSecCheckRsp\x12\x10\n" +
-	"\x03msg\x18\x01 \x01(\tR\x03msg2\xf3\x01\n" +
+	"\x03msg\x18\x01 \x01(\tR\x03msg2\xf5\x01\n" +
 	"\rWebApiService\x12[\n" +
-	"\x04Ping\x12\x16.web.websvr.v1.PingReq\x1a\x16.web.websvr.v1.PingRsp\"#\xca\xe4\x1d\x1fz\bweb ping\xa2\x01\f/v1/web/ping\xaa\x01\x03GET\x12\x84\x01\n" +
-	"\vMsgSecCheck\x12\x1d.web.websvr.v1.MsgSecCheckReq\x1a\x1d.web.websvr.v1.MsgSecCheckRsp\"7\xca\xe4\x1d3z\x12msg security check\xa2\x01\x15/v1/web/msg-sec-check\xaa\x01\x04POSTB?Z=github.com/Iori372552686/GoOne/api/gen/web/websvr/v1;websvrv1b\x06proto3"
+	"\x04Ping\x12\x16.web.websvr.v1.PingReq\x1a\x16.web.websvr.v1.PingRsp\"#\xca\xe4\x1d\x1fz\bweb ping\xa2\x01\f/v1/web/ping\xaa\x01\x03GET\x12\x86\x01\n" +
+	"\vMsgSecCheck\x12\x1d.web.websvr.v1.MsgSecCheckReq\x1a\x1d.web.websvr.v1.MsgSecCheckRsp\"9\xca\xe4\x1d5@\x01z\x12msg security check\xa2\x01\x15/v1/web/msg-sec-check\xaa\x01\x04POSTB?Z=github.com/Iori372552686/GoOne/api/gen/web/websvr/v1;websvrv1b\x06proto3"
 
 var (
 	file_websvr_proto_rawDescOnce sync.Once

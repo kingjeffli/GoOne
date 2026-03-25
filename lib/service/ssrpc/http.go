@@ -98,6 +98,15 @@ func marshalProtoToJSONRaw(msg proto1.Message) (json.RawMessage, error) {
 	return json.RawMessage([]byte(s)), nil
 }
 
+func httpErrorMessage(err error, code g1_protocol.ErrorCode) string {
+	if err != nil {
+		if msg := strings.TrimSpace(err.Error()); msg != "" && msg != "<nil>" {
+			return msg
+		}
+	}
+	return strings.TrimSpace(code.String())
+}
+
 // WrapHTTPGin returns a gin.HandlerFunc that decodes JSON->proto, runs middleware, and replies JSON.
 func WrapHTTPGin(desc MethodDesc, mws []Middleware, newReq func() any, invoke func(ctx *Context, req any) (any, error)) gin.HandlerFunc {
 	// Keep consistent with WrapUnary: never mutate caller slice; inject UIDLock if requested.
@@ -114,6 +123,7 @@ func WrapHTTPGin(desc MethodDesc, mws []Middleware, newReq func() any, invoke fu
 		ic := &httpIContext{gin: c}
 		ctx := WrapIContext(ic, desc.Cmd)
 		ctx.SetTransport(TransportHTTP)
+		ctx.SetHTTPRequest(c.Request, data)
 		applyDesc(ctx, &desc)
 		ctx.ApplyTimeout(desc.Timeout)
 		defer ctx.Close()
@@ -147,7 +157,7 @@ func WrapHTTPGin(desc MethodDesc, mws []Middleware, newReq func() any, invoke fu
 		rsp, err := h(ctx, req1)
 		if err != nil {
 			code := ToErrorCode(err)
-			c.JSON(http.StatusOK, gin.H{"code": code, "data": nil, "msg": strings.TrimSpace(code.String())})
+			c.JSON(http.StatusOK, gin.H{"code": code, "data": nil, "msg": httpErrorMessage(err, code)})
 			return
 		}
 		if desc.OneWay || rsp == nil {

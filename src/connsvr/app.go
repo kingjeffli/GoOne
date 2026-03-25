@@ -10,7 +10,6 @@ import (
 
 	connsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/connsvr/v1"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
-	"github.com/Iori372552686/GoOne/src/connsvr/cmd_handler"
 	"github.com/Iori372552686/GoOne/src/connsvr/globals"
 	"github.com/Iori372552686/GoOne/src/connsvr/service"
 
@@ -58,8 +57,7 @@ func (self *AppSvrImpl) OnInit() error {
 	//-- init RestApi mgr
 	globals.RestMgr.Init(gconf.ConnSvrCfg.RestApiConf, globals.SignMgr)
 
-	cmd_handler.RegCmd()
-	regWSHandlers()
+	regClientPacketHandlers()
 
 	srv := connsvrv1.ConnServiceSServer{
 		Impl: &service.ConnServiceImpl{},

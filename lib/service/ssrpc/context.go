@@ -2,6 +2,7 @@ package ssrpc
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
@@ -13,6 +14,7 @@ type Transport string
 const (
 	TransportSS   Transport = "sspack"
 	TransportHTTP Transport = "http"
+	TransportTCP  Transport = "tcp"
 	TransportWS   Transport = "ws"
 	TransportGRPC Transport = "grpc"
 )
@@ -34,6 +36,11 @@ type Context struct {
 
 	// Method is the logical RPC method name (typically "Service.Method" or comment).
 	Method string
+
+	// HTTP transports attach raw request metadata here for middleware such as
+	// signature verification. Non-HTTP transports leave these fields empty.
+	HTTPRequest *http.Request
+	HTTPBody    []byte
 
 	// Flags propagated from ssrpc.MethodDesc (set by WrapUnary).
 	AuthRequired bool
@@ -87,6 +94,18 @@ func (c *Context) SetMethod(name string) {
 	}
 	c.Method = name
 	c.Session.Method = name
+}
+
+func (c *Context) SetHTTPRequest(req *http.Request, body []byte) {
+	if c == nil {
+		return
+	}
+	c.HTTPRequest = req
+	if len(body) == 0 {
+		c.HTTPBody = nil
+		return
+	}
+	c.HTTPBody = append([]byte(nil), body...)
 }
 
 func (c *Context) ApplyTimeout(timeout time.Duration) context.CancelFunc {

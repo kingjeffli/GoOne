@@ -55,12 +55,12 @@ GoOne 的 ssrpc 模块借鉴 CloudWeGo 的 IDL 驱动 + Kratos 的 middleware/tr
 |----------|--------------------|--------------------|--------------------------|
 | SSPacket | `WrapUnary`        | `TransactionMgr`    | `cmd/cmd_enum/cmd_name`  |
 | HTTP     | `WrapHTTPGin`      | `gin.IRoutes`       | `http_path`              |
-| WS       | `WrapWS`           | `DispatchWS()`      | `ws: true`               |
+| WS       | `WrapWS`           | `ssrpc.Dispatcher`  | `ws: true`               |
 | gRPC     | `WrapGRPCUnary`    | `grpc.Server`       | `grpc: true`             |
 
 **关键组件：**
 
-- **`ssrpc.Dispatcher`** -- 统一注册中心，`RegisterToDispatcher` 一次注册四条路径
+- **`ssrpc.Dispatcher`** -- 统一注册中心，每个 service 会生成 `Register<Service>ToDispatcher(...)` 来一次注册多条传输路径
 - **`ssrpc.Context`** -- 统一请求上下文，middleware 无需感知底层传输协议
 - **`ssrpc.Middleware`** -- `func(next Handler) Handler` 链式中间件（recover/log/auth/sign/uid_lock/trace/metrics）
 - **`protoc-gen-goone`** -- 从 proto service 定义自动生成 Server 注册 + Client Stub
@@ -93,21 +93,23 @@ go run ./tools/cmd/genproto
 
 ```bash
 ./main.sh check-genproto
+./main.sh check-genproto --full
 ```
 
 Windows PowerShell（不依赖 bash 时）：
 
 ```powershell
 .\scripts\check_genproto.ps1
+.\scripts\check_genproto.ps1 -Full
 ```
 
-上述命令会先执行 `go run ./tools/cmd/genproto`，再检查 `api/gen/**` 是否仍有未提交的差异。若你改的是 `game_protocol` 里的消息而非仅 service proto，请先跑完整 `proto_goone` 脚本再提交。
+默认模式会先执行 `go run ./tools/cmd/genproto`，再检查 `api/gen/**` 是否仍有未提交的差异。`--full` / `-Full` 会改跑完整 `proto_goone` 流程，并额外检查 `game_protocol/protocol/**`。若你改的是 `game_protocol` 里的消息而非仅 service proto，建议直接使用 full 模式。
 
 **示例：**
 
 ```proto
-service MainService {
-  rpc Login(LoginReq) returns (LoginRsp) {
+service MainC2SService {
+  rpc Login(g1.protocol.LoginReq) returns (g1.protocol.LoginRsp) {
     option (goone.options.v1.ssrpc) = {
       cmd_name: "CMD_MAIN_LOGIN_REQ"
       ws: true
@@ -120,14 +122,14 @@ service MainService {
 ```go
 // Server 注册（一行搞定四条路径）
 d := ssrpc.NewDispatcher()
-mainv1.RegisterMainServiceToDispatcher(d, srv)
+mainsvrv1.RegisterMainC2SServiceToDispatcher(d, srv)
 d.RegisterToTransactionMgr(globals.TransMgr)  // SSPacket
 d.MountGin(router)                             // HTTP
 d.MountGRPC(grpcSrv)                           // gRPC
 
 // Client 调用（类型安全，无样板代码）
-client := mainv1.NewMainServiceClient()
-rsp, err := client.Login(ctx, &mainv1.LoginReq{...})
+client := mainsvrv1.NewMainC2SServiceClient()
+rsp, err := client.Login(ctx, &g1_protocol.LoginReq{...})
 ```
 ---
 
@@ -139,7 +141,8 @@ rsp, err := client.Login(ctx, &mainv1.LoginReq{...})
 go run tools/cmd/scaffold -name mysvr
 ```
 
-生成 `src/mysvrsvr/` 目录（main.go / app.go / globals / cmd_handler），与 `infosvr` 结构一致。
+生成 `src/mysvrsvr/` 目录（`main.go` / `app.go` / `globals` / `cmd_handler`），与 `infosvr` 结构一致。
+当前脚手架仍会保留一个兼容用的 `cmd_handler/register.go` 骨架；如果新服务走 IDL-first，通常应在 `app.go` 里接生成的 `Register<Service>ToDispatcher(...)` / `Register<Service>ToTransactionMgr(...)`。
 
 ---
 

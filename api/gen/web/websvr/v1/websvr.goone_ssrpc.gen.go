@@ -62,6 +62,7 @@ func RegisterWebApiServiceToGin(r gin.IRoutes, srv WebApiServiceSServer) {
 	r.Handle("POST", "/v1/web/msg-sec-check", ssrpc.WrapHTTPGin(
 		ssrpc.MethodDesc{
 			Cmd: 0,
+			Sign: true,
 			Name: "msg security check",
 		},
 		srv.MW,
@@ -94,6 +95,7 @@ func RegisterWebApiServiceToDispatcher(d *ssrpc.Dispatcher, srv WebApiServiceSSe
 	d.RegisterHTTP("POST", "/v1/web/msg-sec-check", ssrpc.WrapHTTPGin(
 		ssrpc.MethodDesc{
 			Cmd: 0,
+			Sign: true,
 			Name: "msg security check",
 		},
 		srv.MW,

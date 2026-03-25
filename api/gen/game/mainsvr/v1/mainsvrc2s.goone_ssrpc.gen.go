@@ -808,6 +808,26 @@ func RegisterMainC2SServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv
 
 }
 
+// RegisterMainC2SServiceToWS registers WS (CSPacket) cmd -> handler wrappers.
+func RegisterMainC2SServiceToWS(d *ssrpc.Dispatcher, srv MainC2SServiceSServer) {
+	if d == nil || srv.Impl == nil {
+		return
+	}
+
+	d.RegisterWS(uint32(g1_protocol.CMD_MAIN_LOGIN_REQ), ssrpc.WrapWS(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_LOGIN_REQ,
+			Name: "mainsvr login",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.LoginReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Login(ctx, in.(*g1_protocol.LoginReq))
+		},
+	))
+
+}
+
 // RegisterMainC2SServiceToDispatcher registers cmd/http/ws/grpc bindings into a unified ssrpc.Dispatcher.
 func RegisterMainC2SServiceToDispatcher(d *ssrpc.Dispatcher, srv MainC2SServiceSServer) {
 	if d == nil || srv.Impl == nil {
@@ -1352,6 +1372,18 @@ func RegisterMainC2SServiceToDispatcher(d *ssrpc.Dispatcher, srv MainC2SServiceS
 		func() any { return new(g1_protocol.PreOperationReq) },
 		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.Preoperation(ctx, in.(*g1_protocol.PreOperationReq))
+		},
+	))
+
+	d.RegisterWS(uint32(g1_protocol.CMD_MAIN_LOGIN_REQ), ssrpc.WrapWS(
+		ssrpc.MethodDesc{
+			Cmd: g1_protocol.CMD_MAIN_LOGIN_REQ,
+			Name: "mainsvr login",
+		},
+		srv.MW,
+		func() any { return new(g1_protocol.LoginReq) },
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Login(ctx, in.(*g1_protocol.LoginReq))
 		},
 	))
 

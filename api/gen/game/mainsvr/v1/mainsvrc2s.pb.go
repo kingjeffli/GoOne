@@ -27,9 +27,9 @@ var File_mainsvrc2s_proto protoreflect.FileDescriptor
 
 const file_mainsvrc2s_proto_rawDesc = "" +
 	"\n" +
-	"\x10mainsvrc2s.proto\x12\x0fgame.mainsvr.v1\x1a\x1egoone/options/v1/options.proto\x1a\fclient.proto\x1a\bgm.proto\x1a\x1bgoogle/protobuf/empty.proto2\xfb-\n" +
-	"\x0eMainC2SService\x12^\n" +
-	"\x05Login\x12\x15.g1.protocol.LoginReq\x1a\x15.g1.protocol.LoginRsp\"'\xca\xe4\x1d#*\x12CMD_MAIN_LOGIN_REQz\rmainsvr login\x12\x84\x01\n" +
+	"\x10mainsvrc2s.proto\x12\x0fgame.mainsvr.v1\x1a\x1egoone/options/v1/options.proto\x1a\fclient.proto\x1a\bgm.proto\x1a\x1bgoogle/protobuf/empty.proto2\xfe-\n" +
+	"\x0eMainC2SService\x12a\n" +
+	"\x05Login\x12\x15.g1.protocol.LoginReq\x1a\x15.g1.protocol.LoginRsp\"*\xca\xe4\x1d&*\x12CMD_MAIN_LOGIN_REQz\rmainsvr login\xf0\x01\x01\x12\x84\x01\n" +
 	"\x06Logout\x12\x16.g1.protocol.LogoutReq\x1a\x16.g1.protocol.LogoutRsp\"J\xca\xe4\x1dF*\x13CMD_MAIN_LOGOUT_REQz/mainsvr logout (rsp optional, see req.ByServer)\x12r\n" +
 	"\tHeartBeat\x12\x19.g1.protocol.HeartBeatReq\x1a\x19.g1.protocol.HeartBeatRsp\"/\xca\xe4\x1d+*\x16CMD_MAIN_HEARTBEAT_REQz\x11mainsvr heartbeat\x12y\n" +
 	"\n" +

@@ -33,6 +33,37 @@ func TestWrapWS_SetsTransportWS(t *testing.T) {
 	}
 }
 
+type fakeTransportIContext struct {
+	fakeIContext
+	transport Transport
+}
+
+func (f *fakeTransportIContext) SSRPCTransport() Transport { return f.transport }
+
+func TestWrapWS_UsesTransportHint(t *testing.T) {
+	var gotTransport Transport
+	desc := MethodDesc{Cmd: 101, Name: "test.LoginTCP"}
+	h := WrapWS(desc, nil,
+		func() any { return &fakePB{} },
+		func(ctx *Context, req any) (any, error) {
+			gotTransport = ctx.Transport
+			return nil, nil
+		},
+	)
+
+	ic := &fakeTransportIContext{
+		fakeIContext: fakeIContext{uid: 9},
+		transport:    TransportTCP,
+	}
+	code := h(ic, nil)
+	if code != g1_protocol.ErrorCode_ERR_OK {
+		t.Fatalf("expected ERR_OK, got %v", code)
+	}
+	if gotTransport != TransportTCP {
+		t.Fatalf("expected transport %q, got %q", TransportTCP, gotTransport)
+	}
+}
+
 func TestWrapWS_RunsMiddleware(t *testing.T) {
 	var order []string
 	mw1 := func(next Handler) Handler {
@@ -81,10 +112,10 @@ func TestWrapWS_PropagatesMethodDesc(t *testing.T) {
 	var gotMethod string
 	var gotAuth, gotSign bool
 	desc := MethodDesc{
-		Cmd:  300,
-		Name: "test.Desc",
-		Auth: true,
-		Sign: true,
+		Cmd:       300,
+		Name:      "test.Desc",
+		Auth:      true,
+		Sign:      true,
 		TraceTags: map[string]string{"env": "test"},
 	}
 	h := WrapWS(desc, nil,

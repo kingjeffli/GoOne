@@ -42,7 +42,7 @@ ${COLOR_BOLD}GoOne Console${COLOR_RESET}  ${COLOR_CYAN}(main entry)${COLOR_RESET
 ${COLOR_BOLD}Usage${COLOR_RESET}
   ./main.sh ${COLOR_CYAN}help${COLOR_RESET}
   ./main.sh ${COLOR_CYAN}doctor${COLOR_RESET}
-  ./main.sh ${COLOR_CYAN}check-genproto${COLOR_RESET}
+  ./main.sh ${COLOR_CYAN}check-genproto${COLOR_RESET} [--full]
   ./main.sh ${COLOR_CYAN}install${COLOR_RESET} ansible [--venv <dir>]
   ./main.sh ${COLOR_CYAN}go${COLOR_RESET} <install|list|current|use|uninstall|check|help> [args...]
   ./main.sh ${COLOR_CYAN}docker${COLOR_RESET} <install|up|restart|down|status|logs> --env <dev> [options...]
@@ -91,6 +91,7 @@ EOF
 }
 
 check_genproto() {
+  local mode="${1:-}"
   print_header
   title "check-genproto"
   require_cmd git
@@ -100,17 +101,31 @@ check_genproto() {
   module="$(grep -E '^module[[:space:]]+' "${ROOT_DIR}/go.mod" | head -n1 | awk '{print $2}')"
   [[ -n "${module}" ]] || die "Cannot read module path from go.mod"
 
+  if [[ "${mode}" == "--full" || "${mode}" == "full" ]]; then
+    require_file "${ROOT_DIR}/scripts/proto_goone.sh"
+    log_info "Running full proto generation: ./scripts/proto_goone.sh"
+    (cd "$ROOT_DIR" && ./scripts/proto_goone.sh)
+
+    log_info "Checking working tree: api/gen and game_protocol/protocol must match generator output"
+    if ! (cd "$ROOT_DIR" && git diff --quiet -- api/gen game_protocol/protocol); then
+      die "api/gen or game_protocol/protocol is out of date. Run: ./scripts/proto_goone.sh, then commit."
+    fi
+
+    log_ok "api/gen and game_protocol/protocol match full proto generation."
+    return
+  fi
+
   log_info "Running: go run ./tools/cmd/genproto (module=${module})"
   (cd "$ROOT_DIR" && go run ./tools/cmd/genproto -module "${module}" -out . -proto_root api/proto)
 
   log_info "Checking working tree: api/gen must match generator output"
   if ! (cd "$ROOT_DIR" && git diff --quiet -- api/gen); then
-    die "api/gen is out of date. Run: go run ./tools/cmd/genproto  (or ./scripts/proto_goone.sh for full game_protocol + api/gen), then commit."
+    die "api/gen is out of date. Run: go run ./tools/cmd/genproto  (or ./main.sh check-genproto --full / ./scripts/proto_goone.sh for game_protocol + api/gen), then commit."
   fi
 
   log_ok "api/gen matches genproto."
   hr
-  log_info "Note: shared message pb.go under game_protocol/protocol is not validated here; use ./scripts/proto_goone.sh when protocol messages change."
+  log_info "Note: shared message pb.go under game_protocol/protocol is not validated in default mode; use ./main.sh check-genproto --full when protocol messages change."
 }
 
 doctor() {
@@ -187,7 +202,7 @@ case "$cmd" in
     ;;
 
   check-genproto)
-    check_genproto
+    check_genproto "$@"
     ;;
 
   install)

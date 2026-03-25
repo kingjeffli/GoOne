@@ -242,6 +242,8 @@ import (
 // RegCmd registers all command handlers for {{.Name}}.
 func RegCmd() {
 	logger.Infof("register transaction commands")
+	// If this service is IDL-first, generated ssrpc registration will usually be
+	// wired from app.go instead, and this file can stay empty or be removed later.
 	// TODO: register your cmd handlers, e.g.:
 	// globals.TransMgr.RegisterCmd(g1_protocol.CMD_XXX_REQ, YourHandler)
 }

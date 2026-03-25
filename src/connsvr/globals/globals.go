@@ -9,10 +9,10 @@ import (
 )
 
 var (
-	TransMgr     = transaction.NewTransactionMgr()
-	ConnTcpSvr   = net_mgr.NewTcpSvr()
-	ConnWsSvr    = net_mgr.NewWsTcpSvr()
-	SignMgr      = http_sign.NewSignMgr()
-	RestMgr      = rest_api.NewRestApiMgr()
-	WSDispatcher = ssrpc.NewDispatcher()
+	TransMgr               = transaction.NewTransactionMgr()
+	ConnTcpSvr             = net_mgr.NewTcpSvr()
+	ConnWsSvr              = net_mgr.NewWsTcpSvr()
+	SignMgr                = http_sign.NewSignMgr()
+	RestMgr                = rest_api.NewRestApiMgr()
+	ClientPacketDispatcher = ssrpc.NewDispatcher()
 )

@@ -6,10 +6,24 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
+type transportHintIContext interface {
+	SSRPCTransport() Transport
+}
+
+func transportForClientPacket(ic cmd_handler.IContext) Transport {
+	if hinted, ok := any(ic).(transportHintIContext); ok {
+		if transport := hinted.SSRPCTransport(); transport != "" {
+			return transport
+		}
+	}
+	return TransportWS
+}
+
 // WrapWS returns a CmdHandlerFunc for the WS (CSPacket) transport.
 //
-// Structurally identical to WrapUnary but stamps TransportWS on the Context
-// so that middleware can distinguish WebSocket requests from SSPacket requests.
+// Structurally identical to WrapUnary but stamps a client-packet transport on
+// the Context. It defaults to TransportWS and allows an IContext hint to
+// override that (e.g. connsvr raw TCP clients).
 func WrapWS(desc MethodDesc, mws []Middleware, newReq func() any, invoke func(ctx *Context, req any) (any, error)) cmd_handler.CmdHandlerFunc {
 	mws = prepareMW(mws, desc.UIDLock)
 	return func(c cmd_handler.IContext, data []byte) g1_protocol.ErrorCode {
@@ -17,7 +31,7 @@ func WrapWS(desc MethodDesc, mws []Middleware, newReq func() any, invoke func(ct
 			return g1_protocol.ErrorCode_ERR_INTERNAL
 		}
 		ctx := WrapIContext(c, desc.Cmd)
-		ctx.SetTransport(TransportWS)
+		ctx.SetTransport(transportForClientPacket(c))
 		applyDesc(ctx, &desc)
 		ctx.ApplyTimeout(desc.Timeout)
 		defer ctx.Close()

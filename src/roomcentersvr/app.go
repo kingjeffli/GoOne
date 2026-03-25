@@ -57,13 +57,16 @@ func (a *RoomMgrSvrImpl) OnInit() error {
 	}
 
 	// IDL-driven ssrpc handlers (Phase A).
-	roomcenterv1.RegisterRoomCenterInnerServiceToTransactionMgr(globals.TransMgr, roomcenterv1.RoomCenterInnerServiceSServer{
+	srv := roomcenterv1.RoomCenterInnerServiceSServer{
 		Impl: &service.RoomCenterInnerServiceImpl{},
 		MW: []ssrpc.Middleware{
 			ssrpc.Recover(),
 			ssrpc.Logging(),
 		},
-	})
+	}
+	d := ssrpc.NewDispatcher()
+	roomcenterv1.RegisterRoomCenterInnerServiceToDispatcher(d, srv)
+	d.RegisterToTransactionMgr(globals.TransMgr)
 	globals.TransMgr.InitAndRun(misc.MaxTransNumber, true, 200)
 	if id.IDGen, err = idgen.NewIDGen(); err != nil {
 		return err
