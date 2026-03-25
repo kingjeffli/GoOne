@@ -1,6 +1,7 @@
 package room
 
 import (
+	roomcenterv1 "github.com/Iori372552686/GoOne/api/gen/game/roomcenter/v1"
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/module/gfunc"
@@ -39,8 +40,12 @@ func OnMainGetRoomList(c cmd_handler.IContext, req *g1_protocol.RoomListReq, myR
 		return rsp
 	}
 
-	err := c.CallMsgByRouter(misc.ServerType_RoomCenterSvr, gfunc.GetTexasRoomListIndex(c.Zone(), req.GameId, req.CoinType), g1_protocol.CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ, req, rsp)
+	routerID := gfunc.GetTexasRoomListIndex(c.Zone(), req.GameId, req.CoinType)
+	rsp, err := roomcenterv1.NewRoomCenterInnerServiceClient().RoomListByRouter(c, routerID, req)
 	if err != nil {
+		if rsp == nil {
+			rsp = &g1_protocol.RoomListRsp{Ret: &g1_protocol.Ret{}}
+		}
 		rsp.Ret.Code = g1_protocol.ErrorCode_ERR_INTERNAL
 		rsp.Ret.Msg = err.Error()
 	}
@@ -51,14 +56,17 @@ func OnMainGetRoomList(c cmd_handler.IContext, req *g1_protocol.RoomListReq, myR
 func OnMainQuickStart(c cmd_handler.IContext, req *g1_protocol.QuickStartReq, myRole *role.Role) *g1_protocol.QuickStartRsp {
 	rsp := &g1_protocol.QuickStartRsp{Ret: &g1_protocol.Ret{Code: g1_protocol.ErrorCode_ERR_FAIL}}
 	req.ConnBusId = c.OriSrcBusId()
+	roomCenterClient := roomcenterv1.NewRoomCenterInnerServiceClient()
 
 	for i := 0; i < 3; i++ {
-		err := c.CallMsgByRouter(misc.ServerType_RoomCenterSvr, gfunc.GetTexasRoomListIndex(c.Zone(), req.GameId, req.CoinType), g1_protocol.CMD_ROOM_CENTER_INNER_QUICK_START_REQ, req, rsp)
+		routerID := gfunc.GetTexasRoomListIndex(c.Zone(), req.GameId, req.CoinType)
+		roomRsp, err := roomCenterClient.QuickStartByRouter(c, routerID, req)
 		if err != nil {
 			rsp.Ret.Msg = err.Error()
 			logger.Errorf("quick start call RoomCenterSvr cur:%d | err: %s", i, rsp.Ret)
 			continue
 		}
+		rsp = roomRsp
 
 		if rsp.Ret.Code == g1_protocol.ErrorCode_ERR_OK && rsp.RoomInfo != nil {
 			err = c.CallMsgByRouter(misc.ServerType_TexasGameSvr, rsp.RoomInfo.RoomId, g1_protocol.CMD_TEXAS_INNER_QUICK_START_REQ, req, rsp)

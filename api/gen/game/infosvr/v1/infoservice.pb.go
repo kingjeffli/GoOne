@@ -26,11 +26,11 @@ var File_infoservice_proto protoreflect.FileDescriptor
 
 const file_infoservice_proto_rawDesc = "" +
 	"\n" +
-	"\x11infoservice.proto\x12\x0fgame.infosvr.v1\x1a\x1egoone/options/v1/options.proto\x1a\fclient.proto\x1a\rinfosvr.proto2\xb5\x03\n" +
+	"\x11infoservice.proto\x12\x0fgame.infosvr.v1\x1a\x1egoone/options/v1/options.proto\x1a\fclient.proto\x1a\rinfosvr.proto2\xb7\x03\n" +
 	"\vInfoService\x12\x8a\x01\n" +
 	"\fGetBriefInfo\x12 .g1.protocol.InfoGetBriefInfoReq\x1a .g1.protocol.InfoGetBriefInfoRsp\"6\xca\xe4\x1d2*\x1bCMD_INFO_GET_BRIEF_INFO_REQz\x13info get brief info\x12\x85\x01\n" +
-	"\vGetIconDesc\x12\x1f.g1.protocol.InfoGetIconDescReq\x1a\x1f.g1.protocol.InfoGetIconDescRsp\"4\xca\xe4\x1d0*\x1aCMD_INFO_GET_ICON_DESC_REQz\x12info get icon desc\x12\x90\x01\n" +
-	"\fSetBriefInfo\x12 .g1.protocol.InfoSetBriefInfoReq\x1a .g1.protocol.InfoSetBriefInfoRsp\"<\xca\xe4\x1d8*!CMD_INFO_INNER_SET_BRIEF_INFO_REQz\x13info set brief infoBBZ@github.com/Iori372552686/GoOne/api/gen/game/infosvr/v1;infosvrv1b\x06proto3"
+	"\vGetIconDesc\x12\x1f.g1.protocol.InfoGetIconDescReq\x1a\x1f.g1.protocol.InfoGetIconDescRsp\"4\xca\xe4\x1d0*\x1aCMD_INFO_GET_ICON_DESC_REQz\x12info get icon desc\x12\x92\x01\n" +
+	"\fSetBriefInfo\x12 .g1.protocol.InfoSetBriefInfoReq\x1a .g1.protocol.InfoSetBriefInfoRsp\">\xca\xe4\x1d:\x18\x01*!CMD_INFO_INNER_SET_BRIEF_INFO_REQz\x13info set brief infoBBZ@github.com/Iori372552686/GoOne/api/gen/game/infosvr/v1;infosvrv1b\x06proto3"
 
 var file_infoservice_proto_goTypes = []any{
 	(*protocol.InfoGetBriefInfoReq)(nil), // 0: g1.protocol.InfoGetBriefInfoReq

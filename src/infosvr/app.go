@@ -11,7 +11,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/module/misc"
-	"github.com/Iori372552686/GoOne/src/infosvr/cmd_handler"
 	"github.com/Iori372552686/GoOne/src/infosvr/globals"
 	"github.com/Iori372552686/GoOne/src/infosvr/service"
 )
@@ -52,7 +51,6 @@ func (a *InfoSvrImpl) OnInit() error {
 		return err
 	}
 
-	cmd_handler.RegCmd()
 	srv := infosvrv1.InfoServiceSServer{
 		Impl: &service.InfoServiceImpl{},
 		MW: []ssrpc.Middleware{

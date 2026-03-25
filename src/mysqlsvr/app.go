@@ -11,7 +11,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/module/misc"
-	"github.com/Iori372552686/GoOne/src/mysqlsvr/cmd_handler"
 	"github.com/Iori372552686/GoOne/src/mysqlsvr/globals"
 	"github.com/Iori372552686/GoOne/src/mysqlsvr/manager"
 	"github.com/Iori372552686/GoOne/src/mysqlsvr/service"
@@ -68,7 +67,6 @@ func (a *MysqlSvrImpl) OnInit() error {
 		return err
 	}
 
-	cmd_handler.RegCmd()
 	srv := mysqlsvrv1.MysqlServiceSServer{
 		Impl: &service.MysqlServiceImpl{},
 		MW: []ssrpc.Middleware{

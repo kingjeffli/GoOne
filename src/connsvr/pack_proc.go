@@ -8,8 +8,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/connsvr/globals"
-	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
-	"github.com/golang/protobuf/proto"
 )
 
 // proc WebSocket packet
@@ -118,25 +116,8 @@ func onRecvSSPacket(packet *sharedstruct.SSPacket) {
 		}
 		//globals.ConnTcpSvr.SendByUid(packet.Header.Uid, csPacketHeader.ToBytes(), packet.Body)
 		globals.ConnWsSvr.SendByUid(packet.Header.Uid, csPacketHeader.ToBytes(), packet.Body)
-	} else if packet.Header.Cmd == uint32(g1_protocol.CMD_CONN_KICK_OUT_REQ) {
-		onSSPacketConnKickout(packet)
 	} else {
 		globals.TransMgr.ProcessSSPacket(packet)
 		packet = nil // packet所有权转交给transmgr，后面不能再用packet（包括data）
 	}
-}
-
-// conn kickout
-func onSSPacketConnKickout(packet *sharedstruct.SSPacket) {
-	logger.Infof("onSSPacketScKickout {header:%#v}", packet.Header)
-	req := g1_protocol.ConnKickOutReq{}
-	err := proto.Unmarshal(packet.Body, &req)
-	if err != nil {
-		logger.Warningf("Fail to unmarshal req | %v", err)
-		return
-	}
-	logger.Debugf("Received a req: %#v", req)
-
-	//globals.ConnTcpSvr.KickByRemoteAddr(packet.Header.Uid, req.Reason, req.RemoteAddr)
-	globals.ConnWsSvr.KickByRemoteAddr(packet.Header.Uid, req.Reason, req.RemoteAddr)
 }

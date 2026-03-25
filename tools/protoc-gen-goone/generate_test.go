@@ -871,6 +871,136 @@ func TestGenerate_SSRPCOption_TimeoutMs(t *testing.T) {
 	}
 }
 
+func TestGenerate_ClientStub_ByRouterVariants(t *testing.T) {
+	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
+
+	optionsFD := &descriptorpb.FileDescriptorProto{
+		Name:    protoString(ssrpcOptFilePath),
+		Package: protoString("goone.options.v1"),
+		Dependency: []string{
+			"google/protobuf/descriptor.proto",
+		},
+		Options: &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{
+				Name: protoString("SsRpc"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: protoString("cmd"), Number: protoInt32(1), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+					{Name: protoString("cmd_resp"), Number: protoInt32(2), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+					{Name: protoString("one_way"), Number: protoInt32(3), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_BOOL)},
+					{Name: protoString("cmd_name"), Number: protoInt32(5), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_STRING)},
+				},
+			},
+		},
+		Extension: []*descriptorpb.FieldDescriptorProto{
+			{
+				Name:     protoString("ssrpc"),
+				Number:   protoInt32(61001),
+				Label:    labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
+				Type:     typePtr(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+				TypeName: protoString(".goone.options.v1.SsRpc"),
+				Extendee: protoString(".google.protobuf.MethodOptions"),
+			},
+		},
+	}
+
+	svcFD := &descriptorpb.FileDescriptorProto{
+		Name:       protoString("test/router/v1/svc.proto"),
+		Package:    protoString("test.router.v1"),
+		Dependency: []string{ssrpcOptFilePath},
+		Options:    &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/test/router/v1;routerv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{Name: protoString("Req")},
+			{Name: protoString("Rsp")},
+		},
+		Service: []*descriptorpb.ServiceDescriptorProto{
+			{
+				Name: protoString("Svc"),
+				Method: []*descriptorpb.MethodDescriptorProto{
+					{
+						Name:       protoString("Do"),
+						InputType:  protoString(".test.router.v1.Req"),
+						OutputType: protoString(".test.router.v1.Rsp"),
+						Options:    &descriptorpb.MethodOptions{},
+					},
+					{
+						Name:       protoString("Notify"),
+						InputType:  protoString(".test.router.v1.Req"),
+						OutputType: protoString(".test.router.v1.Rsp"),
+						Options:    &descriptorpb.MethodOptions{},
+					},
+				},
+			},
+		},
+	}
+
+	extType, extMsgDesc, _, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD})
+	if err != nil {
+		t.Fatalf("buildSsRpcExtension err: %v", err)
+	}
+
+	optMsg1 := dynamicpb.NewMessage(extMsgDesc)
+	optMsg1.Set(extMsgDesc.Fields().ByName("cmd"), protoreflect.ValueOfUint32(0x01020003))
+	svcFD.Service[0].Method[0].Options = mustMethodOptionsUnknown(t, extType, optMsg1)
+
+	optMsg2 := dynamicpb.NewMessage(extMsgDesc)
+	optMsg2.Set(extMsgDesc.Fields().ByName("cmd"), protoreflect.ValueOfUint32(0x01020005))
+	optMsg2.Set(extMsgDesc.Fields().ByName("one_way"), protoreflect.ValueOfBool(true))
+	svcFD.Service[0].Method[1].Options = mustMethodOptionsUnknown(t, extType, optMsg2)
+
+	req := &pluginpb.CodeGeneratorRequest{
+		FileToGenerate: []string{svcFD.GetName()},
+		ProtoFile:      []*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD},
+		Parameter:      protoString("paths=import,module=github.com/Iori372552686/GoOne"),
+	}
+
+	resp, err := Generate(req)
+	if err != nil {
+		t.Fatalf("Generate err: %v", err)
+	}
+	if len(resp.File) != 1 {
+		t.Fatalf("expected 1 generated file, got %d", len(resp.File))
+	}
+	out := resp.File[0].GetContent()
+
+	if !contains(out, "func (c *SvcClient) DoByRouter(ctx cmd_handler.IContext, routerId uint64, req *Req) (*Rsp, error)") {
+		t.Fatalf("expected DoByRouter variant, got:\n%s", out)
+	}
+	if !contains(out, "ssrpc.CallByCmdWithRouter(ctx, routerId, g1_protocol.CMD(0x1020003), req, rsp)") {
+		t.Fatalf("expected DoByRouter to use CallByCmdWithRouter, got:\n%s", out)
+	}
+	if !contains(out, "func (c *SvcClient) NotifyByRouter(ctx cmd_handler.IContext, routerId uint64, req *Req) error") {
+		t.Fatalf("expected NotifyByRouter variant, got:\n%s", out)
+	}
+	if !contains(out, "ssrpc.SendByCmdWithRouter(ctx, routerId, g1_protocol.CMD(0x1020005), req)") {
+		t.Fatalf("expected NotifyByRouter to use SendByCmdWithRouter, got:\n%s", out)
+	}
+	if !contains(out, "func (c *SvcClient) NotifyByBusId(ctx cmd_handler.IContext, busId uint32, req *Req) error") {
+		t.Fatalf("expected NotifyByBusId variant, got:\n%s", out)
+	}
+	if !contains(out, "ssrpc.SendByCmdToBusId(ctx, busId, g1_protocol.CMD(0x1020005), req)") {
+		t.Fatalf("expected NotifyByBusId to use SendByCmdToBusId, got:\n%s", out)
+	}
+	if !contains(out, "func (c *SvcClient) NotifySimple(uid uint64, zone uint32, req *Req) error") {
+		t.Fatalf("expected NotifySimple variant, got:\n%s", out)
+	}
+	if !contains(out, "ssrpc.SendByCmdSimple(uid, zone, g1_protocol.CMD(0x1020005), req)") {
+		t.Fatalf("expected NotifySimple to use SendByCmdSimple, got:\n%s", out)
+	}
+	if !contains(out, "func (c *SvcClient) NotifyByBusIdSimple(busId uint32, uid uint64, req *Req) error") {
+		t.Fatalf("expected NotifyByBusIdSimple variant, got:\n%s", out)
+	}
+	if !contains(out, "ssrpc.SendByCmdToBusIdSimple(busId, uid, g1_protocol.CMD(0x1020005), req)") {
+		t.Fatalf("expected NotifyByBusIdSimple to use SendByCmdToBusIdSimple, got:\n%s", out)
+	}
+	if !contains(out, "func (c *SvcClient) NotifyByRouterSimple(routerId, uid uint64, zone uint32, req *Req) error") {
+		t.Fatalf("expected NotifyByRouterSimple variant, got:\n%s", out)
+	}
+	if !contains(out, "ssrpc.SendByCmdWithRouterSimple(routerId, uid, zone, g1_protocol.CMD(0x1020005), req)") {
+		t.Fatalf("expected NotifyByRouterSimple to use SendByCmdWithRouterSimple, got:\n%s", out)
+	}
+}
+
 func TestGenerate_Imports_EmptyPBOnlyWhenUsed(t *testing.T) {
 	// Include descriptor.proto so our custom extension can extendee MethodOptions.
 	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)

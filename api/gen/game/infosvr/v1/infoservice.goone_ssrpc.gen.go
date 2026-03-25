@@ -81,6 +81,7 @@ func RegisterInfoServiceToTransactionMgr(mgr transaction.ITransactionMgr, srv In
 	mgr.RegisterCmd(g1_protocol.CMD_INFO_INNER_SET_BRIEF_INFO_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_INFO_INNER_SET_BRIEF_INFO_REQ,
+			OneWay: true,
 			Name: "info set brief info",
 		},
 		srv.MW,
@@ -125,6 +126,7 @@ func RegisterInfoServiceToDispatcher(d *ssrpc.Dispatcher, srv InfoServiceSServer
 	d.RegisterCmd(g1_protocol.CMD_INFO_INNER_SET_BRIEF_INFO_REQ, ssrpc.WrapUnary(
 		ssrpc.MethodDesc{
 			Cmd: g1_protocol.CMD_INFO_INNER_SET_BRIEF_INFO_REQ,
+			OneWay: true,
 			Name: "info set brief info",
 		},
 		srv.MW,
@@ -138,6 +140,8 @@ func RegisterInfoServiceToDispatcher(d *ssrpc.Dispatcher, srv InfoServiceSServer
 
 // InfoServiceClient provides type-safe RPC stubs for InfoService.
 // Methods derive the target server type from CMD automatically.
+// ByRouter variants are also generated for callers that need explicit routerId routing.
+// One-way methods additionally expose ByBusId/ByBusIdSimple and Simple helpers.
 type InfoServiceClient struct{}
 
 // NewInfoServiceClient returns a new InfoServiceClient.
@@ -154,6 +158,15 @@ func (c *InfoServiceClient) GetBriefInfo(ctx cmd_handler.IContext, req *g1_proto
 	return rsp, nil
 }
 
+// GetBriefInfoByRouter calls info get brief info synchronously using an explicit routerId.
+func (c *InfoServiceClient) GetBriefInfoByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.InfoGetBriefInfoReq) (*g1_protocol.InfoGetBriefInfoRsp, error) {
+	rsp := &g1_protocol.InfoGetBriefInfoRsp{}
+	if err := ssrpc.CallByCmdWithRouter(ctx, routerId, g1_protocol.CMD_INFO_GET_BRIEF_INFO_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
 // GetIconDesc calls info get icon desc synchronously.
 func (c *InfoServiceClient) GetIconDesc(ctx cmd_handler.IContext, req *g1_protocol.InfoGetIconDescReq) (*g1_protocol.InfoGetIconDescRsp, error) {
 	rsp := &g1_protocol.InfoGetIconDescRsp{}
@@ -163,12 +176,42 @@ func (c *InfoServiceClient) GetIconDesc(ctx cmd_handler.IContext, req *g1_protoc
 	return rsp, nil
 }
 
-// SetBriefInfo calls info set brief info synchronously.
-func (c *InfoServiceClient) SetBriefInfo(ctx cmd_handler.IContext, req *g1_protocol.InfoSetBriefInfoReq) (*g1_protocol.InfoSetBriefInfoRsp, error) {
-	rsp := &g1_protocol.InfoSetBriefInfoRsp{}
-	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_INFO_INNER_SET_BRIEF_INFO_REQ, req, rsp); err != nil {
+// GetIconDescByRouter calls info get icon desc synchronously using an explicit routerId.
+func (c *InfoServiceClient) GetIconDescByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.InfoGetIconDescReq) (*g1_protocol.InfoGetIconDescRsp, error) {
+	rsp := &g1_protocol.InfoGetIconDescRsp{}
+	if err := ssrpc.CallByCmdWithRouter(ctx, routerId, g1_protocol.CMD_INFO_GET_ICON_DESC_REQ, req, rsp); err != nil {
 		return nil, err
 	}
 	return rsp, nil
+}
+
+// SetBriefInfo sends info set brief info (one-way, no response).
+func (c *InfoServiceClient) SetBriefInfo(ctx cmd_handler.IContext, req *g1_protocol.InfoSetBriefInfoReq) error {
+	return ssrpc.SendByCmd(ctx, g1_protocol.CMD_INFO_INNER_SET_BRIEF_INFO_REQ, req)
+}
+
+// SetBriefInfoByRouter sends info set brief info to an explicit routerId (one-way, no response).
+func (c *InfoServiceClient) SetBriefInfoByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.InfoSetBriefInfoReq) error {
+	return ssrpc.SendByCmdWithRouter(ctx, routerId, g1_protocol.CMD_INFO_INNER_SET_BRIEF_INFO_REQ, req)
+}
+
+// SetBriefInfoByBusId sends info set brief info to an explicit busId (one-way, no response).
+func (c *InfoServiceClient) SetBriefInfoByBusId(ctx cmd_handler.IContext, busId uint32, req *g1_protocol.InfoSetBriefInfoReq) error {
+	return ssrpc.SendByCmdToBusId(ctx, busId, g1_protocol.CMD_INFO_INNER_SET_BRIEF_INFO_REQ, req)
+}
+
+// SetBriefInfoSimple sends info set brief info without an IContext (one-way, no response).
+func (c *InfoServiceClient) SetBriefInfoSimple(uid uint64, zone uint32, req *g1_protocol.InfoSetBriefInfoReq) error {
+	return ssrpc.SendByCmdSimple(uid, zone, g1_protocol.CMD_INFO_INNER_SET_BRIEF_INFO_REQ, req)
+}
+
+// SetBriefInfoByBusIdSimple sends info set brief info to an explicit busId without an IContext (one-way, no response).
+func (c *InfoServiceClient) SetBriefInfoByBusIdSimple(busId uint32, uid uint64, req *g1_protocol.InfoSetBriefInfoReq) error {
+	return ssrpc.SendByCmdToBusIdSimple(busId, uid, g1_protocol.CMD_INFO_INNER_SET_BRIEF_INFO_REQ, req)
+}
+
+// SetBriefInfoByRouterSimple sends info set brief info to an explicit routerId without an IContext (one-way, no response).
+func (c *InfoServiceClient) SetBriefInfoByRouterSimple(routerId, uid uint64, zone uint32, req *g1_protocol.InfoSetBriefInfoReq) error {
+	return ssrpc.SendByCmdWithRouterSimple(routerId, uid, zone, g1_protocol.CMD_INFO_INNER_SET_BRIEF_INFO_REQ, req)
 }
 

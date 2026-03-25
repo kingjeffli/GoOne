@@ -9,7 +9,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/lib/web/web_gin"
 	"github.com/Iori372552686/GoOne/module/misc"
-	"github.com/Iori372552686/GoOne/src/web_svr/cmd_handler"
 	"github.com/Iori372552686/GoOne/src/web_svr/controller"
 	"github.com/Iori372552686/GoOne/src/web_svr/globals"
 
@@ -70,8 +69,6 @@ func (self *AppSvrImpl) OnInit() error {
 	globals.SignMgr.InitAndRun(gconf.WebSvrCfg.HTTPSigns)
 	//-- init RestApi mgr
 	globals.RestMgr.Init(gconf.WebSvrCfg.RestApiConf, globals.SignMgr)
-	//-- init CmdHandler
-	cmd_handler.CmdHandler = cmd_handler.NewRegCmdHandler()
 	//-- init sensitive words
 	sensitive_words.Init(gconf.WebSvrCfg.SensitiveWordsFile)
 

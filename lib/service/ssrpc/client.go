@@ -2,6 +2,7 @@ package ssrpc
 
 import (
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
+	"github.com/Iori372552686/GoOne/lib/service/router"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"github.com/golang/protobuf/proto"
 )
@@ -32,6 +33,28 @@ func SendByCmd(ctx cmd_handler.IContext, cmd g1_protocol.CMD, req proto.Message)
 	return ctx.SendMsgByServerType(SvrTypeFromCmd(cmd), cmd, req)
 }
 
+// SendByCmdToBusId sends a fire-and-forget message to an explicit busId.
+//
+// Use this when the caller already knows the exact target service instance and
+// must avoid the default routing decision.
+func SendByCmdToBusId(ctx cmd_handler.IContext, busId uint32, cmd g1_protocol.CMD, req proto.Message) error {
+	return router.SendPbMsgByBusId(busId, ctx.Uid(), ctx.Zone(), cmd, 0, 0, req)
+}
+
+// SendByCmdSimple sends a fire-and-forget message without requiring an IContext.
+//
+// Use this from background logic that only has uid/zone metadata and does not need
+// transaction-bound request/response semantics.
+func SendByCmdSimple(uid uint64, zone uint32, cmd g1_protocol.CMD, req proto.Message) error {
+	return router.SendPbMsgBySvrTypeSimple(SvrTypeFromCmd(cmd), uid, zone, cmd, req)
+}
+
+// SendByCmdToBusIdSimple sends a fire-and-forget message to an explicit busId
+// without requiring an IContext.
+func SendByCmdToBusIdSimple(busId uint32, uid uint64, cmd g1_protocol.CMD, req proto.Message) error {
+	return router.SendPbMsgByBusIdSimple(busId, uid, cmd, req)
+}
+
 // CallByCmdWithRouter performs a synchronous RPC call with an explicit routerId,
 // automatically deriving the target server type from the CMD value.
 //
@@ -44,4 +67,10 @@ func CallByCmdWithRouter(ctx cmd_handler.IContext, routerId uint64, cmd g1_proto
 // SendByCmdWithRouter sends a fire-and-forget message with an explicit routerId.
 func SendByCmdWithRouter(ctx cmd_handler.IContext, routerId uint64, cmd g1_protocol.CMD, req proto.Message) error {
 	return ctx.SendMsgByRouter(SvrTypeFromCmd(cmd), routerId, cmd, req)
+}
+
+// SendByCmdWithRouterSimple sends a fire-and-forget message with an explicit routerId
+// without requiring an IContext.
+func SendByCmdWithRouterSimple(routerId, uid uint64, zone uint32, cmd g1_protocol.CMD, req proto.Message) error {
+	return router.SendPbMsgByRouter(SvrTypeFromCmd(cmd), routerId, uid, zone, cmd, req)
 }

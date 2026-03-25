@@ -22,7 +22,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/util/idgen"
 	"github.com/Iori372552686/GoOne/lib/util/marshal"
-	"github.com/Iori372552686/GoOne/src/mainsvr/cmd_handler"
 	"github.com/Iori372552686/GoOne/src/mainsvr/globals"
 	"github.com/Iori372552686/GoOne/src/mainsvr/globals/rds"
 	"github.com/Iori372552686/GoOne/src/mainsvr/service"
@@ -80,8 +79,7 @@ func (self *MainSvrImpl) OnInit() error {
 		return err
 	}
 
-	cmd_handler.RegisterCmd()
-	// IDL-driven ssrpc handlers. Register AFTER legacy handlers so ssrpc wrappers can override.
+	// IDL-driven ssrpc handlers.
 	// Phase 2: register into a unified dispatcher, then mount into TransactionMgr.
 	srv := mainsvrv1.MainC2SServiceSServer{
 		Impl: &service.MainC2SServiceImpl{},

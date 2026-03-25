@@ -25,9 +25,9 @@ const (
 )
 
 // Generate is the Phase-A generator:
-// - It DOES NOT generate pb.go (handled by protoc-gen-go).
-// - It generates SSPacket RPC registration code (*goone_ssrpc.gen.go) for methods
-//   annotated with option (goone.options.v1.ssrpc).
+//   - It DOES NOT generate pb.go (handled by protoc-gen-go).
+//   - It generates SSPacket RPC registration code (*goone_ssrpc.gen.go) for methods
+//     annotated with option (goone.options.v1.ssrpc).
 func Generate(req *pluginpb.CodeGeneratorRequest) (*pluginpb.CodeGeneratorResponse, error) {
 	files := map[string]*descriptorpb.FileDescriptorProto{}
 	for _, f := range req.GetProtoFile() {
@@ -850,6 +850,8 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 		if hasAnyCmdMethod {
 			b.WriteString(fmt.Sprintf("// %sClient provides type-safe RPC stubs for %s.\n", svc, svc))
 			b.WriteString(fmt.Sprintf("// Methods derive the target server type from CMD automatically.\n"))
+			b.WriteString(fmt.Sprintf("// ByRouter variants are also generated for callers that need explicit routerId routing.\n"))
+			b.WriteString(fmt.Sprintf("// One-way methods additionally expose ByBusId/ByBusIdSimple and Simple helpers.\n"))
 			b.WriteString(fmt.Sprintf("type %sClient struct{}\n\n", svc))
 			b.WriteString(fmt.Sprintf("// New%sClient returns a new %sClient.\n", svc, svc))
 			b.WriteString(fmt.Sprintf("func New%sClient() *%sClient {\n", svc, svc))
@@ -895,12 +897,46 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 					b.WriteString(fmt.Sprintf("func (c *%sClient) %s(ctx cmd_handler.IContext, req *%s) error {\n", svc, method, inGo))
 					b.WriteString(fmt.Sprintf("\treturn ssrpc.SendByCmd(ctx, %s, req)\n", cmdExpr))
 					b.WriteString("}\n\n")
+
+					b.WriteString(fmt.Sprintf("// %sByRouter sends %s to an explicit routerId (one-way, no response).\n", method, comment))
+					b.WriteString(fmt.Sprintf("func (c *%sClient) %sByRouter(ctx cmd_handler.IContext, routerId uint64, req *%s) error {\n", svc, method, inGo))
+					b.WriteString(fmt.Sprintf("\treturn ssrpc.SendByCmdWithRouter(ctx, routerId, %s, req)\n", cmdExpr))
+					b.WriteString("}\n\n")
+
+					b.WriteString(fmt.Sprintf("// %sByBusId sends %s to an explicit busId (one-way, no response).\n", method, comment))
+					b.WriteString(fmt.Sprintf("func (c *%sClient) %sByBusId(ctx cmd_handler.IContext, busId uint32, req *%s) error {\n", svc, method, inGo))
+					b.WriteString(fmt.Sprintf("\treturn ssrpc.SendByCmdToBusId(ctx, busId, %s, req)\n", cmdExpr))
+					b.WriteString("}\n\n")
+
+					b.WriteString(fmt.Sprintf("// %sSimple sends %s without an IContext (one-way, no response).\n", method, comment))
+					b.WriteString(fmt.Sprintf("func (c *%sClient) %sSimple(uid uint64, zone uint32, req *%s) error {\n", svc, method, inGo))
+					b.WriteString(fmt.Sprintf("\treturn ssrpc.SendByCmdSimple(uid, zone, %s, req)\n", cmdExpr))
+					b.WriteString("}\n\n")
+
+					b.WriteString(fmt.Sprintf("// %sByBusIdSimple sends %s to an explicit busId without an IContext (one-way, no response).\n", method, comment))
+					b.WriteString(fmt.Sprintf("func (c *%sClient) %sByBusIdSimple(busId uint32, uid uint64, req *%s) error {\n", svc, method, inGo))
+					b.WriteString(fmt.Sprintf("\treturn ssrpc.SendByCmdToBusIdSimple(busId, uid, %s, req)\n", cmdExpr))
+					b.WriteString("}\n\n")
+
+					b.WriteString(fmt.Sprintf("// %sByRouterSimple sends %s to an explicit routerId without an IContext (one-way, no response).\n", method, comment))
+					b.WriteString(fmt.Sprintf("func (c *%sClient) %sByRouterSimple(routerId, uid uint64, zone uint32, req *%s) error {\n", svc, method, inGo))
+					b.WriteString(fmt.Sprintf("\treturn ssrpc.SendByCmdWithRouterSimple(routerId, uid, zone, %s, req)\n", cmdExpr))
+					b.WriteString("}\n\n")
 				} else {
 					// request/response: synchronous call
 					b.WriteString(fmt.Sprintf("// %s calls %s synchronously.\n", method, comment))
 					b.WriteString(fmt.Sprintf("func (c *%sClient) %s(ctx cmd_handler.IContext, req *%s) (*%s, error) {\n", svc, method, inGo, outGo))
 					b.WriteString(fmt.Sprintf("\trsp := &%s{}\n", outGo))
 					b.WriteString(fmt.Sprintf("\tif err := ssrpc.CallByCmd(ctx, %s, req, rsp); err != nil {\n", cmdExpr))
+					b.WriteString("\t\treturn nil, err\n")
+					b.WriteString("\t}\n")
+					b.WriteString("\treturn rsp, nil\n")
+					b.WriteString("}\n\n")
+
+					b.WriteString(fmt.Sprintf("// %sByRouter calls %s synchronously using an explicit routerId.\n", method, comment))
+					b.WriteString(fmt.Sprintf("func (c *%sClient) %sByRouter(ctx cmd_handler.IContext, routerId uint64, req *%s) (*%s, error) {\n", svc, method, inGo, outGo))
+					b.WriteString(fmt.Sprintf("\trsp := &%s{}\n", outGo))
+					b.WriteString(fmt.Sprintf("\tif err := ssrpc.CallByCmdWithRouter(ctx, routerId, %s, req, rsp); err != nil {\n", cmdExpr))
 					b.WriteString("\t\treturn nil, err\n")
 					b.WriteString("\t}\n")
 					b.WriteString("\treturn rsp, nil\n")

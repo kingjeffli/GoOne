@@ -203,6 +203,8 @@ func RegisterRoomCenterInnerServiceToDispatcher(d *ssrpc.Dispatcher, srv RoomCen
 
 // RoomCenterInnerServiceClient provides type-safe RPC stubs for RoomCenterInnerService.
 // Methods derive the target server type from CMD automatically.
+// ByRouter variants are also generated for callers that need explicit routerId routing.
+// One-way methods additionally expose ByBusId/ByBusIdSimple and Simple helpers.
 type RoomCenterInnerServiceClient struct{}
 
 // NewRoomCenterInnerServiceClient returns a new RoomCenterInnerServiceClient.
@@ -215,10 +217,44 @@ func (c *RoomCenterInnerServiceClient) Tick(ctx cmd_handler.IContext, req *g1_pr
 	return ssrpc.SendByCmd(ctx, g1_protocol.CMD(0xB1008), req)
 }
 
+// TickByRouter sends roomcentersvr tick (one-way) to an explicit routerId (one-way, no response).
+func (c *RoomCenterInnerServiceClient) TickByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.InnerTickReq) error {
+	return ssrpc.SendByCmdWithRouter(ctx, routerId, g1_protocol.CMD(0xB1008), req)
+}
+
+// TickByBusId sends roomcentersvr tick (one-way) to an explicit busId (one-way, no response).
+func (c *RoomCenterInnerServiceClient) TickByBusId(ctx cmd_handler.IContext, busId uint32, req *g1_protocol.InnerTickReq) error {
+	return ssrpc.SendByCmdToBusId(ctx, busId, g1_protocol.CMD(0xB1008), req)
+}
+
+// TickSimple sends roomcentersvr tick (one-way) without an IContext (one-way, no response).
+func (c *RoomCenterInnerServiceClient) TickSimple(uid uint64, zone uint32, req *g1_protocol.InnerTickReq) error {
+	return ssrpc.SendByCmdSimple(uid, zone, g1_protocol.CMD(0xB1008), req)
+}
+
+// TickByBusIdSimple sends roomcentersvr tick (one-way) to an explicit busId without an IContext (one-way, no response).
+func (c *RoomCenterInnerServiceClient) TickByBusIdSimple(busId uint32, uid uint64, req *g1_protocol.InnerTickReq) error {
+	return ssrpc.SendByCmdToBusIdSimple(busId, uid, g1_protocol.CMD(0xB1008), req)
+}
+
+// TickByRouterSimple sends roomcentersvr tick (one-way) to an explicit routerId without an IContext (one-way, no response).
+func (c *RoomCenterInnerServiceClient) TickByRouterSimple(routerId, uid uint64, zone uint32, req *g1_protocol.InnerTickReq) error {
+	return ssrpc.SendByCmdWithRouterSimple(routerId, uid, zone, g1_protocol.CMD(0xB1008), req)
+}
+
 // RoomList calls room list synchronously.
 func (c *RoomCenterInnerServiceClient) RoomList(ctx cmd_handler.IContext, req *g1_protocol.RoomListReq) (*g1_protocol.RoomListRsp, error) {
 	rsp := &g1_protocol.RoomListRsp{}
 	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// RoomListByRouter calls room list synchronously using an explicit routerId.
+func (c *RoomCenterInnerServiceClient) RoomListByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.RoomListReq) (*g1_protocol.RoomListRsp, error) {
+	rsp := &g1_protocol.RoomListRsp{}
+	if err := ssrpc.CallByCmdWithRouter(ctx, routerId, g1_protocol.CMD_ROOM_CENTER_INNER_ROOM_LIST_REQ, req, rsp); err != nil {
 		return nil, err
 	}
 	return rsp, nil
@@ -233,13 +269,72 @@ func (c *RoomCenterInnerServiceClient) QuickStart(ctx cmd_handler.IContext, req 
 	return rsp, nil
 }
 
+// QuickStartByRouter calls quick start synchronously using an explicit routerId.
+func (c *RoomCenterInnerServiceClient) QuickStartByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.QuickStartReq) (*g1_protocol.QuickStartRsp, error) {
+	rsp := &g1_protocol.QuickStartRsp{}
+	if err := ssrpc.CallByCmdWithRouter(ctx, routerId, g1_protocol.CMD_ROOM_CENTER_INNER_QUICK_START_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
 // UpdateRoomInfo sends update room info (one-way) (one-way, no response).
 func (c *RoomCenterInnerServiceClient) UpdateRoomInfo(ctx cmd_handler.IContext, req *g1_protocol.RoomShowInfo) error {
 	return ssrpc.SendByCmd(ctx, g1_protocol.CMD_ROOM_CENTER_INNER_UPDATE_ROOM_INFO_REQ, req)
 }
 
+// UpdateRoomInfoByRouter sends update room info (one-way) to an explicit routerId (one-way, no response).
+func (c *RoomCenterInnerServiceClient) UpdateRoomInfoByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.RoomShowInfo) error {
+	return ssrpc.SendByCmdWithRouter(ctx, routerId, g1_protocol.CMD_ROOM_CENTER_INNER_UPDATE_ROOM_INFO_REQ, req)
+}
+
+// UpdateRoomInfoByBusId sends update room info (one-way) to an explicit busId (one-way, no response).
+func (c *RoomCenterInnerServiceClient) UpdateRoomInfoByBusId(ctx cmd_handler.IContext, busId uint32, req *g1_protocol.RoomShowInfo) error {
+	return ssrpc.SendByCmdToBusId(ctx, busId, g1_protocol.CMD_ROOM_CENTER_INNER_UPDATE_ROOM_INFO_REQ, req)
+}
+
+// UpdateRoomInfoSimple sends update room info (one-way) without an IContext (one-way, no response).
+func (c *RoomCenterInnerServiceClient) UpdateRoomInfoSimple(uid uint64, zone uint32, req *g1_protocol.RoomShowInfo) error {
+	return ssrpc.SendByCmdSimple(uid, zone, g1_protocol.CMD_ROOM_CENTER_INNER_UPDATE_ROOM_INFO_REQ, req)
+}
+
+// UpdateRoomInfoByBusIdSimple sends update room info (one-way) to an explicit busId without an IContext (one-way, no response).
+func (c *RoomCenterInnerServiceClient) UpdateRoomInfoByBusIdSimple(busId uint32, uid uint64, req *g1_protocol.RoomShowInfo) error {
+	return ssrpc.SendByCmdToBusIdSimple(busId, uid, g1_protocol.CMD_ROOM_CENTER_INNER_UPDATE_ROOM_INFO_REQ, req)
+}
+
+// UpdateRoomInfoByRouterSimple sends update room info (one-way) to an explicit routerId without an IContext (one-way, no response).
+func (c *RoomCenterInnerServiceClient) UpdateRoomInfoByRouterSimple(routerId, uid uint64, zone uint32, req *g1_protocol.RoomShowInfo) error {
+	return ssrpc.SendByCmdWithRouterSimple(routerId, uid, zone, g1_protocol.CMD_ROOM_CENTER_INNER_UPDATE_ROOM_INFO_REQ, req)
+}
+
 // DelRoomInfo sends delete room info (one-way) (one-way, no response).
 func (c *RoomCenterInnerServiceClient) DelRoomInfo(ctx cmd_handler.IContext, req *g1_protocol.RoomShowInfo) error {
 	return ssrpc.SendByCmd(ctx, g1_protocol.CMD_ROOM_CENTER_INNER_DEL_ROOM_INFO_REQ, req)
+}
+
+// DelRoomInfoByRouter sends delete room info (one-way) to an explicit routerId (one-way, no response).
+func (c *RoomCenterInnerServiceClient) DelRoomInfoByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.RoomShowInfo) error {
+	return ssrpc.SendByCmdWithRouter(ctx, routerId, g1_protocol.CMD_ROOM_CENTER_INNER_DEL_ROOM_INFO_REQ, req)
+}
+
+// DelRoomInfoByBusId sends delete room info (one-way) to an explicit busId (one-way, no response).
+func (c *RoomCenterInnerServiceClient) DelRoomInfoByBusId(ctx cmd_handler.IContext, busId uint32, req *g1_protocol.RoomShowInfo) error {
+	return ssrpc.SendByCmdToBusId(ctx, busId, g1_protocol.CMD_ROOM_CENTER_INNER_DEL_ROOM_INFO_REQ, req)
+}
+
+// DelRoomInfoSimple sends delete room info (one-way) without an IContext (one-way, no response).
+func (c *RoomCenterInnerServiceClient) DelRoomInfoSimple(uid uint64, zone uint32, req *g1_protocol.RoomShowInfo) error {
+	return ssrpc.SendByCmdSimple(uid, zone, g1_protocol.CMD_ROOM_CENTER_INNER_DEL_ROOM_INFO_REQ, req)
+}
+
+// DelRoomInfoByBusIdSimple sends delete room info (one-way) to an explicit busId without an IContext (one-way, no response).
+func (c *RoomCenterInnerServiceClient) DelRoomInfoByBusIdSimple(busId uint32, uid uint64, req *g1_protocol.RoomShowInfo) error {
+	return ssrpc.SendByCmdToBusIdSimple(busId, uid, g1_protocol.CMD_ROOM_CENTER_INNER_DEL_ROOM_INFO_REQ, req)
+}
+
+// DelRoomInfoByRouterSimple sends delete room info (one-way) to an explicit routerId without an IContext (one-way, no response).
+func (c *RoomCenterInnerServiceClient) DelRoomInfoByRouterSimple(routerId, uid uint64, zone uint32, req *g1_protocol.RoomShowInfo) error {
+	return ssrpc.SendByCmdWithRouterSimple(routerId, uid, zone, g1_protocol.CMD_ROOM_CENTER_INNER_DEL_ROOM_INFO_REQ, req)
 }
 

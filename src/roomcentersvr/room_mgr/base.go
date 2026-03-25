@@ -1,11 +1,10 @@
 package room_mgr
 
 import (
+	roomcenterv1 "github.com/Iori372552686/GoOne/api/gen/game/roomcenter/v1"
 	"github.com/Iori372552686/GoOne/common/gconf"
 	"github.com/Iori372552686/GoOne/lib/api/datetime"
 	"github.com/Iori372552686/GoOne/lib/service/bus"
-	"github.com/Iori372552686/GoOne/lib/service/router"
-	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/roomcentersvr/room_mgr/texas_room"
 	pb "github.com/Iori372552686/game_protocol/protocol"
 	"sync"
@@ -48,9 +47,13 @@ func (impl *RoomMgr) Tick(nowMs int64) {
 				continue
 			}
 
-			// 内部转发，待优化 todo
-			router.SendPbMsgByRouter(misc.ServerType_RoomCenterSvr, zone.Index, 0, 0, pb.CMD_ROOM_CENTER_INNER_TICK_REQ,
-				&pb.InnerTickReq{NowMs: nowMs, SrcBusId: bus.IpStringToInt(gconf.RoomCenterSvrCfg.SelfBusId)})
+			// 内部转发，使用 IDL 生成的一次性 one-way helper。
+			roomcenterv1.NewRoomCenterInnerServiceClient().TickByRouterSimple(
+				zone.Index,
+				0,
+				0,
+				&pb.InnerTickReq{NowMs: nowMs, SrcBusId: bus.IpStringToInt(gconf.RoomCenterSvrCfg.SelfBusId)},
+			)
 		}
 	}
 }

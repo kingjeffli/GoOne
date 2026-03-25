@@ -8,8 +8,11 @@ import (
 
 	"github.com/Iori372552686/GoOne/lib/util/marshal"
 
+	connsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/connsvr/v1"
+	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/src/connsvr/cmd_handler"
 	"github.com/Iori372552686/GoOne/src/connsvr/globals"
+	"github.com/Iori372552686/GoOne/src/connsvr/service"
 
 	"runtime"
 )
@@ -57,6 +60,18 @@ func (self *AppSvrImpl) OnInit() error {
 
 	cmd_handler.RegCmd()
 	regWSHandlers()
+
+	srv := connsvrv1.ConnServiceSServer{
+		Impl: &service.ConnServiceImpl{},
+		MW: []ssrpc.Middleware{
+			ssrpc.Recover(),
+			ssrpc.Logging(),
+		},
+	}
+	d := ssrpc.NewDispatcher()
+	connsvrv1.RegisterConnServiceToDispatcher(d, srv)
+	d.RegisterToTransactionMgr(globals.TransMgr)
+
 	globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
 
 	err = globals.ConnTcpSvr.CreateTcpServer("", gconf.ConnSvrCfg.ListenPort+1, onTcpPacket)

@@ -18,7 +18,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/util/idgen"
 	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/lib/util/safego"
-	"github.com/Iori372552686/GoOne/src/roomcentersvr/cmd_handler"
 	"github.com/Iori372552686/GoOne/src/roomcentersvr/globals"
 	"github.com/Iori372552686/GoOne/src/roomcentersvr/room_ai"
 )
@@ -57,8 +56,7 @@ func (a *RoomMgrSvrImpl) OnInit() error {
 		return err
 	}
 
-	cmd_handler.RegCmd()
-	// IDL-driven ssrpc handlers (Phase A). Register AFTER legacy handlers so ssrpc wrappers can override.
+	// IDL-driven ssrpc handlers (Phase A).
 	roomcenterv1.RegisterRoomCenterInnerServiceToTransactionMgr(globals.TransMgr, roomcenterv1.RoomCenterInnerServiceSServer{
 		Impl: &service.RoomCenterInnerServiceImpl{},
 		MW: []ssrpc.Middleware{

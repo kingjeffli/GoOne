@@ -228,6 +228,8 @@ func RegisterMysqlServiceToDispatcher(d *ssrpc.Dispatcher, srv MysqlServiceSServ
 
 // MysqlServiceClient provides type-safe RPC stubs for MysqlService.
 // Methods derive the target server type from CMD automatically.
+// ByRouter variants are also generated for callers that need explicit routerId routing.
+// One-way methods additionally expose ByBusId/ByBusIdSimple and Simple helpers.
 type MysqlServiceClient struct{}
 
 // NewMysqlServiceClient returns a new MysqlServiceClient.
@@ -244,10 +246,28 @@ func (c *MysqlServiceClient) UpdateRoleInfo(ctx cmd_handler.IContext, req *g1_pr
 	return rsp, nil
 }
 
+// UpdateRoleInfoByRouter calls mysql update role info synchronously using an explicit routerId.
+func (c *MysqlServiceClient) UpdateRoleInfoByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.MysqlInnerUpdateRoleInfoReq) (*g1_protocol.MysqlInnerUpdateRoleInfoRsp, error) {
+	rsp := &g1_protocol.MysqlInnerUpdateRoleInfoRsp{}
+	if err := ssrpc.CallByCmdWithRouter(ctx, routerId, g1_protocol.CMD_MYSQL_INNER_UPDATE_ROLE_INFO_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
 // SearchRole calls mysql search role synchronously.
 func (c *MysqlServiceClient) SearchRole(ctx cmd_handler.IContext, req *g1_protocol.MysqlInnerSearchRoleReq) (*g1_protocol.MysqlInnerSearchRoleRsp, error) {
 	rsp := &g1_protocol.MysqlInnerSearchRoleRsp{}
 	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MYSQL_INNER_SEARCH_ROLE_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// SearchRoleByRouter calls mysql search role synchronously using an explicit routerId.
+func (c *MysqlServiceClient) SearchRoleByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.MysqlInnerSearchRoleReq) (*g1_protocol.MysqlInnerSearchRoleRsp, error) {
+	rsp := &g1_protocol.MysqlInnerSearchRoleRsp{}
+	if err := ssrpc.CallByCmdWithRouter(ctx, routerId, g1_protocol.CMD_MYSQL_INNER_SEARCH_ROLE_REQ, req, rsp); err != nil {
 		return nil, err
 	}
 	return rsp, nil
@@ -258,10 +278,44 @@ func (c *MysqlServiceClient) Update(ctx cmd_handler.IContext, req *g1_protocol.M
 	return ssrpc.SendByCmd(ctx, g1_protocol.CMD_MYSQL_INNER_UPDATE_REQ, req)
 }
 
+// UpdateByRouter sends mysql async update to an explicit routerId (one-way, no response).
+func (c *MysqlServiceClient) UpdateByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.MysqlInnerUpdateReq) error {
+	return ssrpc.SendByCmdWithRouter(ctx, routerId, g1_protocol.CMD_MYSQL_INNER_UPDATE_REQ, req)
+}
+
+// UpdateByBusId sends mysql async update to an explicit busId (one-way, no response).
+func (c *MysqlServiceClient) UpdateByBusId(ctx cmd_handler.IContext, busId uint32, req *g1_protocol.MysqlInnerUpdateReq) error {
+	return ssrpc.SendByCmdToBusId(ctx, busId, g1_protocol.CMD_MYSQL_INNER_UPDATE_REQ, req)
+}
+
+// UpdateSimple sends mysql async update without an IContext (one-way, no response).
+func (c *MysqlServiceClient) UpdateSimple(uid uint64, zone uint32, req *g1_protocol.MysqlInnerUpdateReq) error {
+	return ssrpc.SendByCmdSimple(uid, zone, g1_protocol.CMD_MYSQL_INNER_UPDATE_REQ, req)
+}
+
+// UpdateByBusIdSimple sends mysql async update to an explicit busId without an IContext (one-way, no response).
+func (c *MysqlServiceClient) UpdateByBusIdSimple(busId uint32, uid uint64, req *g1_protocol.MysqlInnerUpdateReq) error {
+	return ssrpc.SendByCmdToBusIdSimple(busId, uid, g1_protocol.CMD_MYSQL_INNER_UPDATE_REQ, req)
+}
+
+// UpdateByRouterSimple sends mysql async update to an explicit routerId without an IContext (one-way, no response).
+func (c *MysqlServiceClient) UpdateByRouterSimple(routerId, uid uint64, zone uint32, req *g1_protocol.MysqlInnerUpdateReq) error {
+	return ssrpc.SendByCmdWithRouterSimple(routerId, uid, zone, g1_protocol.CMD_MYSQL_INNER_UPDATE_REQ, req)
+}
+
 // QueryRoomInfo calls mysql query room info synchronously.
 func (c *MysqlServiceClient) QueryRoomInfo(ctx cmd_handler.IContext, req *g1_protocol.QueryRoomInfoReq) (*g1_protocol.QueryRoomInfoRsp, error) {
 	rsp := &g1_protocol.QueryRoomInfoRsp{}
 	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MYSQL_INNER_QUERY_ROOM_INFO_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// QueryRoomInfoByRouter calls mysql query room info synchronously using an explicit routerId.
+func (c *MysqlServiceClient) QueryRoomInfoByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.QueryRoomInfoReq) (*g1_protocol.QueryRoomInfoRsp, error) {
+	rsp := &g1_protocol.QueryRoomInfoRsp{}
+	if err := ssrpc.CallByCmdWithRouter(ctx, routerId, g1_protocol.CMD_MYSQL_INNER_QUERY_ROOM_INFO_REQ, req, rsp); err != nil {
 		return nil, err
 	}
 	return rsp, nil
@@ -276,10 +330,28 @@ func (c *MysqlServiceClient) QueryPlayerInfo(ctx cmd_handler.IContext, req *g1_p
 	return rsp, nil
 }
 
+// QueryPlayerInfoByRouter calls mysql query player info synchronously using an explicit routerId.
+func (c *MysqlServiceClient) QueryPlayerInfoByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.QueryPlayerInfoReq) (*g1_protocol.QueryPlayerInfoRsp, error) {
+	rsp := &g1_protocol.QueryPlayerInfoRsp{}
+	if err := ssrpc.CallByCmdWithRouter(ctx, routerId, g1_protocol.CMD_MYSQL_INNER_QUERY_PLAYER_INFO_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
 // QueryGameInfo calls mysql query game info synchronously.
 func (c *MysqlServiceClient) QueryGameInfo(ctx cmd_handler.IContext, req *g1_protocol.QueryGameInfoReq) (*g1_protocol.QueryGameInfoRsp, error) {
 	rsp := &g1_protocol.QueryGameInfoRsp{}
 	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD_MYSQL_INNER_QUERY_GAME_INFO_REQ, req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// QueryGameInfoByRouter calls mysql query game info synchronously using an explicit routerId.
+func (c *MysqlServiceClient) QueryGameInfoByRouter(ctx cmd_handler.IContext, routerId uint64, req *g1_protocol.QueryGameInfoReq) (*g1_protocol.QueryGameInfoRsp, error) {
+	rsp := &g1_protocol.QueryGameInfoRsp{}
+	if err := ssrpc.CallByCmdWithRouter(ctx, routerId, g1_protocol.CMD_MYSQL_INNER_QUERY_GAME_INFO_REQ, req, rsp); err != nil {
 		return nil, err
 	}
 	return rsp, nil

@@ -42,6 +42,7 @@ ${COLOR_BOLD}GoOne Console${COLOR_RESET}  ${COLOR_CYAN}(main entry)${COLOR_RESET
 ${COLOR_BOLD}Usage${COLOR_RESET}
   ./main.sh ${COLOR_CYAN}help${COLOR_RESET}
   ./main.sh ${COLOR_CYAN}doctor${COLOR_RESET}
+  ./main.sh ${COLOR_CYAN}check-genproto${COLOR_RESET}
   ./main.sh ${COLOR_CYAN}install${COLOR_RESET} ansible [--venv <dir>]
   ./main.sh ${COLOR_CYAN}go${COLOR_RESET} <install|list|current|use|uninstall|check|help> [args...]
   ./main.sh ${COLOR_CYAN}docker${COLOR_RESET} <install|up|restart|down|status|logs> --env <dev> [options...]
@@ -87,6 +88,29 @@ ${COLOR_BOLD}Notes${COLOR_RESET}
   - Most deploy/init-host options are forwarded to ${COLOR_CYAN}deploy/deploy.sh${COLOR_RESET} / ${COLOR_CYAN}deploy/init-host.sh${COLOR_RESET}.
   - Set ${COLOR_CYAN}NO_COLOR=1${COLOR_RESET} to disable colored output.
 EOF
+}
+
+check_genproto() {
+  print_header
+  title "check-genproto"
+  require_cmd git
+  require_cmd go
+
+  local module
+  module="$(grep -E '^module[[:space:]]+' "${ROOT_DIR}/go.mod" | head -n1 | awk '{print $2}')"
+  [[ -n "${module}" ]] || die "Cannot read module path from go.mod"
+
+  log_info "Running: go run ./tools/cmd/genproto (module=${module})"
+  (cd "$ROOT_DIR" && go run ./tools/cmd/genproto -module "${module}" -out . -proto_root api/proto)
+
+  log_info "Checking working tree: api/gen must match generator output"
+  if ! (cd "$ROOT_DIR" && git diff --quiet -- api/gen); then
+    die "api/gen is out of date. Run: go run ./tools/cmd/genproto  (or ./scripts/proto_goone.sh for full game_protocol + api/gen), then commit."
+  fi
+
+  log_ok "api/gen matches genproto."
+  hr
+  log_info "Note: shared message pb.go under game_protocol/protocol is not validated here; use ./scripts/proto_goone.sh when protocol messages change."
 }
 
 doctor() {
@@ -160,6 +184,10 @@ case "$cmd" in
 
   doctor)
     doctor
+    ;;
+
+  check-genproto)
+    check_genproto
     ;;
 
   install)

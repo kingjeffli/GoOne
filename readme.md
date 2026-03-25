@@ -64,7 +64,7 @@ GoOne 的 ssrpc 模块借鉴 CloudWeGo 的 IDL 驱动 + Kratos 的 middleware/tr
 - **`ssrpc.Context`** -- 统一请求上下文，middleware 无需感知底层传输协议
 - **`ssrpc.Middleware`** -- `func(next Handler) Handler` 链式中间件（recover/log/auth/sign/uid_lock/trace/metrics）
 - **`protoc-gen-goone`** -- 从 proto service 定义自动生成 Server 注册 + Client Stub
-- **`ssrpc.CallByCmd`** -- 生成的 Client Stub 使用的 helper，从 CMD 自动提取 svrType
+- **`ssrpc.CallByCmd` / `CallByCmdWithRouter` / `SendByCmdSimple`** -- 生成的 Client Stub 使用的 helper，从 CMD 自动提取 svrType，并支持显式 `routerId` 与无 `IContext` 的 one-way send
 
 **当前协议归属：**
 
@@ -88,6 +88,20 @@ go run ./tools/cmd/genproto
 ```
 
 包装脚本会先生成 `game_protocol/protocol/**` 的消息 `pb.go`，再生成主仓 `api/gen/**`。
+
+**校验生成物是否与工具链一致（推荐进 CI）：**
+
+```bash
+./main.sh check-genproto
+```
+
+Windows PowerShell（不依赖 bash 时）：
+
+```powershell
+.\scripts\check_genproto.ps1
+```
+
+上述命令会先执行 `go run ./tools/cmd/genproto`，再检查 `api/gen/**` 是否仍有未提交的差异。若你改的是 `game_protocol` 里的消息而非仅 service proto，请先跑完整 `proto_goone` 脚本再提交。
 
 **示例：**
 

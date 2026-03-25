@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"sync"
 
+	connsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/connsvr/v1"
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	"github.com/Iori372552686/GoOne/lib/api/datetime"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
-	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/src/mainsvr/globals/rds"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"github.com/golang/protobuf/proto"
@@ -148,12 +148,13 @@ func (m *RoleMgr) removeExpiredRoles() {
 		return true
 	})
 
+	connClient := connsvrv1.NewConnServiceClient()
 	for i, uid := range expiredUidList {
 		logger.Infof("Logout for heartbeat expired {uid:%v}", uid)
 
 		req := g1_protocol.ConnKickOutReq{}
 		req.Reason = g1_protocol.EKickOutReason_HEARTBEAT_TIMEOUT
-		_ = router.SendPbMsgByBusIdSimple(busIdList[i], uid, g1_protocol.CMD_CONN_KICK_OUT_REQ, &req)
+		_ = connClient.KickOutByBusIdSimple(busIdList[i], uid, &req)
 	}
 
 	// 从map里面删除超时的role

@@ -3,9 +3,10 @@ package role
 import (
 	"errors"
 	"fmt"
+	infosvrv1 "github.com/Iori372552686/GoOne/api/gen/game/infosvr/v1"
 	mysqlsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/mysqlsvr/v1"
+	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/util/safego"
-	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/mainsvr/globals/rds"
 
 	"google.golang.org/protobuf/proto"
@@ -14,7 +15,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	"github.com/Iori372552686/GoOne/lib/api/datetime"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
-	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/util/convert"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 )
@@ -359,7 +359,7 @@ func (r *Role) UpdateBriefInfo() error {
 	req.Info = r.GetBriefInfo()
 	req.IgnoreRsp = true
 
-	return router.SendPbMsgBySvrTypeSimple(misc.ServerType_InfoSvr, r.Uid(), r.Zone(), g1_protocol.CMD_INFO_INNER_SET_BRIEF_INFO_REQ, &req)
+	return infosvrv1.NewInfoServiceClient().SetBriefInfoSimple(r.Uid(), r.Zone(), &req)
 }
 
 func (r *Role) ExpAdd(exp int64) {

@@ -112,6 +112,8 @@ func RegisterMainServiceToDispatcher(d *ssrpc.Dispatcher, srv MainServiceSServer
 
 // MainServiceClient provides type-safe RPC stubs for MainService.
 // Methods derive the target server type from CMD automatically.
+// ByRouter variants are also generated for callers that need explicit routerId routing.
+// One-way methods additionally expose ByBusId/ByBusIdSimple and Simple helpers.
 type MainServiceClient struct{}
 
 // NewMainServiceClient returns a new MainServiceClient.
@@ -123,6 +125,15 @@ func NewMainServiceClient() *MainServiceClient {
 func (c *MainServiceClient) Login(ctx cmd_handler.IContext, req *LoginReq) (*LoginRsp, error) {
 	rsp := &LoginRsp{}
 	if err := ssrpc.CallByCmd(ctx, g1_protocol.CMD(0x1020001), req, rsp); err != nil {
+		return nil, err
+	}
+	return rsp, nil
+}
+
+// LoginByRouter calls user login synchronously using an explicit routerId.
+func (c *MainServiceClient) LoginByRouter(ctx cmd_handler.IContext, routerId uint64, req *LoginReq) (*LoginRsp, error) {
+	rsp := &LoginRsp{}
+	if err := ssrpc.CallByCmdWithRouter(ctx, routerId, g1_protocol.CMD(0x1020001), req, rsp); err != nil {
 		return nil, err
 	}
 	return rsp, nil
