@@ -18,7 +18,7 @@ These instructions apply to the whole `GoOne` repository. Prefer code over docs 
 ## Handler patterns you should follow
 - Current default is IDL-driven `ssrpc`: generated registration lives under `api/gen/**`, and services usually wire it from `app.go` via `Register<Service>ToDispatcher(...)` + `d.RegisterToTransactionMgr(...)` (or the direct `Register<Service>ToTransactionMgr(...)` helper where a service still uses it).
 - Legacy `globals.TransMgr.RegisterCmd(...)` / `cmd_handler/register.go` is now mainly for unfinished migrations, compatibility shims, or scaffolded services. Do not assume every active service still has that file.
-- When a handler requires loaded domain state and you must keep a legacy handler path, use the repo’s adapters instead of duplicating fetch logic. Historical examples are `src/mainsvr/cmd_handler/role_adapter.go` and `src/roomcentersvr/cmd_handler/adapter.go`.
+- When a handler requires loaded domain state, reuse the same loading patterns as existing `ssrpc` implementations (for example `globals.RoleMgr` in `src/mainsvr/service/c2s_ssrpc.go`, room managers in `src/roomcentersvr/service/`) instead of duplicating fetch logic.
 - Web APIs are different: `src/web_svr/app.go` boots Gin via `lib/web/web_gin` and mounts routes through `controller.LoadWebRoutes`, not through the bus-driven transaction loop.
 
 ## Generated code / safe edit boundaries
@@ -31,7 +31,7 @@ These instructions apply to the whole `GoOne` repository. Prefer code over docs 
   - `./main.sh doctor`
   - `./main.sh build`
   - `./main.sh build web`
-- `./main.sh check-genproto` validates `api/gen/**` against `tools/cmd/genproto`; `./main.sh check-genproto --full` additionally validates `game_protocol/protocol/**` via the full `proto_goone` flow. On Windows, the equivalent full check is `.\scripts\check_genproto.ps1 -Full`.
+- `./main.sh check-genproto` validates `api/gen/**` against `tools/cmd/genproto`; `./main.sh check-genproto --full` additionally validates `game_protocol/protocol/**` via the full `proto_goone` flow. On Windows, the equivalent full check is `.\scripts\check_genproto.ps1 -Full`. GitHub Actions runs the default check via `.github/workflows/check-genproto.yml`.
 - `build.sh` still contains legacy targets for services no longer present under `src/`; do not assume it reflects the full current topology. For services missing there (for example `roomcentersvr`), build directly with `go build -o build/roomcentersvr ./src/roomcentersvr`.
 - Local dependencies come from `env/env_docker.yaml` (MySQL/Redis/ZooKeeper/RabbitMQ). Some tests are integration-like and expect those services running.
 - On Windows, prefer PowerShell for proto generation (`.\scripts\proto_goone.ps1`) and WSL/Git-Bash for `main.sh`/`build.sh`.
