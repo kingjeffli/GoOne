@@ -7,9 +7,10 @@ import (
 	gin "github.com/gin-gonic/gin"
 )
 
-// WebApiServiceSS is the SSPacket RPC interface for WebApiService.
+// WebApiServiceSS is the ssrpc service interface for WebApiService.
 type WebApiServiceSS interface {
 	Ping(ctx *ssrpc.Context, req *PingReq) (*PingRsp, error)
+	WatchPing(ctx *ssrpc.Context, req *PingReq, stream *ssrpc.ServerStream[*PingRsp]) error
 	MsgSecCheck(ctx *ssrpc.Context, req *MsgSecCheckReq) (*MsgSecCheckRsp, error)
 }
 
@@ -20,6 +21,10 @@ var _ WebApiServiceSS = (*UnimplementedWebApiServiceSS)(nil)
 
 func (*UnimplementedWebApiServiceSS) Ping(ctx *ssrpc.Context, req *PingReq) (*PingRsp, error) {
 	return nil, ssrpc.Unimplemented("WebApiService.Ping")
+}
+
+func (*UnimplementedWebApiServiceSS) WatchPing(ctx *ssrpc.Context, req *PingReq, stream *ssrpc.ServerStream[*PingRsp]) error {
+	return ssrpc.Unimplemented("WebApiService.WatchPing")
 }
 
 func (*UnimplementedWebApiServiceSS) MsgSecCheck(ctx *ssrpc.Context, req *MsgSecCheckReq) (*MsgSecCheckRsp, error) {
@@ -74,6 +79,37 @@ func RegisterWebApiServiceToGin(r gin.IRoutes, srv WebApiServiceSServer) {
 
 }
 
+// RegisterWebApiServiceToGRPC registers gRPC handlers for WebApiService.
+func RegisterWebApiServiceToGRPC(d *ssrpc.Dispatcher, srv WebApiServiceSServer) {
+	if d == nil || srv.Impl == nil {
+		return
+	}
+
+	d.RegisterGRPCUnary("web.websvr.v1.WebApiService", "Ping", func() any { return new(PingReq) }, ssrpc.WrapGRPCUnary(
+		ssrpc.MethodDesc{
+			Cmd: 0,
+			Name: "web ping",
+		},
+		srv.MW,
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Ping(ctx, in.(*PingReq))
+		},
+	))
+
+	d.RegisterGRPCStream("web.websvr.v1.WebApiService", "WatchPing", ssrpc.WrapGRPCServerStreamTyped[*PingRsp](
+		ssrpc.MethodDesc{
+			Cmd: 0,
+			Name: "web ping stream",
+		},
+		srv.MW,
+		func() any { return new(PingReq) },
+		func(ctx *ssrpc.Context, in any, stream *ssrpc.ServerStream[*PingRsp]) error {
+			return srv.Impl.WatchPing(ctx, in.(*PingReq), stream)
+		},
+	))
+
+}
+
 // RegisterWebApiServiceToDispatcher registers cmd/http/ws/grpc bindings into a unified ssrpc.Dispatcher.
 func RegisterWebApiServiceToDispatcher(d *ssrpc.Dispatcher, srv WebApiServiceSServer) {
 	if d == nil || srv.Impl == nil {
@@ -102,6 +138,29 @@ func RegisterWebApiServiceToDispatcher(d *ssrpc.Dispatcher, srv WebApiServiceSSe
 		func() any { return new(MsgSecCheckReq) },
 		func(ctx *ssrpc.Context, in any) (any, error) {
 			return srv.Impl.MsgSecCheck(ctx, in.(*MsgSecCheckReq))
+		},
+	))
+
+	d.RegisterGRPCUnary("web.websvr.v1.WebApiService", "Ping", func() any { return new(PingReq) }, ssrpc.WrapGRPCUnary(
+		ssrpc.MethodDesc{
+			Cmd: 0,
+			Name: "web ping",
+		},
+		srv.MW,
+		func(ctx *ssrpc.Context, in any) (any, error) {
+			return srv.Impl.Ping(ctx, in.(*PingReq))
+		},
+	))
+
+	d.RegisterGRPCStream("web.websvr.v1.WebApiService", "WatchPing", ssrpc.WrapGRPCServerStreamTyped[*PingRsp](
+		ssrpc.MethodDesc{
+			Cmd: 0,
+			Name: "web ping stream",
+		},
+		srv.MW,
+		func() any { return new(PingReq) },
+		func(ctx *ssrpc.Context, in any, stream *ssrpc.ServerStream[*PingRsp]) error {
+			return srv.Impl.WatchPing(ctx, in.(*PingReq), stream)
 		},
 	))
 

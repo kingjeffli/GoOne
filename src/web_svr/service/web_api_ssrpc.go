@@ -30,6 +30,25 @@ func (s *WebApiServiceImpl) Ping(ctx *ssrpc.Context, req *websvrv1.PingReq) (*we
 	}, nil
 }
 
+func (s *WebApiServiceImpl) WatchPing(ctx *ssrpc.Context, req *websvrv1.PingReq, stream *ssrpc.ServerStream[*websvrv1.PingRsp]) error {
+	msg := "pong"
+	if req != nil && strings.TrimSpace(req.GetMsg()) != "" {
+		msg = "pong: " + strings.TrimSpace(req.GetMsg())
+	}
+	for i := 0; i < 3; i++ {
+		if ctx != nil && ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err := stream.Send(&websvrv1.PingRsp{
+			Msg:          msg,
+			ServerUnixMs: time.Now().UnixMilli(),
+		}); err != nil {
+			return ssrpc.Wrap(g1_protocol.ErrorCode_ERR_INTERNAL, "send ping stream response failed", err)
+		}
+	}
+	return nil
+}
+
 func (s *WebApiServiceImpl) MsgSecCheck(ctx *ssrpc.Context, req *websvrv1.MsgSecCheckReq) (*websvrv1.MsgSecCheckRsp, error) {
 	legacyReq := &define.MsgSecCheckReq{}
 	if req != nil {

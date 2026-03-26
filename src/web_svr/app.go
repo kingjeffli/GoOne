@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/Iori372552686/GoOne/common/gamedata"
 	"github.com/Iori372552686/GoOne/common/gconf"
@@ -13,12 +14,20 @@ import (
 	"github.com/Iori372552686/GoOne/src/web_svr/globals"
 
 	"log"
+	"net"
 	"net/http"
 	"runtime"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	grpc_health_v1 "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/reflection"
 )
 
 // gameSvr mainloop struct
-type AppSvrImpl struct{}
+type AppSvrImpl struct {
+	grpcSrv *grpc.Server
+}
 
 /**
 * @Description:init
@@ -79,7 +88,47 @@ func (self *AppSvrImpl) OnInit() error {
 		return err
 	}
 
+	err = self.startGRPCServer()
+	if err != nil {
+		logger.Errorf("gRPC Service Start error !! err=%v", err)
+		return err
+	}
+
 	return err
+}
+
+func (self *AppSvrImpl) startGRPCServer() error {
+	conf := gconf.WebSvrCfg.GRPCServer
+	if !conf.Enabled {
+		return nil
+	}
+	if conf.Port <= 0 {
+		return errors.New("grpc_server.port args err!")
+	}
+
+	addr := fmt.Sprintf("%s:%d", conf.IP, conf.Port)
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	d, _ := controller.BuildWebDispatcher()
+	srv := grpc.NewServer()
+	d.MountGRPC(srv)
+	healthSrv := health.NewServer()
+	healthSrv.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthSrv.SetServingStatus("web.websvr.v1.WebApiService", grpc_health_v1.HealthCheckResponse_SERVING)
+	grpc_health_v1.RegisterHealthServer(srv, healthSrv)
+	reflection.Register(srv)
+	self.grpcSrv = srv
+
+	go func() {
+		logger.Infof("------ gRPC Server Running by %v ------", addr)
+		if err := srv.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+			logger.Errorf("gRPC Serve error !! err=%v", err)
+		}
+	}()
+	return nil
 }
 
 /**
@@ -134,6 +183,9 @@ func (self *AppSvrImpl) OnTick(lastMs, nowMs int64) {
 **/
 func (self *AppSvrImpl) OnExit() {
 	// game exit todo something
+	if self.grpcSrv != nil {
+		self.grpcSrv.Stop()
+	}
 	logger.Infof("web_service exit, right now !")
 	logger.Infof("================== AppSvrImpl Stop =========================")
 	logger.Flush()

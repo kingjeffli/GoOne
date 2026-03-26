@@ -1321,7 +1321,7 @@ func TestGenerate_GRPCServiceName(t *testing.T) {
 			if standaloneIdx < 0 {
 				t.Fatalf("expected RegisterSvcToGRPC in output, got:\n%s", out)
 			}
-			if !contains(out[standaloneIdx:], "d.RegisterGRPCUnary(\""+tc.wantService+"\", \"Do\", ssrpc.WrapGRPCUnary(") {
+			if !contains(out[standaloneIdx:], "d.RegisterGRPCUnary(\""+tc.wantService+"\", \"Do\", func() any { return new(Req) }, ssrpc.WrapGRPCUnary(") {
 				t.Fatalf("expected standalone gRPC registration to use %q, got:\n%s", tc.wantService, out)
 			}
 
@@ -1329,10 +1329,261 @@ func TestGenerate_GRPCServiceName(t *testing.T) {
 			if dispatcherIdx < 0 {
 				t.Fatalf("expected RegisterSvcToDispatcher in output, got:\n%s", out)
 			}
-			if !contains(out[dispatcherIdx:], "d.RegisterGRPCUnary(\""+tc.wantService+"\", \"Do\", ssrpc.WrapGRPCUnary(") {
+			if !contains(out[dispatcherIdx:], "d.RegisterGRPCUnary(\""+tc.wantService+"\", \"Do\", func() any { return new(Req) }, ssrpc.WrapGRPCUnary(") {
 				t.Fatalf("expected dispatcher gRPC registration to use %q, got:\n%s", tc.wantService, out)
 			}
 		})
+	}
+}
+
+func TestGenerate_GRPCOnly_NoCmd_SkipsTransactionMgr(t *testing.T) {
+	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
+
+	optionsFD := &descriptorpb.FileDescriptorProto{
+		Name:    protoString(ssrpcOptFilePath),
+		Package: protoString("goone.options.v1"),
+		Dependency: []string{
+			"google/protobuf/descriptor.proto",
+		},
+		Options: &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{
+				Name: protoString("SsRpc"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: protoString("cmd"), Number: protoInt32(1), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+					{Name: protoString("grpc"), Number: protoInt32(40), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_BOOL)},
+				},
+			},
+		},
+		Extension: []*descriptorpb.FieldDescriptorProto{
+			{
+				Name:     protoString("ssrpc"),
+				Number:   protoInt32(61001),
+				Label:    labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
+				Type:     typePtr(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+				TypeName: protoString(".goone.options.v1.SsRpc"),
+				Extendee: protoString(".google.protobuf.MethodOptions"),
+			},
+		},
+	}
+
+	svcFD := &descriptorpb.FileDescriptorProto{
+		Name:       protoString("test/grpconly/v1/svc.proto"),
+		Package:    protoString("test.grpconly.v1"),
+		Dependency: []string{ssrpcOptFilePath},
+		Options:    &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/test/grpconly/v1;grpconlyv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{Name: protoString("Req")},
+			{Name: protoString("Rsp")},
+		},
+		Service: []*descriptorpb.ServiceDescriptorProto{
+			{
+				Name: protoString("Svc"),
+				Method: []*descriptorpb.MethodDescriptorProto{
+					{
+						Name:       protoString("Do"),
+						InputType:  protoString(".test.grpconly.v1.Req"),
+						OutputType: protoString(".test.grpconly.v1.Rsp"),
+						Options:    &descriptorpb.MethodOptions{},
+					},
+				},
+			},
+		},
+	}
+
+	extType, extMsgDesc, _, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD})
+	if err != nil {
+		t.Fatalf("buildSsRpcExtension err: %v", err)
+	}
+	optMsg := dynamicpb.NewMessage(extMsgDesc)
+	optMsg.Set(extMsgDesc.Fields().ByName("grpc"), protoreflect.ValueOfBool(true))
+	svcFD.Service[0].Method[0].Options = mustMethodOptionsUnknown(t, extType, optMsg)
+
+	req := &pluginpb.CodeGeneratorRequest{
+		FileToGenerate: []string{svcFD.GetName()},
+		ProtoFile:      []*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD},
+		Parameter:      protoString("paths=import,module=github.com/Iori372552686/GoOne"),
+	}
+	resp, err := Generate(req)
+	if err != nil {
+		t.Fatalf("Generate err: %v", err)
+	}
+	out := resp.File[0].GetContent()
+	if !contains(out, "func RegisterSvcToGRPC(d *ssrpc.Dispatcher, srv SvcSServer)") {
+		t.Fatalf("expected gRPC register function, got:\n%s", out)
+	}
+	if contains(out, "RegisterSvcToTransactionMgr") {
+		t.Fatalf("expected no transaction mgr register for grpc-only method, got:\n%s", out)
+	}
+	if contains(out, "type SvcClient struct") {
+		t.Fatalf("expected no cmd-based client stub for grpc-only method, got:\n%s", out)
+	}
+	if !contains(out, "Cmd: 0,") {
+		t.Fatalf("expected grpc-only method to use Cmd: 0, got:\n%s", out)
+	}
+	if contains(out, "lib/service/transaction") || contains(out, "game_protocol/protocol") {
+		t.Fatalf("expected no transaction/g1_protocol imports for grpc-only method, got:\n%s", out)
+	}
+}
+
+func TestGenerate_GRPCServerStreaming_RegisterGRPCStream(t *testing.T) {
+	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
+
+	optionsFD := &descriptorpb.FileDescriptorProto{
+		Name:    protoString(ssrpcOptFilePath),
+		Package: protoString("goone.options.v1"),
+		Dependency: []string{
+			"google/protobuf/descriptor.proto",
+		},
+		Options: &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{
+				Name: protoString("SsRpc"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: protoString("grpc"), Number: protoInt32(40), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_BOOL)},
+				},
+			},
+		},
+		Extension: []*descriptorpb.FieldDescriptorProto{
+			{
+				Name:     protoString("ssrpc"),
+				Number:   protoInt32(61001),
+				Label:    labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
+				Type:     typePtr(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+				TypeName: protoString(".goone.options.v1.SsRpc"),
+				Extendee: protoString(".google.protobuf.MethodOptions"),
+			},
+		},
+	}
+
+	svcFD := &descriptorpb.FileDescriptorProto{
+		Name:       protoString("test/grpcstream/v1/svc.proto"),
+		Package:    protoString("test.grpcstream.v1"),
+		Dependency: []string{ssrpcOptFilePath},
+		Options:    &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/test/grpcstream/v1;grpcstreamv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{Name: protoString("Req")},
+			{Name: protoString("Rsp")},
+		},
+		Service: []*descriptorpb.ServiceDescriptorProto{
+			{
+				Name: protoString("Svc"),
+				Method: []*descriptorpb.MethodDescriptorProto{
+					{
+						Name:            protoString("Watch"),
+						InputType:       protoString(".test.grpcstream.v1.Req"),
+						OutputType:      protoString(".test.grpcstream.v1.Rsp"),
+						ServerStreaming: protoBool(true),
+						Options:         &descriptorpb.MethodOptions{},
+					},
+				},
+			},
+		},
+	}
+
+	extType, extMsgDesc, _, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD})
+	if err != nil {
+		t.Fatalf("buildSsRpcExtension err: %v", err)
+	}
+	optMsg := dynamicpb.NewMessage(extMsgDesc)
+	optMsg.Set(extMsgDesc.Fields().ByName("grpc"), protoreflect.ValueOfBool(true))
+	svcFD.Service[0].Method[0].Options = mustMethodOptionsUnknown(t, extType, optMsg)
+
+	req := &pluginpb.CodeGeneratorRequest{
+		FileToGenerate: []string{svcFD.GetName()},
+		ProtoFile:      []*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD},
+		Parameter:      protoString("paths=import,module=github.com/Iori372552686/GoOne"),
+	}
+	resp, err := Generate(req)
+	if err != nil {
+		t.Fatalf("Generate err: %v", err)
+	}
+	out := resp.File[0].GetContent()
+	if !contains(out, "Watch(ctx *ssrpc.Context, req *Req, stream *ssrpc.ServerStream[*Rsp]) error") {
+		t.Fatalf("expected typed server-streaming interface method, got:\n%s", out)
+	}
+	if !contains(out, "d.RegisterGRPCStream(\"test.grpcstream.v1.Svc\", \"Watch\", ssrpc.WrapGRPCServerStreamTyped[*Rsp](") {
+		t.Fatalf("expected RegisterGRPCStream with typed wrapper, got:\n%s", out)
+	}
+	if contains(out, "RegisterSvcToTransactionMgr") || contains(out, "type SvcClient struct") {
+		t.Fatalf("expected grpc-only server-streaming method to skip cmd wrappers, got:\n%s", out)
+	}
+}
+
+func TestGenerate_GRPCClientStreaming_Unsupported(t *testing.T) {
+	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
+
+	optionsFD := &descriptorpb.FileDescriptorProto{
+		Name:    protoString(ssrpcOptFilePath),
+		Package: protoString("goone.options.v1"),
+		Dependency: []string{
+			"google/protobuf/descriptor.proto",
+		},
+		Options: &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{
+				Name: protoString("SsRpc"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: protoString("grpc"), Number: protoInt32(40), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_BOOL)},
+				},
+			},
+		},
+		Extension: []*descriptorpb.FieldDescriptorProto{
+			{
+				Name:     protoString("ssrpc"),
+				Number:   protoInt32(61001),
+				Label:    labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
+				Type:     typePtr(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+				TypeName: protoString(".goone.options.v1.SsRpc"),
+				Extendee: protoString(".google.protobuf.MethodOptions"),
+			},
+		},
+	}
+
+	svcFD := &descriptorpb.FileDescriptorProto{
+		Name:       protoString("test/grpcclientstream/v1/svc.proto"),
+		Package:    protoString("test.grpcclientstream.v1"),
+		Dependency: []string{ssrpcOptFilePath},
+		Options:    &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/test/grpcclientstream/v1;grpcclientstreamv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{Name: protoString("Req")},
+			{Name: protoString("Rsp")},
+		},
+		Service: []*descriptorpb.ServiceDescriptorProto{
+			{
+				Name: protoString("Svc"),
+				Method: []*descriptorpb.MethodDescriptorProto{
+					{
+						Name:            protoString("Upload"),
+						InputType:       protoString(".test.grpcclientstream.v1.Req"),
+						OutputType:      protoString(".test.grpcclientstream.v1.Rsp"),
+						ClientStreaming: protoBool(true),
+						Options:         &descriptorpb.MethodOptions{},
+					},
+				},
+			},
+		},
+	}
+
+	extType, extMsgDesc, _, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD})
+	if err != nil {
+		t.Fatalf("buildSsRpcExtension err: %v", err)
+	}
+	optMsg := dynamicpb.NewMessage(extMsgDesc)
+	optMsg.Set(extMsgDesc.Fields().ByName("grpc"), protoreflect.ValueOfBool(true))
+	svcFD.Service[0].Method[0].Options = mustMethodOptionsUnknown(t, extType, optMsg)
+
+	req := &pluginpb.CodeGeneratorRequest{
+		FileToGenerate: []string{svcFD.GetName()},
+		ProtoFile:      []*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD},
+		Parameter:      protoString("paths=import,module=github.com/Iori372552686/GoOne"),
+	}
+	_, err = Generate(req)
+	if err == nil {
+		t.Fatal("expected error for unsupported grpc client-streaming method")
+	}
+	if !contains(err.Error(), "only supports unary or gRPC server-streaming") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -1367,6 +1618,7 @@ func mustMethodOptionsUnknown(t *testing.T, extType protoreflect.ExtensionType, 
 }
 
 func protoInt32(i int32) *int32    { return &i }
+func protoBool(b bool) *bool       { return &b }
 func protoString(s string) *string { return &s }
 func labelPtr(v descriptorpb.FieldDescriptorProto_Label) *descriptorpb.FieldDescriptorProto_Label {
 	return &v

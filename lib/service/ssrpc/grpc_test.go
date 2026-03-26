@@ -2,12 +2,17 @@ package ssrpc
 
 import (
 	"context"
+	"io"
+	"net"
 	"testing"
 
+	optionsv1 "github.com/Iori372552686/GoOne/api/gen/goone/options/v1"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/test/bufconn"
 )
 
 // ---------------------------------------------------------------------------
@@ -148,10 +153,11 @@ func TestDispatcher_RegisterGRPCUnary(t *testing.T) {
 	d := NewDispatcher()
 	called := false
 
-	d.RegisterGRPCUnary("TestService", "TestMethod", func(ctx context.Context, req any) (any, error) {
-		called = true
-		return nil, nil
-	})
+	d.RegisterGRPCUnary("TestService", "TestMethod", func() any { return new(fakePB) },
+		func(ctx context.Context, req any) (any, error) {
+			called = true
+			return nil, nil
+		})
 
 	if len(d.grpcMethods) != 1 {
 		t.Fatalf("expected 1 grpc method, got %d", len(d.grpcMethods))
@@ -194,15 +200,113 @@ func TestDispatcher_RegisterGRPCStream(t *testing.T) {
 func TestDispatcher_RegisterGRPCUnary_NilDispatcher(t *testing.T) {
 	var d *Dispatcher
 	// Should not panic.
-	d.RegisterGRPCUnary("Svc", "M", func(ctx context.Context, req any) (any, error) {
+	d.RegisterGRPCUnary("Svc", "M", func() any { return new(fakePB) }, func(ctx context.Context, req any) (any, error) {
 		return nil, nil
 	})
 }
 
 func TestDispatcher_RegisterGRPCUnary_NilHandler(t *testing.T) {
 	d := NewDispatcher()
-	d.RegisterGRPCUnary("Svc", "M", nil)
+	d.RegisterGRPCUnary("Svc", "M", func() any { return new(fakePB) }, nil)
 	if len(d.grpcMethods) != 0 {
 		t.Fatal("nil handler should not be registered")
+	}
+}
+
+func TestDispatcher_MountGRPC_UnaryRoundTrip(t *testing.T) {
+	lis := bufconn.Listen(1024 * 1024)
+	srv := grpc.NewServer()
+	d := NewDispatcher()
+	d.RegisterGRPCUnary("test.grpc.v1.Svc", "Ping", func() any { return new(optionsv1.SsRpc) },
+		WrapGRPCUnary(MethodDesc{Name: "test ping"}, nil, func(ctx *Context, req any) (any, error) {
+			in := req.(*optionsv1.SsRpc)
+			return &optionsv1.SsRpc{Comment: "pong", Cmd: in.GetCmd() + 1}, nil
+		}))
+	d.MountGRPC(srv)
+
+	go func() {
+		_ = srv.Serve(lis)
+	}()
+	defer srv.Stop()
+
+	ctx := context.Background()
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatalf("grpc.NewClient err: %v", err)
+	}
+	defer conn.Close()
+
+	var rsp optionsv1.SsRpc
+	err = conn.Invoke(ctx, "/test.grpc.v1.Svc/Ping", &optionsv1.SsRpc{Cmd: 7}, &rsp)
+	if err != nil {
+		t.Fatalf("Invoke err: %v", err)
+	}
+	if rsp.GetComment() != "pong" || rsp.GetCmd() != 8 {
+		t.Fatalf("unexpected unary response: comment=%q cmd=%d", rsp.GetComment(), rsp.GetCmd())
+	}
+}
+
+func TestDispatcher_MountGRPC_ServerStreamRoundTrip(t *testing.T) {
+	lis := bufconn.Listen(1024 * 1024)
+	srv := grpc.NewServer()
+	d := NewDispatcher()
+	d.RegisterGRPCStream("test.grpc.v1.Svc", "Watch", WrapGRPCServerStreamTyped[*optionsv1.SsRpc](
+		MethodDesc{Name: "test watch"},
+		nil,
+		func() any { return new(optionsv1.SsRpc) },
+		func(ctx *Context, req any, stream *ServerStream[*optionsv1.SsRpc]) error {
+			in := req.(*optionsv1.SsRpc)
+			if err := stream.Send(&optionsv1.SsRpc{Comment: "first", Cmd: in.GetCmd() + 1}); err != nil {
+				return err
+			}
+			return stream.Send(&optionsv1.SsRpc{Comment: "second", Cmd: in.GetCmd() + 2})
+		},
+	))
+	d.MountGRPC(srv)
+
+	go func() {
+		_ = srv.Serve(lis)
+	}()
+	defer srv.Stop()
+
+	ctx := context.Background()
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatalf("grpc.NewClient err: %v", err)
+	}
+	defer conn.Close()
+
+	desc := &grpc.StreamDesc{ServerStreams: true}
+	stream, err := conn.NewStream(ctx, desc, "/test.grpc.v1.Svc/Watch")
+	if err != nil {
+		t.Fatalf("NewStream err: %v", err)
+	}
+	if err := stream.SendMsg(&optionsv1.SsRpc{Cmd: 7}); err != nil {
+		t.Fatalf("SendMsg err: %v", err)
+	}
+	if err := stream.CloseSend(); err != nil {
+		t.Fatalf("CloseSend err: %v", err)
+	}
+
+	var rsp1, rsp2 optionsv1.SsRpc
+	if err := stream.RecvMsg(&rsp1); err != nil {
+		t.Fatalf("RecvMsg #1 err: %v", err)
+	}
+	if err := stream.RecvMsg(&rsp2); err != nil {
+		t.Fatalf("RecvMsg #2 err: %v", err)
+	}
+	if rsp1.GetComment() != "first" || rsp1.GetCmd() != 8 || rsp2.GetComment() != "second" || rsp2.GetCmd() != 9 {
+		t.Fatalf("unexpected stream responses: %#v / %#v", rsp1, rsp2)
+	}
+
+	var rsp3 optionsv1.SsRpc
+	if err := stream.RecvMsg(&rsp3); err != io.EOF {
+		t.Fatalf("expected EOF after server stream, got %v", err)
 	}
 }

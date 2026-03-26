@@ -10,7 +10,7 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
-// RoomCenterInnerServiceSS is the SSPacket RPC interface for RoomCenterInnerService.
+// RoomCenterInnerServiceSS is the ssrpc service interface for RoomCenterInnerService.
 type RoomCenterInnerServiceSS interface {
 	Tick(ctx *ssrpc.Context, req *g1_protocol.InnerTickReq) (*emptypb.Empty, error)
 	RoomList(ctx *ssrpc.Context, req *g1_protocol.RoomListReq) (*g1_protocol.RoomListRsp, error)

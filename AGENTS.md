@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Scope
-These instructions apply to the whole `GoOne` repository. Prefer code over docs when they disagree; `doc/framwork.md` explicitly notes some README/history drift.
+These instructions apply to the whole `GoOne` repository. Prefer code over docs when they disagree; `framwork.md` explicitly notes some README/history drift.
 
 ## Big picture
 - `GoOne` is a Go microservice game backend built around `Application -> router -> bus -> TransactionMgr`, with newer IDL-driven `ssrpc` layered on top of the same SSPacket/transaction runtime.

@@ -9,7 +9,7 @@ import (
 	cmd_handler "github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 )
 
-// InfoServiceSS is the SSPacket RPC interface for InfoService.
+// InfoServiceSS is the ssrpc service interface for InfoService.
 type InfoServiceSS interface {
 	GetBriefInfo(ctx *ssrpc.Context, req *g1_protocol.InfoGetBriefInfoReq) (*g1_protocol.InfoGetBriefInfoRsp, error)
 	GetIconDesc(ctx *ssrpc.Context, req *g1_protocol.InfoGetIconDescReq) (*g1_protocol.InfoGetIconDescRsp, error)

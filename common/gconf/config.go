@@ -84,7 +84,14 @@ type WebSvr struct {
 	LogDir    string `yaml:"log_dir"`
 	LogLevel  string `yaml:"log_level"`
 
-	HttpServer web_gin.Config `json:"http_server" yaml:"http_server"`
+	HttpServer web_gin.Config    `json:"http_server" yaml:"http_server"`
+	GRPCServer GRPCServerConfig `json:"grpc_server" yaml:"grpc_server"`
+}
+
+type GRPCServerConfig struct {
+	Enabled bool   `json:"enabled" yaml:"enabled"`
+	IP      string `json:"ip" yaml:"ip"`
+	Port    int    `json:"port" yaml:"port"`
 }
 
 // connsvr配置

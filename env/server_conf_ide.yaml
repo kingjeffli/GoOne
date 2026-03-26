@@ -99,6 +99,11 @@ websvr:
     mode: debug
     auth_enable: false
 
+  grpc_server:
+    enabled: true
+    ip: ""
+    port: 10002
+
 
 roomcentersvr:
   self_bus_id: 1.1.11.251

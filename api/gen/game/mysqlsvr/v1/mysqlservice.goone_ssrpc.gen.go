@@ -10,7 +10,7 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
-// MysqlServiceSS is the SSPacket RPC interface for MysqlService.
+// MysqlServiceSS is the ssrpc service interface for MysqlService.
 type MysqlServiceSS interface {
 	UpdateRoleInfo(ctx *ssrpc.Context, req *g1_protocol.MysqlInnerUpdateRoleInfoReq) (*g1_protocol.MysqlInnerUpdateRoleInfoRsp, error)
 	SearchRole(ctx *ssrpc.Context, req *g1_protocol.MysqlInnerSearchRoleReq) (*g1_protocol.MysqlInnerSearchRoleRsp, error)

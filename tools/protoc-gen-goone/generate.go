@@ -168,19 +168,23 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 	localPkg := fd.GetPackage()
 
 	type methodInfo struct {
-		name  string
-		inGo  string
-		outGo string
+		name             string
+		inGo             string
+		outGo            string
+		grpcServerStream bool
 	}
 
 	type httpBind struct {
 		method      string
 		inGo        string
+		outGo       string
 		path        string
 		httpMethod  string
 		grpcService string
 
-		cmdLit string // literal for MethodDesc.Cmd, can be "0" for HTTP-only
+		cmdLit string // literal for MethodDesc.Cmd, can be "0" for non-cmd transports
+
+		grpcServerStream bool
 
 		oneWay    bool
 		uidLock   bool
@@ -226,7 +230,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			continue
 		}
 
-		b.WriteString(fmt.Sprintf("// %sSS is the SSPacket RPC interface for %s.\n", svc, svc))
+		b.WriteString(fmt.Sprintf("// %sSS is the ssrpc service interface for %s.\n", svc, svc))
 		b.WriteString(fmt.Sprintf("type %sSS interface {\n", svc))
 		// collect methods that are annotated with ssrpc option.
 		annotated := make([]*descriptorpb.MethodDescriptorProto, 0, len(s.GetMethod()))
@@ -247,6 +251,24 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			if method == "" {
 				continue
 			}
+			ext, _, err := readSsRpcOption(m.GetOptions(), extType, extMsgDesc, extNum)
+			if err != nil {
+				return "", err
+			}
+			hasCmd := !(ext.cmd == 0 && ext.cmdEnum == 0 && strings.TrimSpace(ext.cmdName) == "")
+			hasHTTP := strings.TrimSpace(ext.httpPath) != ""
+			if m.GetClientStreaming() {
+				return "", fmt.Errorf("ssrpc only supports unary or gRPC server-streaming methods today (service=%s method=%s)", svc, method)
+			}
+			grpcServerStream := ext.grpc && m.GetServerStreaming()
+			if m.GetServerStreaming() {
+				if !ext.grpc {
+					return "", fmt.Errorf("ssrpc server-streaming method requires grpc=true (service=%s method=%s)", svc, method)
+				}
+				if hasCmd || hasHTTP || ext.ws {
+					return "", fmt.Errorf("ssrpc server-streaming method must be grpc-only today (service=%s method=%s)", svc, method)
+				}
+			}
 			inGo, imp1, err := typeRef(m.GetInputType())
 			if err != nil {
 				return "", err
@@ -261,7 +283,16 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			if imp2 != "" {
 				usedMsgImports[imp2] = struct{}{}
 			}
-			methods = append(methods, methodInfo{name: method, inGo: inGo, outGo: outGo})
+			methods = append(methods, methodInfo{
+				name:             method,
+				inGo:             inGo,
+				outGo:            outGo,
+				grpcServerStream: grpcServerStream,
+			})
+			if grpcServerStream {
+				b.WriteString(fmt.Sprintf("\t%s(ctx *ssrpc.Context, req *%s, stream *ssrpc.ServerStream[*%s]) error\n", method, inGo, outGo))
+				continue
+			}
 			b.WriteString(fmt.Sprintf("\t%s(ctx *ssrpc.Context, req *%s) (*%s, error)\n", method, inGo, outGo))
 		}
 		b.WriteString("}\n\n")
@@ -271,6 +302,12 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 		b.WriteString(fmt.Sprintf("type Unimplemented%sSS struct{}\n\n", svc))
 		b.WriteString(fmt.Sprintf("var _ %sSS = (*Unimplemented%sSS)(nil)\n\n", svc, svc))
 		for _, mi := range methods {
+			if mi.grpcServerStream {
+				b.WriteString(fmt.Sprintf("func (*Unimplemented%sSS) %s(ctx *ssrpc.Context, req *%s, stream *ssrpc.ServerStream[*%s]) error {\n", svc, mi.name, mi.inGo, mi.outGo))
+				b.WriteString(fmt.Sprintf("\treturn ssrpc.Unimplemented(%q)\n", svc+"."+mi.name))
+				b.WriteString("}\n\n")
+				continue
+			}
 			b.WriteString(fmt.Sprintf("func (*Unimplemented%sSS) %s(ctx *ssrpc.Context, req *%s) (*%s, error) {\n", svc, mi.name, mi.inGo, mi.outGo))
 			b.WriteString(fmt.Sprintf("\treturn nil, ssrpc.Unimplemented(%q)\n", svc+"."+mi.name))
 			b.WriteString("}\n\n")
@@ -304,10 +341,21 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			}
 			hasCmd := !(ext.cmd == 0 && ext.cmdEnum == 0 && strings.TrimSpace(ext.cmdName) == "")
 			hasHTTP := strings.TrimSpace(ext.httpPath) != ""
-			hasWS := ext.ws && hasCmd     // ws requires a cmd binding
-			hasGRPC := ext.grpc && hasCmd // grpc requires a cmd binding
-			if !hasCmd && !hasHTTP {
-				return "", fmt.Errorf("ssrpc option requires cmd/cmd_enum/cmd_name OR http_path (service=%s method=%s)", svc, m.GetName())
+			hasWS := ext.ws && hasCmd // ws requires a cmd binding
+			hasGRPC := ext.grpc
+			if m.GetClientStreaming() {
+				return "", fmt.Errorf("ssrpc only supports unary or gRPC server-streaming methods today (service=%s method=%s)", svc, m.GetName())
+			}
+			if m.GetServerStreaming() {
+				if !ext.grpc {
+					return "", fmt.Errorf("ssrpc server-streaming method requires grpc=true (service=%s method=%s)", svc, m.GetName())
+				}
+				if hasCmd || hasHTTP || ext.ws {
+					return "", fmt.Errorf("ssrpc server-streaming method must be grpc-only today (service=%s method=%s)", svc, m.GetName())
+				}
+			}
+			if !hasCmd && !hasHTTP && !hasGRPC {
+				return "", fmt.Errorf("ssrpc option requires cmd/cmd_enum/cmd_name OR http_path OR grpc=true (service=%s method=%s)", svc, m.GetName())
 			}
 			if hasCmd {
 				hasAnyCmdMethod = true
@@ -330,6 +378,10 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 					cmdExpr = "g1_protocol." + strings.TrimSpace(ext.cmdName)
 				}
 			}
+			cmdLit := "0"
+			if hasCmd {
+				cmdLit = cmdExpr
+			}
 
 			// cmd_resp expression
 			cmdRespExpr := ""
@@ -350,7 +402,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			if imp1 != "" {
 				usedMsgImports[imp1] = struct{}{}
 			}
-			_, imp2, err := typeRef(m.GetOutputType())
+			outGo, imp2, err := typeRef(m.GetOutputType())
 			if err != nil {
 				return "", err
 			}
@@ -373,21 +425,17 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 				httpBinds = append(httpBinds, httpBind{
 					method:     method,
 					inGo:       inGo,
+					outGo:      "",
 					path:       p,
 					httpMethod: hm,
-					cmdLit: func() string {
-						if hasCmd {
-							return cmdExpr
-						}
-						return "0"
-					}(),
-					oneWay:    oneWay,
-					uidLock:   ext.uidLock,
-					auth:      ext.auth,
-					sign:      ext.sign,
-					timeoutMs: ext.timeoutMs,
-					tags:      ext.tags,
-					name:      name,
+					cmdLit:     cmdLit,
+					oneWay:     oneWay,
+					uidLock:    ext.uidLock,
+					auth:       ext.auth,
+					sign:       ext.sign,
+					timeoutMs:  ext.timeoutMs,
+					tags:       ext.tags,
+					name:       name,
 				})
 			}
 
@@ -400,6 +448,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 				wsBinds = append(wsBinds, httpBind{
 					method:    method,
 					inGo:      inGo,
+					outGo:     "",
 					cmdLit:    cmdExpr,
 					oneWay:    oneWay,
 					uidLock:   ext.uidLock,
@@ -425,17 +474,19 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 					}
 				}
 				grpcBinds = append(grpcBinds, httpBind{
-					method:      method,
-					inGo:        inGo,
-					grpcService: grpcServiceName,
-					cmdLit:      cmdExpr,
-					oneWay:      oneWay,
-					uidLock:     ext.uidLock,
-					auth:        ext.auth,
-					sign:        ext.sign,
-					timeoutMs:   ext.timeoutMs,
-					tags:        ext.tags,
-					name:        name,
+					method:           method,
+					inGo:             inGo,
+					outGo:            outGo,
+					grpcService:      grpcServiceName,
+					cmdLit:           cmdLit,
+					grpcServerStream: m.GetServerStreaming(),
+					oneWay:           oneWay,
+					uidLock:          ext.uidLock,
+					auth:             ext.auth,
+					sign:             ext.sign,
+					timeoutMs:        ext.timeoutMs,
+					tags:             ext.tags,
+					name:             name,
 				})
 			}
 
@@ -602,13 +653,17 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 
 		// Phase-3 output: gRPC registration for methods with grpc=true.
 		if len(grpcBinds) > 0 {
-			b.WriteString(fmt.Sprintf("// Register%sToGRPC registers gRPC unary handlers for %s.\n", svc, svc))
+			b.WriteString(fmt.Sprintf("// Register%sToGRPC registers gRPC handlers for %s.\n", svc, svc))
 			b.WriteString(fmt.Sprintf("func Register%sToGRPC(d *ssrpc.Dispatcher, srv %sSServer) {\n", svc, svc))
 			b.WriteString("\tif d == nil || srv.Impl == nil {\n")
 			b.WriteString("\t\treturn\n")
 			b.WriteString("\t}\n\n")
 			for _, gb := range grpcBinds {
-				b.WriteString(fmt.Sprintf("\td.RegisterGRPCUnary(%q, %q, ssrpc.WrapGRPCUnary(\n", gb.grpcService, gb.method))
+				if gb.grpcServerStream {
+					b.WriteString(fmt.Sprintf("\td.RegisterGRPCStream(%q, %q, ssrpc.WrapGRPCServerStreamTyped[*%s](\n", gb.grpcService, gb.method, gb.outGo))
+				} else {
+					b.WriteString(fmt.Sprintf("\td.RegisterGRPCUnary(%q, %q, func() any { return new(%s) }, ssrpc.WrapGRPCUnary(\n", gb.grpcService, gb.method, gb.inGo))
+				}
 				b.WriteString("\t\tssrpc.MethodDesc{\n")
 				b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", gb.cmdLit))
 				if gb.oneWay {
@@ -639,9 +694,16 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 				b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", gb.name))
 				b.WriteString("\t\t},\n")
 				b.WriteString("\t\tsrv.MW,\n")
-				b.WriteString("\t\tfunc(ctx *ssrpc.Context, in any) (any, error) {\n")
-				b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s))\n", gb.method, gb.inGo))
-				b.WriteString("\t\t},\n")
+				if gb.grpcServerStream {
+					b.WriteString(fmt.Sprintf("\t\tfunc() any { return new(%s) },\n", gb.inGo))
+					b.WriteString(fmt.Sprintf("\t\tfunc(ctx *ssrpc.Context, in any, stream *ssrpc.ServerStream[*%s]) error {\n", gb.outGo))
+					b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s), stream)\n", gb.method, gb.inGo))
+					b.WriteString("\t\t},\n")
+				} else {
+					b.WriteString("\t\tfunc(ctx *ssrpc.Context, in any) (any, error) {\n")
+					b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s))\n", gb.method, gb.inGo))
+					b.WriteString("\t\t},\n")
+				}
 				b.WriteString("\t))\n\n")
 			}
 			b.WriteString("}\n\n")
@@ -813,7 +875,11 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 
 			// grpc-bound methods
 			for _, gb := range grpcBinds {
-				b.WriteString(fmt.Sprintf("\td.RegisterGRPCUnary(%q, %q, ssrpc.WrapGRPCUnary(\n", gb.grpcService, gb.method))
+				if gb.grpcServerStream {
+					b.WriteString(fmt.Sprintf("\td.RegisterGRPCStream(%q, %q, ssrpc.WrapGRPCServerStreamTyped[*%s](\n", gb.grpcService, gb.method, gb.outGo))
+				} else {
+					b.WriteString(fmt.Sprintf("\td.RegisterGRPCUnary(%q, %q, func() any { return new(%s) }, ssrpc.WrapGRPCUnary(\n", gb.grpcService, gb.method, gb.inGo))
+				}
 				b.WriteString("\t\tssrpc.MethodDesc{\n")
 				b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", gb.cmdLit))
 				if gb.oneWay {
@@ -844,9 +910,16 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 				b.WriteString(fmt.Sprintf("\t\t\tName: %q,\n", gb.name))
 				b.WriteString("\t\t},\n")
 				b.WriteString("\t\tsrv.MW,\n")
-				b.WriteString("\t\tfunc(ctx *ssrpc.Context, in any) (any, error) {\n")
-				b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s))\n", gb.method, gb.inGo))
-				b.WriteString("\t\t},\n")
+				if gb.grpcServerStream {
+					b.WriteString(fmt.Sprintf("\t\tfunc() any { return new(%s) },\n", gb.inGo))
+					b.WriteString(fmt.Sprintf("\t\tfunc(ctx *ssrpc.Context, in any, stream *ssrpc.ServerStream[*%s]) error {\n", gb.outGo))
+					b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s), stream)\n", gb.method, gb.inGo))
+					b.WriteString("\t\t},\n")
+				} else {
+					b.WriteString("\t\tfunc(ctx *ssrpc.Context, in any) (any, error) {\n")
+					b.WriteString(fmt.Sprintf("\t\t\treturn srv.Impl.%s(ctx, in.(*%s))\n", gb.method, gb.inGo))
+					b.WriteString("\t\t},\n")
+				}
 				b.WriteString("\t))\n\n")
 			}
 			b.WriteString("}\n\n")

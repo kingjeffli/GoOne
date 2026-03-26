@@ -105,3 +105,8 @@ websvr:
     session_name: GoOne@Gin.Seeeion
     mode: debug
     auth_enable: false
+
+  grpc_server:
+    enabled: false
+    ip: ""
+    port: 10002

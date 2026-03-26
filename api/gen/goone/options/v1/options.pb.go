@@ -23,13 +23,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// SsRpc describes how a proto service method is exposed via GoOne's SSPacket RPC.
-//
-// - cmd is the request CMD (SSPacketHeader.Cmd)
-// - cmd_resp defaults to cmd+1 if 0 (keeps GoOne's existing convention)
-// - one_way means no response should be sent
-// - uid_lock is reserved for Phase A+ (route to UID-serialized executor)
-// - timeout_ms applies a per-method request timeout in runtime wrappers
+// SsRpc describes how a proto service method is exposed via GoOne's RPC runtime.
 //
 // Cmd binding priority:
 // - if cmd != 0: use cmd
@@ -39,43 +33,37 @@ type SsRpc struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// cmd is the numeric request CMD (SSPacketHeader.Cmd).
 	// Prefer cmd_enum/cmd_name if you want to avoid hardcoding numbers.
-	Cmd     uint32 `protobuf:"varint,1,opt,name=cmd,proto3" json:"cmd,omitempty"`
+	Cmd uint32 `protobuf:"varint,1,opt,name=cmd,proto3" json:"cmd,omitempty"`
+	// cmd_resp defaults to cmd+1 when omitted.
 	CmdResp uint32 `protobuf:"varint,2,opt,name=cmd_resp,json=cmdResp,proto3" json:"cmd_resp,omitempty"`
-	OneWay  bool   `protobuf:"varint,3,opt,name=one_way,json=oneWay,proto3" json:"one_way,omitempty"`
-	UidLock bool   `protobuf:"varint,4,opt,name=uid_lock,json=uidLock,proto3" json:"uid_lock,omitempty"`
-	// cmd_enum is an optional readable enum generated from g1_protocol.CMD.
-	// If cmd==0 and cmd_enum!=0, generator will use its numeric value.
-	CmdEnum v1.CMD `protobuf:"varint,6,opt,name=cmd_enum,json=cmdEnum,proto3,enum=goone.cmd.v1.CMD" json:"cmd_enum,omitempty"`
-	// cmd_name is the Go enum constant name from g1_protocol, e.g. "CMD_MAIN_LOGIN_REQ".
-	// If cmd==0 and cmd_name is non-empty, generator will use g1_protocol.<cmd_name>.
+	// one_way means no response should be sent.
+	OneWay bool `protobuf:"varint,3,opt,name=one_way,json=oneWay,proto3" json:"one_way,omitempty"`
+	// uid_lock enables per-uid serialization in the runtime wrapper.
+	UidLock bool `protobuf:"varint,4,opt,name=uid_lock,json=uidLock,proto3" json:"uid_lock,omitempty"`
+	// cmd_name is the Go enum constant name from g1_protocol,
+	// e.g. "CMD_MAIN_LOGIN_REQ".
 	CmdName string `protobuf:"bytes,5,opt,name=cmd_name,json=cmdName,proto3" json:"cmd_name,omitempty"`
-	// auth indicates this method requires authentication (pluggable via ssrpc.Auth middleware).
+	// cmd_enum is an optional readable enum generated from g1_protocol.CMD.
+	CmdEnum v1.CMD `protobuf:"varint,6,opt,name=cmd_enum,json=cmdEnum,proto3,enum=goone.cmd.v1.CMD" json:"cmd_enum,omitempty"`
+	// auth indicates this method requires authentication.
 	Auth bool `protobuf:"varint,7,opt,name=auth,proto3" json:"auth,omitempty"`
-	// sign indicates this method requires signature verification (pluggable via ssrpc.Sign middleware).
+	// sign indicates this method requires signature verification.
 	Sign bool `protobuf:"varint,8,opt,name=sign,proto3" json:"sign,omitempty"`
-	// trace_tags provides extra trace tags in "k=v" form (pluggable via ssrpc.Trace middleware).
+	// trace_tags provides extra trace tags in "k=v" form.
 	TraceTags []string `protobuf:"bytes,9,rep,name=trace_tags,json=traceTags,proto3" json:"trace_tags,omitempty"`
-	// timeout_ms applies a per-method timeout at the ssrpc runtime layer.
-	// 0 means no explicit timeout and lets the transport/request context decide.
+	// timeout_ms applies a per-method timeout at the runtime layer.
 	TimeoutMs uint32 `protobuf:"varint,10,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
-	// http_path/http_method binds this method to an HTTP endpoint (Phase 2).
-	// The generator can optionally emit gin route registration wrappers.
+	// comment is for docs / generated code comments only.
+	Comment string `protobuf:"bytes,15,opt,name=comment,proto3" json:"comment,omitempty"`
+	// http_path/http_method binds this method to an HTTP endpoint.
 	HttpPath   string `protobuf:"bytes,20,opt,name=http_path,json=httpPath,proto3" json:"http_path,omitempty"`
-	HttpMethod string `protobuf:"bytes,21,opt,name=http_method,json=httpMethod,proto3" json:"http_method,omitempty"` // e.g. "GET"/"POST". Empty defaults to "POST".
+	HttpMethod string `protobuf:"bytes,21,opt,name=http_method,json=httpMethod,proto3" json:"http_method,omitempty"`
 	// ws indicates this method is exposed over WebSocket (CSPacket transport).
-	// When true, the generator emits d.RegisterWS() in RegisterToDispatcher and
-	// a standalone RegisterToWS function. Requires a cmd binding (cmd/cmd_enum/cmd_name).
 	Ws bool `protobuf:"varint,30,opt,name=ws,proto3" json:"ws,omitempty"`
 	// grpc indicates this method is exposed as a gRPC endpoint.
-	// When true, the generator emits d.RegisterGRPCUnary() in RegisterToDispatcher
-	// and a standalone RegisterToGRPC function. Requires a cmd binding for Dispatcher
-	// compatibility.
 	Grpc bool `protobuf:"varint,40,opt,name=grpc,proto3" json:"grpc,omitempty"`
-	// grpc_service overrides the gRPC service name registered on grpc.Server.
-	// Default: the proto service name (e.g. "game.main.v1.MainService").
-	GrpcService string `protobuf:"bytes,41,opt,name=grpc_service,json=grpcService,proto3" json:"grpc_service,omitempty"`
-	// comment is for docs / generated code comments only.
-	Comment       string `protobuf:"bytes,15,opt,name=comment,proto3" json:"comment,omitempty"`
+	// grpc_service overrides the service name registered on grpc.Server.
+	GrpcService   string `protobuf:"bytes,41,opt,name=grpc_service,json=grpcService,proto3" json:"grpc_service,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -138,18 +126,18 @@ func (x *SsRpc) GetUidLock() bool {
 	return false
 }
 
-func (x *SsRpc) GetCmdEnum() v1.CMD {
-	if x != nil {
-		return x.CmdEnum
-	}
-	return v1.CMD(0)
-}
-
 func (x *SsRpc) GetCmdName() string {
 	if x != nil {
 		return x.CmdName
 	}
 	return ""
+}
+
+func (x *SsRpc) GetCmdEnum() v1.CMD {
+	if x != nil {
+		return x.CmdEnum
+	}
+	return v1.CMD(0)
 }
 
 func (x *SsRpc) GetAuth() bool {
@@ -178,6 +166,13 @@ func (x *SsRpc) GetTimeoutMs() uint32 {
 		return x.TimeoutMs
 	}
 	return 0
+}
+
+func (x *SsRpc) GetComment() string {
+	if x != nil {
+		return x.Comment
+	}
+	return ""
 }
 
 func (x *SsRpc) GetHttpPath() string {
@@ -215,13 +210,6 @@ func (x *SsRpc) GetGrpcService() string {
 	return ""
 }
 
-func (x *SsRpc) GetComment() string {
-	if x != nil {
-		return x.Comment
-	}
-	return ""
-}
-
 var file_goone_options_v1_options_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
@@ -235,8 +223,6 @@ var file_goone_options_v1_options_proto_extTypes = []protoimpl.ExtensionInfo{
 
 // Extension fields to descriptorpb.MethodOptions.
 var (
-	// NOTE: pick a high extension number to avoid conflicts with other ecosystems.
-	//
 	// optional goone.options.v1.SsRpc ssrpc = 61001;
 	E_Ssrpc = &file_goone_options_v1_options_proto_extTypes[0]
 )
@@ -250,23 +236,23 @@ const file_goone_options_v1_options_proto_rawDesc = "" +
 	"\x03cmd\x18\x01 \x01(\rR\x03cmd\x12\x19\n" +
 	"\bcmd_resp\x18\x02 \x01(\rR\acmdResp\x12\x17\n" +
 	"\aone_way\x18\x03 \x01(\bR\x06oneWay\x12\x19\n" +
-	"\buid_lock\x18\x04 \x01(\bR\auidLock\x12,\n" +
-	"\bcmd_enum\x18\x06 \x01(\x0e2\x11.goone.cmd.v1.CMDR\acmdEnum\x12\x19\n" +
-	"\bcmd_name\x18\x05 \x01(\tR\acmdName\x12\x12\n" +
+	"\buid_lock\x18\x04 \x01(\bR\auidLock\x12\x19\n" +
+	"\bcmd_name\x18\x05 \x01(\tR\acmdName\x12,\n" +
+	"\bcmd_enum\x18\x06 \x01(\x0e2\x11.goone.cmd.v1.CMDR\acmdEnum\x12\x12\n" +
 	"\x04auth\x18\a \x01(\bR\x04auth\x12\x12\n" +
 	"\x04sign\x18\b \x01(\bR\x04sign\x12\x1d\n" +
 	"\n" +
 	"trace_tags\x18\t \x03(\tR\ttraceTags\x12\x1d\n" +
 	"\n" +
 	"timeout_ms\x18\n" +
-	" \x01(\rR\ttimeoutMs\x12\x1b\n" +
+	" \x01(\rR\ttimeoutMs\x12\x18\n" +
+	"\acomment\x18\x0f \x01(\tR\acomment\x12\x1b\n" +
 	"\thttp_path\x18\x14 \x01(\tR\bhttpPath\x12\x1f\n" +
 	"\vhttp_method\x18\x15 \x01(\tR\n" +
 	"httpMethod\x12\x0e\n" +
 	"\x02ws\x18\x1e \x01(\bR\x02ws\x12\x12\n" +
 	"\x04grpc\x18( \x01(\bR\x04grpc\x12!\n" +
-	"\fgrpc_service\x18) \x01(\tR\vgrpcService\x12\x18\n" +
-	"\acomment\x18\x0f \x01(\tR\acomment:O\n" +
+	"\fgrpc_service\x18) \x01(\tR\vgrpcService:O\n" +
 	"\x05ssrpc\x12\x1e.google.protobuf.MethodOptions\x18\xc9\xdc\x03 \x01(\v2\x17.goone.options.v1.SsRpcR\x05ssrpcBCZAgithub.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1b\x06proto3"
 
 var (

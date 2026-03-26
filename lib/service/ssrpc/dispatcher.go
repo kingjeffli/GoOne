@@ -8,6 +8,7 @@ import (
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
+	"github.com/golang/protobuf/proto"
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc"
 )
@@ -19,12 +20,13 @@ type httpRouteKey struct {
 
 // grpcMethodEntry describes a single gRPC method registered in the Dispatcher.
 type grpcMethodEntry struct {
-	ServiceName   string // e.g. "game.main.v1.MainService"
-	MethodName    string // e.g. "Login"
+	ServiceName    string // e.g. "game.main.v1.MainService"
+	MethodName     string // e.g. "Login"
 	IsServerStream bool
 
 	// Unary handler (non-nil when !IsServerStream).
-	UnaryHandler GRPCUnaryHandler
+	UnaryReqFactory func() any
+	UnaryHandler    GRPCUnaryHandler
 	// Stream handler + descriptor (non-nil when IsServerStream).
 	StreamHandler GRPCStreamHandler
 	StreamDesc    *grpc.StreamDesc
@@ -144,16 +146,17 @@ func (d *Dispatcher) DispatchWS(ic cmd_handler.IContext, cmd uint32, body []byte
 // ---------------------------------------------------------------------------
 
 // RegisterGRPCUnary registers a gRPC unary handler for the given service/method.
-func (d *Dispatcher) RegisterGRPCUnary(serviceName, methodName string, h GRPCUnaryHandler) {
-	if d == nil || h == nil {
+func (d *Dispatcher) RegisterGRPCUnary(serviceName, methodName string, newReq func() any, h GRPCUnaryHandler) {
+	if d == nil || newReq == nil || h == nil {
 		return
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.grpcMethods = append(d.grpcMethods, grpcMethodEntry{
-		ServiceName:  serviceName,
-		MethodName:   methodName,
-		UnaryHandler: h,
+		ServiceName:    serviceName,
+		MethodName:     methodName,
+		UnaryReqFactory: newReq,
+		UnaryHandler:   h,
 	})
 }
 
@@ -208,10 +211,11 @@ func (d *Dispatcher) MountGRPC(srv *grpc.Server) {
 			}
 			bucket.streams = append(bucket.streams, sd)
 		} else {
+			reqFactory := m.UnaryReqFactory
 			handler := m.UnaryHandler // capture for closure
 			bucket.methods = append(bucket.methods, grpc.MethodDesc{
 				MethodName: m.MethodName,
-				Handler:    makeGRPCMethodHandler(handler),
+				Handler:    makeGRPCMethodHandler(m.ServiceName, m.MethodName, reqFactory, handler),
 			})
 		}
 	}
@@ -231,16 +235,22 @@ func (d *Dispatcher) MountGRPC(srv *grpc.Server) {
 // makeGRPCMethodHandler adapts a GRPCUnaryHandler to the grpc.MethodDesc.Handler
 // signature. The dec callback receives a pointer to any; gRPC populates it with
 // the decoded proto message.
-func makeGRPCMethodHandler(h GRPCUnaryHandler) func(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
+func makeGRPCMethodHandler(serviceName, methodName string, newReq func() any, h GRPCUnaryHandler) func(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
 	return func(_ any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
-		var req any
-		if err := dec(&req); err != nil {
+		reqAny := newReq()
+		req, ok := reqAny.(proto.Message)
+		if !ok || req == nil {
+			return nil, ToGRPCError(g1_protocol.ErrorCode_ERR_INTERNAL)
+		}
+		if err := dec(req); err != nil {
 			return nil, err
 		}
 		if interceptor == nil {
 			return h(ctx, req)
 		}
-		info := &grpc.UnaryServerInfo{}
+		info := &grpc.UnaryServerInfo{
+			FullMethod: "/" + serviceName + "/" + methodName,
+		}
 		return interceptor(ctx, req, info, func(ctx context.Context, r any) (any, error) {
 			return h(ctx, r)
 		})

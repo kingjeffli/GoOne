@@ -10,7 +10,7 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
-// MainC2SServiceSS is the SSPacket RPC interface for MainC2SService.
+// MainC2SServiceSS is the ssrpc service interface for MainC2SService.
 type MainC2SServiceSS interface {
 	Login(ctx *ssrpc.Context, req *g1_protocol.LoginReq) (*g1_protocol.LoginRsp, error)
 	Logout(ctx *ssrpc.Context, req *g1_protocol.LogoutReq) (*g1_protocol.LogoutRsp, error)

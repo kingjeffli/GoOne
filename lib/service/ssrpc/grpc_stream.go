@@ -32,6 +32,19 @@ func NewServerStream[T proto.Message](ss grpc.ServerStream) *ServerStream[T] {
 // GRPCStreamHandler is the function type returned by WrapGRPCServerStream.
 type GRPCStreamHandler func(srv any, stream grpc.ServerStream) error
 
+// WrapGRPCServerStreamTyped adapts a typed business callback to the raw
+// grpc.ServerStream-based runtime wrapper.
+func WrapGRPCServerStreamTyped[T proto.Message](
+	desc MethodDesc,
+	mws []Middleware,
+	newReq func() any,
+	invoke func(ctx *Context, req any, stream *ServerStream[T]) error,
+) GRPCStreamHandler {
+	return WrapGRPCServerStream(desc, mws, newReq, func(ctx *Context, req any, stream grpc.ServerStream) error {
+		return invoke(ctx, req, NewServerStream[T](stream))
+	})
+}
+
 // WrapGRPCServerStream returns a GRPCStreamHandler for server-streaming RPCs.
 //
 // The invoke callback receives the ssrpc.Context, the decoded request, and the

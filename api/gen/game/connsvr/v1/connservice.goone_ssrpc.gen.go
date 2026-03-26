@@ -9,7 +9,7 @@ import (
 	cmd_handler "github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 )
 
-// ConnServiceSS is the SSPacket RPC interface for ConnService.
+// ConnServiceSS is the ssrpc service interface for ConnService.
 type ConnServiceSS interface {
 	KickOut(ctx *ssrpc.Context, req *g1_protocol.ConnKickOutReq) (*g1_protocol.ConnKickOutRsp, error)
 	Broadcast(ctx *ssrpc.Context, req *g1_protocol.ConnBroadcastReq) (*g1_protocol.ConnBroadcastRsp, error)

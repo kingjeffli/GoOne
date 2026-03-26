@@ -18,7 +18,7 @@ GoOne 的 ssrpc 方案把：
 - HTTP Gin 挂载（`web_svr`）
 - WS/CSPacket 挂载（`connsvr` 登录前置）
 
-gRPC unary runtime 与代码生成已经具备，但当前主线业务 proto 还没有启用 `grpc: true`。
+gRPC unary 与 server-streaming runtime / 代码生成已经具备；当前主线已在 `game_protocol/websvr.proto` 中示范性启用 `grpc: true`，并且 `web_svr` 已预留可配置的 gRPC listener 挂载位。
 
 ### 2. 当前代码布局
 
@@ -50,7 +50,7 @@ gRPC unary runtime 与代码生成已经具备，但当前主线业务 proto 还
 - `timeout_ms`：method 级超时
 - `http_path` / `http_method`：HTTP 绑定
 - `ws`：生成 WS/CSPacket 绑定
-- `grpc`：生成 gRPC unary 绑定
+- `grpc`：生成 gRPC unary / server-streaming 绑定
 - `grpc_service`：覆盖注册到 `grpc.Server` 的 service 名
 - `comment`：用于生成注释 / method 展示名
 
@@ -64,7 +64,9 @@ cmd 绑定优先级：
 
 - HTTP-only method 可以只写 `http_path`，不配置 cmd
 - `ws` 目前仍要求有 cmd 绑定
-- `grpc` 目前也仍要求有 cmd 绑定
+- gRPC unary method 可以不配置 cmd
+- gRPC server-streaming method 当前必须是 grpc-only，不应同时配置 `cmd` / `http_path` / `ws`
+- 当前只支持 unary 与 server-streaming；client-streaming / bidi-streaming 尚未支持
 - `grpc_service` 未配置时，默认使用完整 proto service 名，例如 `game.mainsvr.v1.MainC2SService`
 
 ### 4. 生成命令
@@ -108,7 +110,7 @@ go run ./tools/cmd/genproto
 - `Register<Service>ToTransactionMgr(...)`
 - `Register<Service>ToGin(...)`：当 method 配置了 `http_path`
 - `Register<Service>ToWS(...)`：当 method 配置了 `ws: true`
-- `Register<Service>ToGRPC(...)`：当 method 配置了 `grpc: true`，当前为 unary
+- `Register<Service>ToGRPC(...)`：当 method 配置了 `grpc: true`，支持 unary 与 server-streaming
 - `Register<Service>ToDispatcher(...)`
 - `<Service>Client`
 
@@ -116,6 +118,7 @@ client stub 当前规则：
 
 - 普通 request/response：生成 `Method(ctx, req)` 与 `MethodByRouter(ctx, routerId, req)`
 - one-way method：额外生成 `ByBusId` / `Simple` / `ByRouterSimple` 等 helper
+- grpc-only method 若没有 cmd 绑定，不会生成 cmd-based client stub
 
 ### 6. runtime 行为
 
@@ -125,7 +128,7 @@ client stub 当前规则：
 - HTTP：`WrapHTTPGin`
 - WS/CSPacket：`WrapWS`
 - gRPC unary：`WrapGRPCUnary`
-- gRPC server-stream runtime helper：`WrapGRPCServerStream`
+- gRPC server-stream：`WrapGRPCServerStream` / `WrapGRPCServerStreamTyped`
 - 统一注册中心：`ssrpc.Dispatcher`
 
 当前实现要点：
@@ -183,7 +186,17 @@ d.MountGin(router)
 
 #### 7.4 gRPC
 
-当 proto method 配置 `grpc: true` 时，生成器会产出 unary 注册函数：
+当 proto method 配置 `grpc: true` 时，生成器会按 proto method 语义产出：
+
+- 普通 unary method：`RegisterGRPCUnary(...)`
+- `server_streaming = true` method：`RegisterGRPCStream(...)`
+
+当前仓库里已经有真实示例：
+
+- `game_protocol/websvr.proto` 的 `Ping`：HTTP + gRPC unary（无 cmd）
+- `game_protocol/websvr.proto` 的 `WatchPing`：gRPC server-streaming（grpc-only）
+
+unary 示例：
 
 ```go
 srv := mysvrv1.NewMyServiceSServer(&service.MyServiceImpl{}, ssrpc.DefaultMWOptions{})
@@ -191,6 +204,27 @@ srv := mysvrv1.NewMyServiceSServer(&service.MyServiceImpl{}, ssrpc.DefaultMWOpti
 d := ssrpc.NewDispatcher()
 mysvrv1.RegisterMyServiceToGRPC(d, srv)
 d.MountGRPC(grpcSrv)
+```
+
+`web_svr` 当前已经把这层 wiring 接到 app 中，开启方式类似：
+
+```yaml
+websvr:
+  grpc_server:
+    enabled: true
+    ip: ""
+    port: 10002
+```
+
+当前 `web_svr` 的 gRPC listener 还额外挂了：
+
+- 标准 `grpc.health.v1.Health`
+- gRPC reflection（便于本地 `grpcurl` / 调试工具发现服务）
+
+server-streaming method 的生成接口签名为：
+
+```go
+Watch(ctx *ssrpc.Context, req *mypb.WatchReq, stream *ssrpc.ServerStream[*mypb.WatchRsp]) error
 ```
 
 如果你需要覆盖默认 proto service 名，可在 option 中配置：
@@ -207,10 +241,11 @@ option (goone.options.v1.ssrpc) = {
 
 以下内容在当前实现里要明确区分：
 
-- 主线业务 proto 目前没有启用 `grpc: true`；gRPC 仍属于 runtime-ready / opt-in 状态
-- generator 当前只产出 gRPC unary 注册
-- `RegisterGRPCStream(...)` / `WrapGRPCServerStream(...)` 已有 runtime helper，但 generator 还没有自动生成 streaming 绑定
-- generator 目前仍要求 `grpc` / `ws` method 有 cmd 绑定
+- 主线现在已有 `websvr.Ping` / `websvr.WatchPing` 作为 `grpc: true` 示例；其他业务 service 仍按需 opt-in
+- 生成 gRPC 绑定不等于所有服务都会自动对外监听；当前 `web_svr` 已通过 `websvr.grpc_server` 配置接好示例，其它服务仍需各自挂载
+- generator 现在支持 gRPC unary 与 server-streaming 自动注册
+- client-streaming / bidi-streaming 仍未支持
+- `ws` method 仍要求有 cmd 绑定
 - 当前 client stub 仍基于 `cmd_handler.IContext`，而不是主流 RPC 常见的 `context.Context + CallOption`
 
 ### 9. 实践建议
