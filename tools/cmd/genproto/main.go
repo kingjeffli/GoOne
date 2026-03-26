@@ -73,6 +73,14 @@ func main() {
 		die(errors.New("no proto files found under api/proto/{goone,game,web} or game_protocol service protos"))
 	}
 
+	// Inputs are collected relative to their proto roots; protoc runs with Dir=repoRoot.
+	for i := range repoInputs {
+		repoInputs[i] = filepath.ToSlash(filepath.Join("api/proto", repoInputs[i]))
+	}
+	for i := range protocolInputs {
+		protocolInputs[i] = filepath.ToSlash(filepath.Join("game_protocol", protocolInputs[i]))
+	}
+
 	googleIncludes := existingGoogleIncludes(repoRoot)
 
 	if len(repoInputs) > 0 {
