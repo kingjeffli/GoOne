@@ -81,13 +81,7 @@ func (self *MainSvrImpl) OnInit() error {
 
 	// IDL-driven ssrpc handlers.
 	// Phase 2: register into a unified dispatcher, then mount into TransactionMgr.
-	srv := mainsvrv1.MainC2SServiceSServer{
-		Impl: &service.MainC2SServiceImpl{},
-		MW: []ssrpc.Middleware{
-			ssrpc.Recover(),
-			ssrpc.Logging(),
-		},
-	}
+	srv := mainsvrv1.NewMainC2SServiceSServer(&service.MainC2SServiceImpl{}, ssrpc.DefaultMWOptions{})
 	d := ssrpc.NewDispatcher()
 	mainsvrv1.RegisterMainC2SServiceToDispatcher(d, srv)
 	d.RegisterToTransactionMgr(globals.TransMgr)

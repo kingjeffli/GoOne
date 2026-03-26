@@ -12,7 +12,7 @@ import (
 )
 
 // WebApiServiceImpl is the Phase-2 HTTP adapter target implementation for web_svr.
-// It is wired via generated RegisterWebApiServiceToGin in controller/router.go.
+// It is wired via generated Dispatcher registration in controller/router.go.
 type WebApiServiceImpl struct {
 	websvrv1.UnimplementedWebApiServiceSS
 }

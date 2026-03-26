@@ -78,11 +78,8 @@ func (s *ClientLoginGatewayImpl) Login(ctx *ssrpc.Context, req *g1_protocol.Logi
 // generated ws=true bindings.
 func regClientPacketHandlers() {
 	logger.Infof("register client packet dispatch handlers")
-	mainsvrv1.RegisterMainC2SServiceToWS(globals.ClientPacketDispatcher, mainsvrv1.MainC2SServiceSServer{
-		Impl: &ClientLoginGatewayImpl{},
-		MW: []ssrpc.Middleware{
-			ssrpc.Recover(),
-			ssrpc.Logging(),
-		},
-	})
+	mainsvrv1.RegisterMainC2SServiceToWS(
+		globals.ClientPacketDispatcher,
+		mainsvrv1.NewMainC2SServiceSServer(&ClientLoginGatewayImpl{}, ssrpc.DefaultMWOptions{}),
+	)
 }

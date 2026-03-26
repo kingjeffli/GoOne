@@ -67,13 +67,7 @@ func (a *MysqlSvrImpl) OnInit() error {
 		return err
 	}
 
-	srv := mysqlsvrv1.MysqlServiceSServer{
-		Impl: &service.MysqlServiceImpl{},
-		MW: []ssrpc.Middleware{
-			ssrpc.Recover(),
-			ssrpc.Logging(),
-		},
-	}
+	srv := mysqlsvrv1.NewMysqlServiceSServer(&service.MysqlServiceImpl{}, ssrpc.DefaultMWOptions{})
 	d := ssrpc.NewDispatcher()
 	mysqlsvrv1.RegisterMysqlServiceToDispatcher(d, srv)
 	d.RegisterToTransactionMgr(globals.TransMgr)

@@ -174,10 +174,11 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 	}
 
 	type httpBind struct {
-		method     string
-		inGo       string
-		path       string
-		httpMethod string
+		method      string
+		inGo        string
+		path        string
+		httpMethod  string
+		grpcService string
 
 		cmdLit string // literal for MethodDesc.Cmd, can be "0" for HTTP-only
 
@@ -416,17 +417,25 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 				if name == "" {
 					name = svc + "." + method
 				}
+				grpcServiceName := strings.TrimSpace(ext.grpcService)
+				if grpcServiceName == "" {
+					grpcServiceName = svc
+					if pkg := strings.TrimSpace(fd.GetPackage()); pkg != "" {
+						grpcServiceName = pkg + "." + svc
+					}
+				}
 				grpcBinds = append(grpcBinds, httpBind{
-					method:    method,
-					inGo:      inGo,
-					cmdLit:    cmdExpr,
-					oneWay:    oneWay,
-					uidLock:   ext.uidLock,
-					auth:      ext.auth,
-					sign:      ext.sign,
-					timeoutMs: ext.timeoutMs,
-					tags:      ext.tags,
-					name:      name,
+					method:      method,
+					inGo:        inGo,
+					grpcService: grpcServiceName,
+					cmdLit:      cmdExpr,
+					oneWay:      oneWay,
+					uidLock:     ext.uidLock,
+					auth:        ext.auth,
+					sign:        ext.sign,
+					timeoutMs:   ext.timeoutMs,
+					tags:        ext.tags,
+					name:        name,
 				})
 			}
 
@@ -599,7 +608,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 			b.WriteString("\t\treturn\n")
 			b.WriteString("\t}\n\n")
 			for _, gb := range grpcBinds {
-				b.WriteString(fmt.Sprintf("\td.RegisterGRPCUnary(%q, %q, ssrpc.WrapGRPCUnary(\n", svc, gb.method))
+				b.WriteString(fmt.Sprintf("\td.RegisterGRPCUnary(%q, %q, ssrpc.WrapGRPCUnary(\n", gb.grpcService, gb.method))
 				b.WriteString("\t\tssrpc.MethodDesc{\n")
 				b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", gb.cmdLit))
 				if gb.oneWay {
@@ -804,7 +813,7 @@ func renderSSRPC(fd *descriptorpb.FileDescriptorProto, goPkgName string, curImpo
 
 			// grpc-bound methods
 			for _, gb := range grpcBinds {
-				b.WriteString(fmt.Sprintf("\td.RegisterGRPCUnary(%q, %q, ssrpc.WrapGRPCUnary(\n", svc, gb.method))
+				b.WriteString(fmt.Sprintf("\td.RegisterGRPCUnary(%q, %q, ssrpc.WrapGRPCUnary(\n", gb.grpcService, gb.method))
 				b.WriteString("\t\tssrpc.MethodDesc{\n")
 				b.WriteString(fmt.Sprintf("\t\t\tCmd: %s,\n", gb.cmdLit))
 				if gb.oneWay {

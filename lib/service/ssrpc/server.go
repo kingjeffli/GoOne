@@ -85,6 +85,7 @@ func buildHandler(mws []Middleware, invoke func(ctx *Context, req any) (any, err
 // NOTE: newReq/invoke use `any` so generated code does NOT need to import proto.
 func WrapUnary(desc MethodDesc, mws []Middleware, newReq func() any, invoke func(ctx *Context, req any) (any, error)) cmd_handler.CmdHandlerFunc {
 	mws = prepareMW(mws, desc.UIDLock)
+	h := buildHandler(mws, invoke) // pre-build chain once at init time
 	return func(c cmd_handler.IContext, data []byte) g1_protocol.ErrorCode {
 		if c == nil {
 			return g1_protocol.ErrorCode_ERR_INTERNAL
@@ -106,7 +107,7 @@ func WrapUnary(desc MethodDesc, mws []Middleware, newReq func() any, invoke func
 			return g1_protocol.ErrorCode_ERR_MARSHAL
 		}
 
-		rsp, err := buildHandler(mws, invoke)(ctx, req)
+		rsp, err := h(ctx, req)
 		if err != nil {
 			return ToErrorCode(err)
 		}

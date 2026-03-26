@@ -51,13 +51,7 @@ func (a *InfoSvrImpl) OnInit() error {
 		return err
 	}
 
-	srv := infosvrv1.InfoServiceSServer{
-		Impl: &service.InfoServiceImpl{},
-		MW: []ssrpc.Middleware{
-			ssrpc.Recover(),
-			ssrpc.Logging(),
-		},
-	}
+	srv := infosvrv1.NewInfoServiceSServer(&service.InfoServiceImpl{}, ssrpc.DefaultMWOptions{})
 	d := ssrpc.NewDispatcher()
 	infosvrv1.RegisterInfoServiceToDispatcher(d, srv)
 	d.RegisterToTransactionMgr(globals.TransMgr)

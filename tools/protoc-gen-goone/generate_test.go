@@ -1226,6 +1226,116 @@ func TestGenerate_SkipFileWithoutSSRPCMethods(t *testing.T) {
 	}
 }
 
+func TestGenerate_GRPCServiceName(t *testing.T) {
+	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
+
+	for _, tc := range []struct {
+		name        string
+		override    string
+		wantService string
+	}{
+		{name: "default full proto service", wantService: "test.grpc.v1.Svc"},
+		{name: "override service name", override: "custom.grpc.v1.CustomSvc", wantService: "custom.grpc.v1.CustomSvc"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			optionsFD := &descriptorpb.FileDescriptorProto{
+				Name:    protoString(ssrpcOptFilePath),
+				Package: protoString("goone.options.v1"),
+				Dependency: []string{
+					"google/protobuf/descriptor.proto",
+				},
+				Options: &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1")},
+				MessageType: []*descriptorpb.DescriptorProto{
+					{
+						Name: protoString("SsRpc"),
+						Field: []*descriptorpb.FieldDescriptorProto{
+							{Name: protoString("cmd"), Number: protoInt32(1), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+							{Name: protoString("grpc"), Number: protoInt32(40), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_BOOL)},
+							{Name: protoString("grpc_service"), Number: protoInt32(41), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_STRING)},
+						},
+					},
+				},
+				Extension: []*descriptorpb.FieldDescriptorProto{
+					{
+						Name:     protoString("ssrpc"),
+						Number:   protoInt32(61001),
+						Label:    labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
+						Type:     typePtr(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+						TypeName: protoString(".goone.options.v1.SsRpc"),
+						Extendee: protoString(".google.protobuf.MethodOptions"),
+					},
+				},
+			}
+
+			svcFD := &descriptorpb.FileDescriptorProto{
+				Name:       protoString("test/grpc/v1/svc.proto"),
+				Package:    protoString("test.grpc.v1"),
+				Dependency: []string{ssrpcOptFilePath},
+				Options:    &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/test/grpc/v1;grpcv1")},
+				MessageType: []*descriptorpb.DescriptorProto{
+					{Name: protoString("Req")},
+					{Name: protoString("Rsp")},
+				},
+				Service: []*descriptorpb.ServiceDescriptorProto{
+					{
+						Name: protoString("Svc"),
+						Method: []*descriptorpb.MethodDescriptorProto{
+							{
+								Name:       protoString("Do"),
+								InputType:  protoString(".test.grpc.v1.Req"),
+								OutputType: protoString(".test.grpc.v1.Rsp"),
+								Options:    &descriptorpb.MethodOptions{},
+							},
+						},
+					},
+				},
+			}
+
+			extType, extMsgDesc, _, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD})
+			if err != nil {
+				t.Fatalf("buildSsRpcExtension err: %v", err)
+			}
+			optMsg := dynamicpb.NewMessage(extMsgDesc)
+			optMsg.Set(extMsgDesc.Fields().ByName("cmd"), protoreflect.ValueOfUint32(0x01020009))
+			optMsg.Set(extMsgDesc.Fields().ByName("grpc"), protoreflect.ValueOfBool(true))
+			if tc.override != "" {
+				optMsg.Set(extMsgDesc.Fields().ByName("grpc_service"), protoreflect.ValueOfString(tc.override))
+			}
+			svcFD.Service[0].Method[0].Options = mustMethodOptionsUnknown(t, extType, optMsg)
+
+			req := &pluginpb.CodeGeneratorRequest{
+				FileToGenerate: []string{svcFD.GetName()},
+				ProtoFile:      []*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD},
+				Parameter:      protoString("paths=import,module=github.com/Iori372552686/GoOne"),
+			}
+			resp, err := Generate(req)
+			if err != nil {
+				t.Fatalf("Generate err: %v", err)
+			}
+			if len(resp.File) != 1 {
+				t.Fatalf("expected 1 generated file, got %d", len(resp.File))
+			}
+			out := resp.File[0].GetContent()
+
+			standaloneIdx := stringIndex(out, "func RegisterSvcToGRPC(d *ssrpc.Dispatcher, srv SvcSServer) {")
+			if standaloneIdx < 0 {
+				t.Fatalf("expected RegisterSvcToGRPC in output, got:\n%s", out)
+			}
+			if !contains(out[standaloneIdx:], "d.RegisterGRPCUnary(\""+tc.wantService+"\", \"Do\", ssrpc.WrapGRPCUnary(") {
+				t.Fatalf("expected standalone gRPC registration to use %q, got:\n%s", tc.wantService, out)
+			}
+
+			dispatcherIdx := stringIndex(out, "func RegisterSvcToDispatcher(d *ssrpc.Dispatcher, srv SvcSServer) {")
+			if dispatcherIdx < 0 {
+				t.Fatalf("expected RegisterSvcToDispatcher in output, got:\n%s", out)
+			}
+			if !contains(out[dispatcherIdx:], "d.RegisterGRPCUnary(\""+tc.wantService+"\", \"Do\", ssrpc.WrapGRPCUnary(") {
+				t.Fatalf("expected dispatcher gRPC registration to use %q, got:\n%s", tc.wantService, out)
+			}
+		})
+	}
+}
+
 func contains(s, sub string) bool {
 	return len(s) >= len(sub) && (s == sub || (len(sub) > 0 && (stringIndex(s, sub) >= 0)))
 }

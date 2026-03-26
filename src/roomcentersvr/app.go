@@ -57,13 +57,7 @@ func (a *RoomMgrSvrImpl) OnInit() error {
 	}
 
 	// IDL-driven ssrpc handlers (Phase A).
-	srv := roomcenterv1.RoomCenterInnerServiceSServer{
-		Impl: &service.RoomCenterInnerServiceImpl{},
-		MW: []ssrpc.Middleware{
-			ssrpc.Recover(),
-			ssrpc.Logging(),
-		},
-	}
+	srv := roomcenterv1.NewRoomCenterInnerServiceSServer(&service.RoomCenterInnerServiceImpl{}, ssrpc.DefaultMWOptions{})
 	d := ssrpc.NewDispatcher()
 	roomcenterv1.RegisterRoomCenterInnerServiceToDispatcher(d, srv)
 	d.RegisterToTransactionMgr(globals.TransMgr)

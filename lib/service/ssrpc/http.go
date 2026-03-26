@@ -109,11 +109,8 @@ func httpErrorMessage(err error, code g1_protocol.ErrorCode) string {
 
 // WrapHTTPGin returns a gin.HandlerFunc that decodes JSON->proto, runs middleware, and replies JSON.
 func WrapHTTPGin(desc MethodDesc, mws []Middleware, newReq func() any, invoke func(ctx *Context, req any) (any, error)) gin.HandlerFunc {
-	// Keep consistent with WrapUnary: never mutate caller slice; inject UIDLock if requested.
-	if desc.UIDLock {
-		base := append([]Middleware(nil), mws...)
-		mws = append(base, UIDLock())
-	}
+	mws = prepareMW(mws, desc.UIDLock)
+	h := buildHandler(mws, invoke) // pre-build chain once at init time
 	return func(c *gin.Context) {
 		if c == nil {
 			return
@@ -137,21 +134,6 @@ func WrapHTTPGin(desc MethodDesc, mws []Middleware, newReq func() any, invoke fu
 		if err := ic.ParseMsg(data, req1); err != nil {
 			c.JSON(http.StatusOK, gin.H{"code": g1_protocol.ErrorCode_ERR_MARSHAL, "data": nil, "msg": g1_protocol.ErrorCode_ERR_MARSHAL.String()})
 			return
-		}
-
-		h := Handler(func(c2 *Context, in proto1.Message) (proto1.Message, error) {
-			outAny, err := invoke(c2, in)
-			if outAny == nil {
-				return nil, err
-			}
-			out, ok := outAny.(proto1.Message)
-			if !ok {
-				return nil, Wrap(g1_protocol.ErrorCode_ERR_INTERNAL, "invalid rsp type", nil)
-			}
-			return out, err
-		})
-		if len(mws) > 0 {
-			h = Chain(mws...)(h)
 		}
 
 		rsp, err := h(ctx, req1)

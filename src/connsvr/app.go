@@ -59,13 +59,7 @@ func (self *AppSvrImpl) OnInit() error {
 
 	regClientPacketHandlers()
 
-	srv := connsvrv1.ConnServiceSServer{
-		Impl: &service.ConnServiceImpl{},
-		MW: []ssrpc.Middleware{
-			ssrpc.Recover(),
-			ssrpc.Logging(),
-		},
-	}
+	srv := connsvrv1.NewConnServiceSServer(&service.ConnServiceImpl{}, ssrpc.DefaultMWOptions{})
 	d := ssrpc.NewDispatcher()
 	connsvrv1.RegisterConnServiceToDispatcher(d, srv)
 	d.RegisterToTransactionMgr(globals.TransMgr)
