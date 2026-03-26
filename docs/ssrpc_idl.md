@@ -1,168 +1,224 @@
-## GoOne SSPacket RPC (Phase A) — IDL 驱动方案
+## GoOne ssrpc / IDL 现状说明
 
-本方案的目标是：把 **CloudWeGo 的 IDL 驱动**（proto service + 代码生成）与 **Kratos 的 middleware/transport 分层** 嫁接到 GoOne 现有的 **TransactionMgr + SSPacket** 执行模型上。
+本文描述当前主线已经落地的 ssrpc / IDL 方案，重点是“现在仓库里真正有哪些能力、如何接入、边界在哪”。
 
-### 1. 目录约定
+### 1. 目标
 
-- **IDL 源码**：`api/proto/**`
-- **生成代码**：`api/gen/**`
-- **运行时**：`lib/service/ssrpc/**`
-- **生成器**：`tools/protoc-gen-goone/**`
+GoOne 的 ssrpc 方案把：
 
-### 2. options.proto（cmd 绑定）
+- proto service + 代码生成的 IDL 驱动模式
+- middleware / transport 分层
+- GoOne 现有的 `TransactionMgr + SSPacket` 执行模型
 
-`api/proto/goone/options/v1/options.proto` 提供 method option：`(goone.options.v1.ssrpc)`，用于把 proto method 绑定到 `SSPacketHeader.Cmd`。
+组合成一套统一的 RPC runtime。
 
-示例：
+当前主线最成熟的是：
 
-- `cmd`：请求 cmd（uint32，直接写数值）
-- `cmd_enum`：请求 cmd（推荐：引用 `goone.cmd.v1.CMD`，由 `gencmdproto` 自动生成，保留 `0x...` 风格与备注）
-- `cmd_name`：请求 cmd（兼容：引用 `g1_protocol` 的 Go 常量名字符串，如 `"CMD_MAIN_LOGIN_REQ"`）
-- `cmd_resp`：响应 cmd（默认 `cmd+1`）
+- SSPacket unary（服务间主通路）
+- HTTP Gin 挂载（`web_svr`）
+- WS/CSPacket 挂载（`connsvr` 登录前置）
+
+gRPC unary runtime 与代码生成已经具备，但当前主线业务 proto 还没有启用 `grpc: true`。
+
+### 2. 当前代码布局
+
+- repo-owned proto 输入：`api/proto/goone/**`、`api/proto/game/**`，以及存在时的 `api/proto/web/**`
+- protocol-owned service proto：`game_protocol/*.proto` 中声明了 `service` 的文件
+- 生成产物：`api/gen/**`
+- runtime：`lib/service/ssrpc/**`
+- 生成器：`tools/protoc-gen-goone/**`
+- 典型接入点：
+  - `src/*/app.go`
+  - `src/connsvr/ws_login.go`
+  - `src/web_svr/controller/router.go`
+
+业务 service proto 目前主要以 `game_protocol/*.proto` 为 source-of-truth；例如 `game_protocol/mainsvrc2s.proto`、`game_protocol/websvr.proto`。
+
+### 3. method option（当前实现）
+
+`goone.options.v1.ssrpc` 当前已支持以下字段：
+
+- `cmd`：请求 cmd，直接写数值
+- `cmd_enum`：请求 cmd，引用 `goone.cmd.v1.CMD`
+- `cmd_name`：请求 cmd，引用 `g1_protocol` 的 Go 常量名
+- `cmd_resp`：显式响应 cmd；默认仍按 `cmd+1`
 - `one_way`：只发不回
-- `uid_lock`：按 uid 串行（Phase A+，已提供可插拔实现：默认 striped lock）
-- `auth`：需要鉴权（通过默认中间件链注入 `AuthWith(...)`）
-- `sign`：需要验签（通过默认中间件链注入 `SignWith(...)`）
-- `trace_tags`：额外 trace tag（`k=v` 形式，生成器会写入 `MethodDesc.TraceTags`）
+- `uid_lock`：按 uid 串行，runtime 默认使用 striped locker
+- `auth`：要求鉴权
+- `sign`：要求验签
+- `trace_tags`：额外 trace tag，`k=v` 形式
+- `timeout_ms`：method 级超时
+- `http_path` / `http_method`：HTTP 绑定
+- `ws`：生成 WS/CSPacket 绑定
+- `grpc`：生成 gRPC unary 绑定
+- `grpc_service`：覆盖注册到 `grpc.Server` 的 service 名
+- `comment`：用于生成注释 / method 展示名
 
 cmd 绑定优先级：
 
-- `cmd != 0` → 用 `cmd`
-- 否则 `cmd_enum != 0` → 用 `cmd_enum` 的数值
-- 否则 `cmd_name != ""` → 用 `g1_protocol.<cmd_name>`
+- `cmd != 0` -> 用 `cmd`
+- 否则 `cmd_enum != 0` -> 用 `cmd_enum` 数值
+- 否则 `cmd_name != ""` -> 用 `g1_protocol.<cmd_name>`
 
-### 3. 定义 service（示例）
+当前语义边界：
 
-示例文件：`api/proto/game/main/v1/main.proto`
+- HTTP-only method 可以只写 `http_path`，不配置 cmd
+- `ws` 目前仍要求有 cmd 绑定
+- `grpc` 目前也仍要求有 cmd 绑定
+- `grpc_service` 未配置时，默认使用完整 proto service 名，例如 `game.mainsvr.v1.MainC2SService`
 
-### 4. 生成命令（建议）
+### 4. 生成命令
 
-建议把 `api/proto` 作为 include 根目录（这样 import 写成 `goone/options/v1/options.proto`）。
-
-> 注意：你需要安装 `protoc`、`protoc-gen-go`、`protoc-gen-goone`（本仓库提供了 `tools/protoc-gen-goone` 源码，可 `go install`）。
-
-示例（思路）：
+推荐入口：
 
 ```bash
-# in repo root
-protoc -I=api/proto \
-  --go_out=. --go_opt=module=github.com/Iori372552686/GoOne \
-  --goone_out=. --goone_opt=module=github.com/Iori372552686/GoOne \
-  api/proto/game/common/v1/common.proto \
-  api/proto/game/main/v1/main.proto
+go run ./tools/cmd/genproto
 ```
 
-### 4.2 （可选）生成 cmd.proto（可读 enum / 保持 0x 风格与备注）
+`tools/cmd/genproto` 当前会：
 
-如果你希望 IDL 里直接引用一个“可读的 cmd enum”，可以从 `g1_protocol.CMD` 自动生成 `cmd.proto`：
+- 必要时先确保 `cmd.proto` 存在
+- 构建 `protoc-gen-go` 与 `protoc-gen-goone`
+- 扫描 repo-owned proto 输入目录
+- 扫描 `game_protocol` 下真正声明了 `service` 的 proto
+- 分两次调用 `protoc`，避免 repo proto 与 protocol proto 的消息符号冲突
 
-- `./scripts/gencmdproto.sh`
-- 只生成某些前缀（推荐）：`./scripts/gencmdproto.sh -prefix CMD_MAIN_ -prefix CMD_ROOM_CENTER_`
+一键包装：
 
-然后在 proto method option 里优先用 `cmd_enum`（更可读、也更不容易写错）：
+- `./scripts/proto_goone.sh`
+- `./scripts/proto_goone.ps1`
 
-```proto
-option (goone.options.v1.ssrpc) = { cmd_enum: CMD_MAIN_LOGIN_REQ };
-```
+它们会先生成 `game_protocol/protocol/**`，再生成主仓 `api/gen/**`。
 
-### 4.1 关于 go_package（强烈建议）
+校验生成物：
 
-Phase A+（跨 package message type）要求每个 proto 文件都配置正确的 `option go_package = "...;name"`，否则生成器无法解析跨文件类型的 Go import path。
+- 默认：`./main.sh check-genproto` 或 `.\scripts\check_genproto.ps1`
+- 全量：`./main.sh check-genproto --full` 或 `.\scripts\check_genproto.ps1 -Full`
 
-### 5. 在 mainsvr 中初始化（接入方式）
+如果你改的是 `game_protocol` 里的共享消息，而不只是 service proto，合并前应执行 full 检查。
 
-Phase A 的目标是生成（cmd -> TransactionMgr）：
+### 5. 生成代码长什么样
 
-- `Register<SomeService>ToTransactionMgr(mgr transaction.ITransactionMgr, srv <SomeService>SSServer)`
+对于每个带 `ssrpc` option 的 service，生成器当前会产出：
 
-说明：
+- `<Service>SS`：类型安全的服务接口
+- `Unimplemented<Service>SS`
+- `Default<Service>SSMiddlewares(...)`
+- `New<Service>SServer(...)`
+- `Register<Service>ToTransactionMgr(...)`
+- `Register<Service>ToGin(...)`：当 method 配置了 `http_path`
+- `Register<Service>ToWS(...)`：当 method 配置了 `ws: true`
+- `Register<Service>ToGRPC(...)`：当 method 配置了 `grpc: true`，当前为 unary
+- `Register<Service>ToDispatcher(...)`
+- `<Service>Client`
 
-- `*transaction.TransactionMgr` **实现了** `transaction.ITransactionMgr`，所以你可以直接传 `&globals.TransMgr`（不需要额外的重载函数）。
+client stub 当前规则：
 
-典型接入点：`src/mainsvr/app.go` 的初始化阶段（替代手写 `globals.TransMgr.RegisterCmd(...)`）。
+- 普通 request/response：生成 `Method(ctx, req)` 与 `MethodByRouter(ctx, routerId, req)`
+- one-way method：额外生成 `ByBusId` / `Simple` / `ByRouterSimple` 等 helper
 
-伪代码：
+### 6. runtime 行为
+
+当前 runtime 统一由 `lib/service/ssrpc/**` 承担：
+
+- SSPacket：`WrapUnary`
+- HTTP：`WrapHTTPGin`
+- WS/CSPacket：`WrapWS`
+- gRPC unary：`WrapGRPCUnary`
+- gRPC server-stream runtime helper：`WrapGRPCServerStream`
+- 统一注册中心：`ssrpc.Dispatcher`
+
+当前实现要点：
+
+- wrapper 在初始化阶段预构建 middleware chain，不再在每次请求时重复拼装
+- method 级元信息统一挂在 `ssrpc.MethodDesc`
+- `ctx.ParseMsg` 失败统一返回 `ERR_MARSHAL`
+- 非 `ssrpc.Error` 默认映射为 `ERR_INTERNAL`
+- `cmd_resp` 会优先走 `SendMsgBackWithCmd`
+- `Transaction.waitRsp` 以 `CmdSeq` 为主做响应关联；若响应 cmd 不是 `cmd+1`，会告警但仍尝试解码
+
+默认中间件链通过 `New<Service>SServer(..., ssrpc.DefaultMWOptions{...})` 注入，当前包含：
+
+- `Recover()`
+- `Logging()`
+- `TraceWith(...)`
+- `AuthWith(...)`
+- `SignWith(...)`
+- `UIDLockAttach(...)`
+- `Metrics(...)`
+- `MCPAttach(...)` / `MCPGuardWith(...)`（仅当配置了 MCP）
+
+### 7. 推荐接入方式
+
+#### 7.1 SSPacket / TransactionMgr
 
 ```go
-mainv1.RegisterMainServiceToTransactionMgr(&globals.TransMgr, mainv1.MainServiceSSServer{
-  Impl: &service.MainServiceImpl{},
-  MW: []ssrpc.Middleware{
-    ssrpc.Recover(),
-    ssrpc.Logging(),
-  },
+srv := mainsvrv1.NewMainC2SServiceSServer(
+  &service.MainC2SServiceImpl{},
+  ssrpc.DefaultMWOptions{},
+)
+
+d := ssrpc.NewDispatcher()
+mainsvrv1.RegisterMainC2SServiceToDispatcher(d, srv)
+d.RegisterToTransactionMgr(globals.TransMgr)
+```
+
+当前 `mainsvr`、`infosvr`、`mysqlsvr`、`roomcentersvr`、`connsvr` 都已经切到这一类写法。
+
+#### 7.2 HTTP / Gin
+
+```go
+srv := websvrv1.NewWebApiServiceSServer(&service.WebApiServiceImpl{}, ssrpc.DefaultMWOptions{
+  Sign: service.NewHTTPSignVerifier(...),
 })
-```
 
-### 5.1 Phase 2：统一 Dispatcher（推荐）
-
-Phase 2 引入 `ssrpc.Dispatcher` 作为统一注册中心，让生成器可以同时产出：
-
-- `Register<Service>ToDispatcher(d *ssrpc.Dispatcher, srv <Service>SServer)`（统一注册）
-- `d.RegisterToTransactionMgr(mgr)`（挂到 SSPacket）
-- `d.MountGin(r)`（挂到 HTTP Gin）
-
-示例（mainsvr / SSPacket）：
-
-```go
 d := ssrpc.NewDispatcher()
-mainv1.RegisterMainServiceToDispatcher(d, srv)
-d.RegisterToTransactionMgr(&globals.TransMgr)
-```
-
-示例（web_svr / Gin）：
-
-```go
-d := ssrpc.NewDispatcher()
-webv1.RegisterWebApiServiceToDispatcher(d, srv)
+websvrv1.RegisterWebApiServiceToDispatcher(d, srv)
 d.MountGin(router)
 ```
 
-备注：当 method 只配置了 `http_path/http_method` 时（HTTP-only），可以不配置 cmd，生成器不会生成 TransactionMgr 注册。
+#### 7.3 WS / CSPacket
 
-如果你希望统一默认中间件链（recover/log/trace/metrics/mcp 等），生成文件也会提供 helper：
+`connsvr` 的登录前置路径当前通过 `Register<Service>ToWS(...)` 挂载到 `globals.ClientPacketDispatcher`。
+
+#### 7.4 gRPC
+
+当 proto method 配置 `grpc: true` 时，生成器会产出 unary 注册函数：
 
 ```go
-srv := mainv1.NewMainServiceSServer(&service.MainServiceImpl{}, ssrpc.DefaultMWOptions{
-  // Metrics: myRecorder,
-  // MCP:     myMCP,
-  // MCPGuard: func(ctx *ssrpc.Context, tool string, input any) error {
-  //   // return nil to allow; otherwise return an error (e.g. ssrpc.E(code,"..."))
-  //   return nil
-  // },
-  // Trace:   myTraceProvider,
-  // Auth:    myAuthenticator,
-  // Sign:    mySignVerifier,
-  // UIDLocker: ssrpc.NewStripedUIDLocker(1024),
-})
-mainv1.RegisterMainServiceToTransactionMgr(&globals.TransMgr, srv)
+srv := mysvrv1.NewMyServiceSServer(&service.MyServiceImpl{}, ssrpc.DefaultMWOptions{})
+
+d := ssrpc.NewDispatcher()
+mysvrv1.RegisterMyServiceToGRPC(d, srv)
+d.MountGRPC(grpcSrv)
 ```
 
-生成器会为所有带 `(goone.options.v1.ssrpc)` option 的 method 自动生成：
+如果你需要覆盖默认 proto service 名，可在 option 中配置：
 
-- cmd 解码（`ctx.ParseMsg`）
-- middleware 链执行
-- 调用 `srv.Impl.<Method>()`
-- `one_way=false` 且返回 rsp 非 nil 时自动 `ctx.SendMsgBack(rsp)`（默认响应 cmd=cmd+1）
+```proto
+option (goone.options.v1.ssrpc) = {
+  cmd_name: "CMD_MAIN_LOGIN_REQ"
+  grpc: true
+  grpc_service: "custom.grpc.v1.AuthService"
+};
+```
 
-备注：`ctx.ParseMsg` 失败时，当前仓库统一返回 `g1_protocol.ErrorCode_ERR_MARSHAL`（与大量 legacy handler 保持一致）。
+### 8. 当前边界与未覆盖项
 
-### 6. 生成代码风格（优化：统一走 ssrpc.WrapUnary）
+以下内容在当前实现里要明确区分：
 
-当前 `protoc-gen-goone` 生成的 `Register<Service>ToTransactionMgr` 会调用 runtime 的 `ssrpc.WrapUnary(...)`，而不是把解码/中间件/回包逻辑全部内联进生成文件。
+- 主线业务 proto 目前没有启用 `grpc: true`；gRPC 仍属于 runtime-ready / opt-in 状态
+- generator 当前只产出 gRPC unary 注册
+- `RegisterGRPCStream(...)` / `WrapGRPCServerStream(...)` 已有 runtime helper，但 generator 还没有自动生成 streaming 绑定
+- generator 目前仍要求 `grpc` / `ws` method 有 cmd 绑定
+- 当前 client stub 仍基于 `cmd_handler.IContext`，而不是主流 RPC 常见的 `context.Context + CallOption`
 
-好处：
+### 9. 实践建议
 
-- runtime 行为集中在 `lib/service/ssrpc/*`，更容易演进（metrics/trace/mcp/uid_lock）
-- 生成文件更小、diff 更稳定
-
-### 5.1 cmd_resp 的语义
-
-- 如果 `cmd_resp=0`（未配置），生成器默认使用 `cmd+1`（保持 GoOne 现有约定）
-- 如果显式配置了 `cmd_resp`，生成器会尝试用指定 cmd 回包：
-  - 若底层 context 支持 `SendMsgBackWithCmd`（当前 `Transaction` 已支持），会按 `cmd_resp` 回包；
-  - 否则退化为 `SendMsgBack`（仍按 cmd+1）。
-
-> 备注：GoOne 的 `Transaction` 侧默认通过 `CmdSeq` 关联请求/响应。为兼容 `cmd_resp != cmd+1` 的情况，
-> `Transaction.waitRsp` 已优先以 `CmdSeq` 匹配响应，并在 cmd 不符合 `cmd+1` 时仅输出告警但仍尝试解码。
+- 优先使用 `cmd_enum` 或 `cmd_name`，避免手写裸数值
+- 优先用 `New<Service>SServer(...)`，不要在 app 层手拼 middleware slice
+- 优先通过 `Register<Service>ToDispatcher(...)` 作为统一入口，再分别 `RegisterToTransactionMgr` / `MountGin` / `MountGRPC`
+- proto 改动后至少执行一次 `check-genproto`
+- 若改动包含共享消息，执行 full 检查
 
 
