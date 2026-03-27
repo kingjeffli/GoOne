@@ -11,8 +11,8 @@
 
 `lib/` 的文件说明以“项目自有源码”为主。以下内容不逐个展开：
 
-- `lib/contrib/protoc/`：内置的 `protoc 30.1` 官方分发包。
-- `lib/util/deps/protoc/`：旧版 `protoc 3.11.4` 依赖包。
+- `lib/contrib/protoc/`：内置的 `protoc` 官方分发包（多版本目录，如 `protoc-33.2-*`；具体路径以 `game_protocol/gen_code.sh` 等脚本为准）。
+- `lib/contrib/bundled/protoc_legacy/`：历史/备选 `protoc` 分发（含 `3.11.4` 等），与 `tools/cmd/genproto` 在无 PATH 时的回退检索路径一致。
 - `*_test.go`、局部 `README.md`：测试或补充文档，不是运行时主路径。
 
 ## 2. 一页结论
@@ -277,7 +277,11 @@ HTTP 管理/后台服务：
 
 #### `lib/api/net_conf/`
 
-- `lib/api/net_conf/nacos_config.go`：Nacos 网络配置辅助，主要给服务初始化配置中心客户端时使用。
+- `lib/api/net_conf/nacos_config.go`：Nacos **Config** 客户端封装（SDK v2）。`gamedata.InitNet`、`mainsvr` / `roomcentersvr` 等加载 Nacos 配置时使用；勿与 `lib/contrib/config/nacos`（配置中心抽象实现）混淆。
+
+#### `lib/api/httpclient/`
+
+- `lib/api/httpclient/http_api.go`：对外 HTTP **客户端**（连接池、`Get`/`Post` 等），由 `lib/api/rest_api` 调用。
 
 #### `lib/api/rest_api/`
 
@@ -353,10 +357,6 @@ HTTP 管理/后台服务：
 
 ### 8.5 `lib/service/`
 
-#### `lib/service/algorithm/`
-
-- `lib/service/algorithm/lru_cache.go`：LRU 缓存实现。
-
 #### `lib/service/application/`
 
 - `lib/service/application/app.go`：应用生命周期骨架。定义 `AppInterface`，驱动 `OnInit/OnReload/OnProc/OnTick/OnExit`。
@@ -385,22 +385,13 @@ HTTP 管理/后台服务：
 - `lib/service/bus/nsq/producer.go`：NSQ producer 辅助封装。
 - `lib/service/bus/nsq/consumer.go`：NSQ consumer 辅助封装。
 
-#### `lib/service/cache/`
+#### `lib/service/ssrpc/`
 
-- `lib/service/cache/cache.go`：通用缓存抽象。
-- `lib/service/cache/sharded.go`：分片缓存实现。
-
-#### `lib/service/config/`
-
-- `lib/service/config/nacos_config.go`：服务层的 Nacos 配置辅助。
+- IDL 驱动的 RPC 运行时：与 `api/gen/**` 生成码配合，提供 `Dispatcher`、Gin/HTTP/WS/CSPacket 等传输适配、`Register*ToTransactionMgr` 与中间件等；依赖 `lib/api/cmd_handler` 与 `lib/service/transaction`。
 
 #### `lib/service/router/`
 
 - `lib/service/router/router.go`：服务间消息发送核心入口。通过 `svrinstmgr + bus` 做实例选择、SS 包封装、广播、发回响应等。
-
-#### `lib/service/sensitive_words/`
-
-- `lib/service/sensitive_words/sensitive.go`：敏感词过滤工具。
 
 #### `lib/service/svrinstmgr/`
 
@@ -414,10 +405,6 @@ HTTP 管理/后台服务：
 - `lib/service/transaction/transaction_mgr_impl.go`：事务管理器主逻辑。负责命令字注册、事务协程创建、UID 串行锁、等待队列、响应回传。
 
 ### 8.6 `lib/web/`
-
-#### `lib/web/http/`
-
-- `lib/web/http/http_api.go`：对外 HTTP 请求客户端，用于被 `lib/api/rest_api` 调用。
 
 #### `lib/web/rest/`
 
@@ -444,6 +431,11 @@ HTTP 管理/后台服务：
 - `lib/util/version/version.go`：版本信息辅助。
 - `lib/util/slices/slices.go`：切片工具。
 - `lib/util/file/file.go`：文件读写辅助。
+
+#### LRU 与敏感词
+
+- `lib/util/lru/lru_cache.go`：线程安全 LRU 缓存。
+- `lib/util/sensitive_words/sensitive.go`：敏感词过滤（词表文件加载与匹配）。
 
 #### 压缩与定时
 
@@ -556,6 +548,11 @@ HTTP 管理/后台服务：
 - `lib/contrib/registry/zookeeper/service.go`：ZooKeeper service 节点辅助。
 - `lib/contrib/registry/zookeeper/watcher.go`：ZooKeeper watcher。
 - `lib/contrib/registry/kubernetes/registry.go`：Kubernetes 注册/发现实现。
+
+#### 随包工具链（protoc）
+
+- `lib/contrib/protoc/`：主仓推荐的 `protoc` 多平台分发目录。
+- `lib/contrib/bundled/protoc_legacy/`：历史/备选分发（由旧 `lib/util/deps/protoc` 迁入），`genproto` 会在主目录无匹配时继续检索此处。
 
 ## 9. 工具链与脚本说明
 
@@ -855,7 +852,7 @@ HTTP 管理/后台服务：
 如果你是自动化 agent，进入这个仓库时最好先记住这几件事：
 
 1. 先确认当前代码树；历史文档可能过时，但 `api/`、`tools/protoc-gen-goone`、`tools/cmd/genproto`、`tools/cmd/scaffold` 这些路径现在都真实存在。
-2. `lib/contrib/protoc/` 和 `lib/util/deps/protoc/` 里大部分是第三方随包文件，不是项目业务逻辑。
+2. `lib/contrib/protoc/` 与 `lib/contrib/bundled/protoc_legacy/` 里大部分是第三方随包文件，不是项目业务逻辑。
 3. 真正的共享协议命令字来自 `game_protocol`；主仓当前通过 `scripts/proto_goone.*` / `go run ./tools/cmd/genproto` 生成 `api/gen/**`。
 4. 生成文件很多，尤其是 `common/gamedata/repository/*/*.gen.go`，默认不要手改。
 5. 如果你要理解一个服务，优先读：

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Iori372552686/GoOne/lib/db/redis"
-	"github.com/Iori372552686/GoOne/lib/service/algorithm"
+	"github.com/Iori372552686/GoOne/lib/util/lru"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"github.com/nacos-group/nacos-sdk-go/common/logger"
 
@@ -16,14 +16,14 @@ const (
 )
 
 type InfoMgr struct {
-	data *algorithm.LRUCache
+	data *lru.LRUCache
 
 	RedisMgr *redis.RedisMgr
 }
 
 func NewInfoMgr() *InfoMgr {
 	mgr := new(InfoMgr)
-	mgr.data = algorithm.NewLRUCache(CACHE_SIZE)
+	mgr.data = lru.NewLRUCache(CACHE_SIZE)
 	mgr.RedisMgr = redis.NewRedisMgr()
 	return mgr
 }

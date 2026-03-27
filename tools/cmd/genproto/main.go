@@ -179,7 +179,7 @@ func findProtoc(repoRoot string, override string) (string, error) {
 			return p, nil
 		}
 	}
-	return "", errors.New("protoc not found on PATH or in vendored locations under lib/contrib/protoc or lib/util/deps/protoc")
+	return "", errors.New("protoc not found on PATH or in vendored locations under lib/contrib/protoc or lib/contrib/bundled/protoc_legacy")
 }
 
 func existingGoogleIncludes(repoRoot string) []string {
@@ -204,21 +204,21 @@ func vendoredProtocCandidates(repoRoot string) []string {
 		return []string{
 			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-win64", "bin", "protoc.exe"),
 			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-win64", "bin", "protoc.exe"),
-			filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-win64", "bin", "protoc.exe"),
+			filepath.Join(repoRoot, "lib", "contrib", "bundled", "protoc_legacy", "protoc-3.11.4-win64", "bin", "protoc.exe"),
 		}
 	case "darwin":
 		return []string{
 			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-osx-aarch_64", "bin", "protoc"),
 			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-osx-aarch_64", "bin", "protoc"),
 			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-osx-x86_64", "bin", "protoc"),
-			filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-osx-x86_64", "bin", "protoc"),
+			filepath.Join(repoRoot, "lib", "contrib", "bundled", "protoc_legacy", "protoc-3.11.4-osx-x86_64", "bin", "protoc"),
 		}
 	default:
 		return []string{
 			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-linux-x86_64", "bin", "protoc"),
 			filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-linux-x86_64", "bin", "protoc"),
-			filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-33.2-linux-x86_64", "bin", "protoc"),
-			filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-linux-x86_64", "bin", "protoc"),
+			filepath.Join(repoRoot, "lib", "contrib", "bundled", "protoc_legacy", "protoc-33.2-linux-x86_64", "bin", "protoc"),
+			filepath.Join(repoRoot, "lib", "contrib", "bundled", "protoc_legacy", "protoc-3.11.4-linux-x86_64", "bin", "protoc"),
 		}
 	}
 }
@@ -232,11 +232,11 @@ func vendoredIncludeCandidates(repoRoot string) []string {
 		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-33.2-osx-aarch_64", "include"),
 		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-osx-aarch_64", "include"),
 		filepath.Join(repoRoot, "lib", "contrib", "protoc", "protoc-30.1-osx-x86_64", "include"),
-		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-33.2-win64", "include"),
-		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-win64", "include"),
-		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-33.2-linux-x86_64", "include"),
-		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-linux-x86_64", "include"),
-		filepath.Join(repoRoot, "lib", "util", "deps", "protoc", "protoc-3.11.4-osx-x86_64", "include"),
+		filepath.Join(repoRoot, "lib", "contrib", "bundled", "protoc_legacy", "protoc-33.2-win64", "include"),
+		filepath.Join(repoRoot, "lib", "contrib", "bundled", "protoc_legacy", "protoc-3.11.4-win64", "include"),
+		filepath.Join(repoRoot, "lib", "contrib", "bundled", "protoc_legacy", "protoc-33.2-linux-x86_64", "include"),
+		filepath.Join(repoRoot, "lib", "contrib", "bundled", "protoc_legacy", "protoc-3.11.4-linux-x86_64", "include"),
+		filepath.Join(repoRoot, "lib", "contrib", "bundled", "protoc_legacy", "protoc-3.11.4-osx-x86_64", "include"),
 	}
 }
 

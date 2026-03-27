@@ -55,9 +55,9 @@ base_cfg:
       sign_name: default
 
   nacos_conf:
-    ip_addr: 113.45.34.170
+    ip_addr:
     port: 8848
-    namespace_id: df4ad231-f231-49a1-b309-44493e949dd0
+    namespace_id: b3870fb7-1ed0-4764-937f-0071ed2e1cc4
     group_name: poker_gameconf
     user_name: poker
     password: poker123

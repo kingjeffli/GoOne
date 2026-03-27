@@ -1,7 +1,7 @@
 package web_service
 
 import (
-	"github.com/Iori372552686/GoOne/lib/service/sensitive_words"
+	"github.com/Iori372552686/GoOne/lib/util/sensitive_words"
 	define "github.com/Iori372552686/GoOne/src/web_svr/common"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 )

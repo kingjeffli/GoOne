@@ -5,7 +5,7 @@ import (
 	"github.com/Iori372552686/GoOne/lib/api/http_sign"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/lib/util/convert"
-	http_client "github.com/Iori372552686/GoOne/lib/web/http"
+	http_client "github.com/Iori372552686/GoOne/lib/api/httpclient"
 	"math/rand"
 )
 

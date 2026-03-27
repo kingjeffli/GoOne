@@ -1,4 +1,4 @@
-package algorithm
+package lru
 
 import (
 	"container/list"

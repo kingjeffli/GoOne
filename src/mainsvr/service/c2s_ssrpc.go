@@ -7,7 +7,7 @@ import (
 	"github.com/Iori372552686/GoOne/common/gamedata/repository/mall_config"
 	"github.com/Iori372552686/GoOne/common/gamedata/repository/texas_config"
 	"github.com/Iori372552686/GoOne/lib/service/bus"
-	"github.com/Iori372552686/GoOne/lib/service/sensitive_words"
+	"github.com/Iori372552686/GoOne/lib/util/sensitive_words"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/module/misc"

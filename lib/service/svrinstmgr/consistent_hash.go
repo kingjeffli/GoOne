@@ -20,7 +20,7 @@ import (
 //   - this is deterministic across runs
 //
 // This is intentionally self-contained to match project style (no extra deps).
-// If needed later, we can extract it to lib/service/algorithm.
+// If needed later, we can extract it to lib/util/lru.
 type consistentHash struct {
 	vnodes int
 	ring   []ringPoint
