@@ -15,6 +15,7 @@ import (
 	"github.com/Iori372552686/GoOne/lib/api/net_conf"
 	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
 	"github.com/Iori372552686/GoOne/lib/service/router"
+	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	"github.com/Iori372552686/GoOne/lib/util/idgen"
 	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/lib/util/safego"
@@ -61,7 +62,17 @@ func (a *RoomMgrSvrImpl) OnInit() error {
 	d := ssrpc.NewDispatcher()
 	roomcenterv1.RegisterRoomCenterInnerServiceToDispatcher(d, srv)
 	d.RegisterToTransactionMgr(globals.TransMgr)
-	globals.TransMgr.InitAndRun(misc.MaxTransNumber, true, 200)
+	transShardCount := gconf.RoomCenterSvrCfg.TransShardCount
+	if transShardCount <= 0 {
+		transShardCount = transaction.DefaultShardCount()
+	}
+	globals.TransMgr.InitAndRunWithConfig(transaction.TransactionMgrConfig{
+		MaxTrans:         misc.MaxTransNumber,
+		ShardCount:       transShardCount,
+		SerialKeyMode:    transaction.SerialKeyModeRouterID,
+		MaxPendingPerKey: 200,
+	})
+	logger.Infof("roomcentersvr transmgr shards=%d serial_key=%s", transShardCount, transaction.SerialKeyModeRouterID.String())
 	if id.IDGen, err = idgen.NewIDGen(); err != nil {
 		return err
 	}

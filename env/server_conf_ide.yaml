@@ -82,6 +82,7 @@ mainsvr:
   self_bus_id: 1.1.2.251
   log_dir: ../logs
   log_level: debug
+  trans_shard_count: 0
 
 mysqlsvr:
   self_bus_id: 1.1.4.251
@@ -109,6 +110,7 @@ roomcentersvr:
   self_bus_id: 1.1.11.251
   log_dir: ../logs
   log_level: debug
+  trans_shard_count: 0
 
 texassvr:
   self_bus_id: 1.1.80.251

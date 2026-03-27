@@ -1,0 +1,148 @@
+package transaction
+
+import (
+	"testing"
+	"time"
+
+	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
+	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
+	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
+)
+
+const testTransactionCmd = g1_protocol.CMD(900001)
+
+func TestNormalizeConfigUsesDefaultShardCount(t *testing.T) {
+	cfg := normalizeConfig(TransactionMgrConfig{
+		MaxTrans:         16,
+		ShardCount:       0,
+		SerialKeyMode:    SerialKeyModeUID,
+		MaxPendingPerKey: 8,
+	})
+
+	if cfg.ShardCount != DefaultShardCount() {
+		t.Fatalf("expected default shard count %d, got %d", DefaultShardCount(), cfg.ShardCount)
+	}
+}
+
+func TestTransactionMgrSerializesByUID(t *testing.T) {
+	mgr := &TransactionMgr{}
+	started := make(chan uint64, 4)
+	release := make(chan struct{}, 4)
+
+	mgr.RegisterCmd(testTransactionCmd, func(c cmd_handler.IContext, data []byte) g1_protocol.ErrorCode {
+		started <- c.Uid()
+		<-release
+		return g1_protocol.ErrorCode_ERR_OK
+	})
+	mgr.InitAndRunWithConfig(TransactionMgrConfig{
+		MaxTrans:         8,
+		ShardCount:       4,
+		SerialKeyMode:    SerialKeyModeUID,
+		MaxPendingPerKey: 4,
+	})
+
+	mgr.ProcessSSPacket(makeTestPacket(1001, 11, testTransactionCmd))
+	if uid := waitStarted(t, started); uid != 1001 {
+		t.Fatalf("expected first transaction uid=1001, got %d", uid)
+	}
+
+	// Same uid but different rid should still serialize behind the in-flight request.
+	mgr.ProcessSSPacket(makeTestPacket(1001, 99, testTransactionCmd))
+	waitFor(t, func() bool { return mgr.StatsSnapshot().PendingPackets == 1 }, "pending packet to be recorded")
+	ensureNoStart(t, started, 150*time.Millisecond)
+
+	release <- struct{}{}
+	if uid := waitStarted(t, started); uid != 1001 {
+		t.Fatalf("expected queued transaction uid=1001, got %d", uid)
+	}
+
+	release <- struct{}{}
+	waitFor(t, func() bool {
+		stats := mgr.StatsSnapshot()
+		return stats.ActiveTransactions == 0 && stats.PendingPackets == 0
+	}, "uid-serialized transactions to drain")
+}
+
+func TestTransactionMgrSerializesByRouterIDAndTracksDrops(t *testing.T) {
+	mgr := &TransactionMgr{}
+	started := make(chan uint64, 4)
+	release := make(chan struct{}, 4)
+
+	mgr.RegisterCmd(testTransactionCmd, func(c cmd_handler.IContext, data []byte) g1_protocol.ErrorCode {
+		started <- c.Uid()
+		<-release
+		return g1_protocol.ErrorCode_ERR_OK
+	})
+	mgr.InitAndRunWithConfig(TransactionMgrConfig{
+		MaxTrans:         8,
+		ShardCount:       4,
+		SerialKeyMode:    SerialKeyModeRouterID,
+		MaxPendingPerKey: 1,
+	})
+
+	mgr.ProcessSSPacket(makeTestPacket(2001, 77, testTransactionCmd))
+	if uid := waitStarted(t, started); uid != 2001 {
+		t.Fatalf("expected first transaction uid=2001, got %d", uid)
+	}
+
+	// Same rid but different uid should still queue behind the running transaction.
+	mgr.ProcessSSPacket(makeTestPacket(2002, 77, testTransactionCmd))
+	waitFor(t, func() bool { return mgr.StatsSnapshot().PendingPackets == 1 }, "router-id pending packet to be recorded")
+
+	// The third packet exceeds MaxPendingPerKey and should be dropped.
+	mgr.ProcessSSPacket(makeTestPacket(2003, 77, testTransactionCmd))
+	waitFor(t, func() bool { return mgr.StatsSnapshot().DroppedPackets == 1 }, "dropped packet counter to increase")
+
+	release <- struct{}{}
+	if uid := waitStarted(t, started); uid != 2002 {
+		t.Fatalf("expected queued router-id transaction uid=2002, got %d", uid)
+	}
+
+	release <- struct{}{}
+	waitFor(t, func() bool {
+		stats := mgr.StatsSnapshot()
+		return stats.ActiveTransactions == 0 && stats.PendingPackets == 0 && stats.DroppedPackets == 1
+	}, "router-id serialized transactions to drain")
+}
+
+func makeTestPacket(uid, rid uint64, cmd g1_protocol.CMD) *sharedstruct.SSPacket {
+	return &sharedstruct.SSPacket{
+		Header: sharedstruct.SSPacketHeader{
+			Uid:      uid,
+			RouterID: rid,
+			Cmd:      uint32(cmd),
+		},
+	}
+}
+
+func waitStarted(t *testing.T, started <-chan uint64) uint64 {
+	t.Helper()
+	select {
+	case uid := <-started:
+		return uid
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for transaction start")
+		return 0
+	}
+}
+
+func ensureNoStart(t *testing.T, started <-chan uint64, timeout time.Duration) {
+	t.Helper()
+	select {
+	case uid := <-started:
+		t.Fatalf("unexpected transaction start for uid=%d", uid)
+	case <-time.After(timeout):
+	}
+}
+
+func waitFor(t *testing.T, cond func() bool, desc string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", desc)
+}

@@ -14,12 +14,6 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
-type iTransaction interface {
-	cmd_handler.IContext
-	run(transID uint32, trans interface{}, packet *sharedstruct.SSPacket,
-		chanIn <-chan *sharedstruct.SSPacket, chanTransRet chan<- transRet)
-}
-
 type Transaction struct {
 	OriPacketHeader sharedstruct.SSPacketHeader
 	// CurFrameHeader sharedstruct.SSPacketHeader

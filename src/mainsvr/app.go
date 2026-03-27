@@ -18,10 +18,11 @@ import (
 	"github.com/Iori372552686/GoOne/lib/api/net_conf"
 	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
 	"github.com/Iori372552686/GoOne/lib/service/router"
-	"github.com/Iori372552686/GoOne/lib/util/sensitive_words"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
+	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	"github.com/Iori372552686/GoOne/lib/util/idgen"
 	"github.com/Iori372552686/GoOne/lib/util/marshal"
+	"github.com/Iori372552686/GoOne/lib/util/sensitive_words"
 	"github.com/Iori372552686/GoOne/src/mainsvr/globals"
 	"github.com/Iori372552686/GoOne/src/mainsvr/globals/rds"
 	"github.com/Iori372552686/GoOne/src/mainsvr/service"
@@ -85,7 +86,17 @@ func (self *MainSvrImpl) OnInit() error {
 	d := ssrpc.NewDispatcher()
 	mainsvrv1.RegisterMainC2SServiceToDispatcher(d, srv)
 	d.RegisterToTransactionMgr(globals.TransMgr)
-	globals.TransMgr.InitAndRun(misc.MaxTransNumber, true, 100)
+	transShardCount := gconf.MainSvrCfg.TransShardCount
+	if transShardCount <= 0 {
+		transShardCount = transaction.DefaultShardCount()
+	}
+	globals.TransMgr.InitAndRunWithConfig(transaction.TransactionMgrConfig{
+		MaxTrans:         misc.MaxTransNumber,
+		ShardCount:       transShardCount,
+		SerialKeyMode:    transaction.SerialKeyModeUID,
+		MaxPendingPerKey: 100,
+	})
+	logger.Infof("mainsvr transmgr shards=%d serial_key=%s", transShardCount, transaction.SerialKeyModeUID.String())
 	if globals.IDGen, err = idgen.NewIDGen(); err != nil {
 		return err
 	}

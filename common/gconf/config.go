@@ -56,9 +56,10 @@ type InfoSvr struct {
 }
 
 type MainSvr struct {
-	SelfBusId string `yaml:"self_bus_id"`
-	LogDir    string `yaml:"log_dir"`
-	LogLevel  string `yaml:"log_level"`
+	SelfBusId       string `yaml:"self_bus_id"`
+	LogDir          string `yaml:"log_dir"`
+	LogLevel        string `yaml:"log_level"`
+	TransShardCount int    `yaml:"trans_shard_count"`
 }
 
 type MySqlSvr struct {
@@ -68,9 +69,10 @@ type MySqlSvr struct {
 }
 
 type RoomCenterSvr struct {
-	SelfBusId string `yaml:"self_bus_id"`
-	LogDir    string `yaml:"log_dir"`
-	LogLevel  string `yaml:"log_level"`
+	SelfBusId       string `yaml:"self_bus_id"`
+	LogDir          string `yaml:"log_dir"`
+	LogLevel        string `yaml:"log_level"`
+	TransShardCount int    `yaml:"trans_shard_count"`
 }
 
 type TexasSvr struct {
@@ -84,7 +86,7 @@ type WebSvr struct {
 	LogDir    string `yaml:"log_dir"`
 	LogLevel  string `yaml:"log_level"`
 
-	HttpServer web_gin.Config    `json:"http_server" yaml:"http_server"`
+	HttpServer web_gin.Config   `json:"http_server" yaml:"http_server"`
 	GRPCServer GRPCServerConfig `json:"grpc_server" yaml:"grpc_server"`
 }
 
