@@ -16,10 +16,11 @@ type TransactionMgr struct {
 	started     bool
 	cmdHandlers map[g1_protocol.CMD]cmd_handler.CmdHandlerFunc
 
-	config      TransactionMgrConfig
-	maxTransNum int32
-	shards      []*transactionShard
-	roundRobin  atomic.Uint32
+	config       TransactionMgrConfig
+	useSerialKey bool
+	maxTransNum  int32
+	shards       []*transactionShard
+	roundRobin   atomic.Uint32
 
 	activeTransactions atomic.Int64
 	pendingPackets     atomic.Int64
@@ -41,19 +42,12 @@ type transactionShard struct {
 }
 
 func (m *TransactionMgr) InitAndRun(maxTrans int32, useUidLock bool, maxUidPendingPacket int) {
-	mode := SerialKeyModeNone
-	if useUidLock {
-		// Keep legacy behavior for old callers: the historical "uid lock" is
-		// actually keyed by RouterID.
-		mode = SerialKeyModeRouterID
-	}
-
 	m.InitAndRunWithConfig(TransactionMgrConfig{
 		MaxTrans:         maxTrans,
 		ShardCount:       1,
-		SerialKeyMode:    mode,
 		MaxPendingPerKey: maxUidPendingPacket,
 	})
+	m.useSerialKey = useUidLock
 }
 
 func (m *TransactionMgr) InitAndRunWithConfig(cfg TransactionMgrConfig) {
@@ -65,6 +59,7 @@ func (m *TransactionMgr) InitAndRunWithConfig(cfg TransactionMgrConfig) {
 	cfg = normalizeConfig(cfg)
 	m.started = true
 	m.config = cfg
+	m.useSerialKey = true
 	m.maxTransNum = cfg.MaxTrans
 
 	shardBufSize := perShardBufferSize(cfg.MaxTrans, cfg.ShardCount)
@@ -170,14 +165,16 @@ func (m *TransactionMgr) selectShard(packet *sharedstruct.SSPacket) *transaction
 }
 
 func (m *TransactionMgr) serialKeyFromHeader(header sharedstruct.SSPacketHeader) (uint64, bool) {
-	switch m.config.SerialKeyMode {
-	case SerialKeyModeUID:
-		return header.Uid, true
-	case SerialKeyModeRouterID:
-		return header.RouterID, true
-	default:
+	if !m.useSerialKey {
 		return 0, false
 	}
+	if header.RouterID != 0 {
+		return header.RouterID, true
+	}
+	if header.Uid != 0 {
+		return header.Uid, true
+	}
+	return 0, false
 }
 
 func (m *TransactionMgr) tryAcquireTransSlot() bool {
@@ -252,7 +249,7 @@ func (s *transactionShard) processSSPacket(packet *sharedstruct.SSPacket) int32 
 		packets := s.pendingPackets[serialKey]
 		if len(packets) >= s.mgr.config.MaxPendingPerKey {
 			s.mgr.onPacketDropped()
-			logger.Errorf("Drop a packet for serial key {mode:%s, key:%d, uid:%d, rid:%d, cmd:%d}", s.mgr.config.SerialKeyMode.String(), serialKey, uid, rid, cmd)
+			logger.Errorf("Drop a packet for serial key {key:%d, uid:%d, rid:%d, cmd:%d}", serialKey, uid, rid, cmd)
 			return -1
 		}
 

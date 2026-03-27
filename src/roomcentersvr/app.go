@@ -69,10 +69,9 @@ func (a *RoomMgrSvrImpl) OnInit() error {
 	globals.TransMgr.InitAndRunWithConfig(transaction.TransactionMgrConfig{
 		MaxTrans:         misc.MaxTransNumber,
 		ShardCount:       transShardCount,
-		SerialKeyMode:    transaction.SerialKeyModeRouterID,
 		MaxPendingPerKey: 200,
 	})
-	logger.Infof("roomcentersvr transmgr shards=%d serial_key=%s", transShardCount, transaction.SerialKeyModeRouterID.String())
+	logger.Infof("roomcentersvr transmgr shards=%d serial_key=routerid_or_uid", transShardCount)
 	if id.IDGen, err = idgen.NewIDGen(); err != nil {
 		return err
 	}

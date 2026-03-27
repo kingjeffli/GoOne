@@ -2,29 +2,9 @@ package transaction
 
 import "runtime"
 
-type SerialKeyMode uint8
-
-const (
-	SerialKeyModeNone SerialKeyMode = iota
-	SerialKeyModeUID
-	SerialKeyModeRouterID
-)
-
-func (m SerialKeyMode) String() string {
-	switch m {
-	case SerialKeyModeUID:
-		return "uid"
-	case SerialKeyModeRouterID:
-		return "router_id"
-	default:
-		return "none"
-	}
-}
-
 type TransactionMgrConfig struct {
 	MaxTrans         int32
 	ShardCount       int
-	SerialKeyMode    SerialKeyMode
 	MaxPendingPerKey int
 }
 
@@ -55,11 +35,6 @@ func normalizeConfig(cfg TransactionMgrConfig) TransactionMgrConfig {
 	}
 	if cfg.ShardCount <= 0 {
 		cfg.ShardCount = 1
-	}
-	switch cfg.SerialKeyMode {
-	case SerialKeyModeNone, SerialKeyModeUID, SerialKeyModeRouterID:
-	default:
-		cfg.SerialKeyMode = SerialKeyModeNone
 	}
 	if cfg.MaxPendingPerKey < 0 {
 		cfg.MaxPendingPerKey = 0

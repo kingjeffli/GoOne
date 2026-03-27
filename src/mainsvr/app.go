@@ -93,10 +93,9 @@ func (self *MainSvrImpl) OnInit() error {
 	globals.TransMgr.InitAndRunWithConfig(transaction.TransactionMgrConfig{
 		MaxTrans:         misc.MaxTransNumber,
 		ShardCount:       transShardCount,
-		SerialKeyMode:    transaction.SerialKeyModeUID,
 		MaxPendingPerKey: 100,
 	})
-	logger.Infof("mainsvr transmgr shards=%d serial_key=%s", transShardCount, transaction.SerialKeyModeUID.String())
+	logger.Infof("mainsvr transmgr shards=%d serial_key=routerid_or_uid", transShardCount)
 	if globals.IDGen, err = idgen.NewIDGen(); err != nil {
 		return err
 	}

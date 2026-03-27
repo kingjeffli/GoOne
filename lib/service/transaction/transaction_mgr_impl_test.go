@@ -15,7 +15,6 @@ func TestNormalizeConfigUsesDefaultShardCount(t *testing.T) {
 	cfg := normalizeConfig(TransactionMgrConfig{
 		MaxTrans:         16,
 		ShardCount:       0,
-		SerialKeyMode:    SerialKeyModeUID,
 		MaxPendingPerKey: 8,
 	})
 
@@ -24,7 +23,7 @@ func TestNormalizeConfigUsesDefaultShardCount(t *testing.T) {
 	}
 }
 
-func TestTransactionMgrSerializesByUID(t *testing.T) {
+func TestTransactionMgrFallsBackToUIDWhenRouterIDIsEmpty(t *testing.T) {
 	mgr := &TransactionMgr{}
 	started := make(chan uint64, 4)
 	release := make(chan struct{}, 4)
@@ -37,17 +36,16 @@ func TestTransactionMgrSerializesByUID(t *testing.T) {
 	mgr.InitAndRunWithConfig(TransactionMgrConfig{
 		MaxTrans:         8,
 		ShardCount:       4,
-		SerialKeyMode:    SerialKeyModeUID,
 		MaxPendingPerKey: 4,
 	})
 
-	mgr.ProcessSSPacket(makeTestPacket(1001, 11, testTransactionCmd))
+	mgr.ProcessSSPacket(makeTestPacket(1001, 0, testTransactionCmd))
 	if uid := waitStarted(t, started); uid != 1001 {
 		t.Fatalf("expected first transaction uid=1001, got %d", uid)
 	}
 
-	// Same uid but different rid should still serialize behind the in-flight request.
-	mgr.ProcessSSPacket(makeTestPacket(1001, 99, testTransactionCmd))
+	// When RouterID is empty, the serial key falls back to uid.
+	mgr.ProcessSSPacket(makeTestPacket(1001, 0, testTransactionCmd))
 	waitFor(t, func() bool { return mgr.StatsSnapshot().PendingPackets == 1 }, "pending packet to be recorded")
 	ensureNoStart(t, started, 150*time.Millisecond)
 
@@ -60,7 +58,7 @@ func TestTransactionMgrSerializesByUID(t *testing.T) {
 	waitFor(t, func() bool {
 		stats := mgr.StatsSnapshot()
 		return stats.ActiveTransactions == 0 && stats.PendingPackets == 0
-	}, "uid-serialized transactions to drain")
+	}, "uid-fallback serialized transactions to drain")
 }
 
 func TestTransactionMgrSerializesByRouterIDAndTracksDrops(t *testing.T) {
@@ -76,7 +74,6 @@ func TestTransactionMgrSerializesByRouterIDAndTracksDrops(t *testing.T) {
 	mgr.InitAndRunWithConfig(TransactionMgrConfig{
 		MaxTrans:         8,
 		ShardCount:       4,
-		SerialKeyMode:    SerialKeyModeRouterID,
 		MaxPendingPerKey: 1,
 	})
 
