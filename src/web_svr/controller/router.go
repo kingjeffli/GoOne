@@ -12,5 +12,6 @@ func LoadWebRoutes(router *gin.Engine) {
 	d, srv := BuildWebDispatcher()
 	d.MountGin(router)
 
+	// Phase 1 (legacy routes): direct gin handlers -> legacy service functions.
 	RegisterLegacyWebRoutes(router, srv)
 }
