@@ -104,6 +104,7 @@ func (m *TransactionMgr) ProcessSSPacket(packet *sharedstruct.SSPacket) {
 	shard.chanInPacket <- packet
 }
 
+// 发给自己（SelfBusId）的消息直接调用ProcessSSPacket，而不到网络上转一圈
 func (m *TransactionMgr) SendPbMsgToMyself(selfBusId uint32, rid uint64, uid uint64, zone uint32, cmd g1_protocol.CMD, pbMsg proto.Message) {
 	data, err := proto.Marshal(pbMsg)
 	if err != nil {

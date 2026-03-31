@@ -50,6 +50,20 @@ func InitAndRun(selfBusId string, cb CbOnRecvSSPacket, rabbitmqAddr string,
 // 最终通过bus发消息的地方（其他都是易用性封装）
 func SendMsg(packetHeader *sharedstruct.SSPacketHeader, packetBody []byte) error {
 	//logger.Infof("Send bus cmd: %v | %v", g1_protocol.CMD(packetHeader.Cmd), packetHeader)
+	if router.busImpl != nil && packetHeader.DstBusID == router.busImpl.SelfBusId() {
+		packet := &sharedstruct.SSPacket{
+			Header: *packetHeader,
+		}
+		if len(packetBody) > 0 {
+			packet.Body = make([]byte, len(packetBody))
+			copy(packet.Body, packetBody)
+		}
+		if router.cbOnRecvSSPacket != nil {
+			router.cbOnRecvSSPacket(packet)
+		}
+		return nil
+	}
+
 	err := router.busImpl.Send(packetHeader.DstBusID, packetHeader.ToBytes(), packetBody)
 	if err != nil {
 		e := fmt.Sprintf("failed to send bus message {header:%#v, bodyLen:%v} | %v",
