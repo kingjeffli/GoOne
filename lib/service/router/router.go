@@ -75,12 +75,15 @@ func SendMsg(packetHeader *sharedstruct.SSPacketHeader, packetBody []byte) error
 }
 
 func SendPbMsg(packetHeader *sharedstruct.SSPacketHeader, pbMsg proto.Message) error {
-	logger.CmdDebugf(packetHeader.Cmd, "SendPbMsg: %#v", pbMsg.String())
 	packetBody, err := proto.Marshal(pbMsg)
 	if err != nil {
 		return err
 	}
 	packetHeader.BodyLen = uint32(len(packetBody))
+	logger.CmdDebugf(packetHeader.Cmd,
+		"SendPbMsg {cmd:%v, uid:%v, rid:%v, srcBusId:%v, dstBusId:%v, bodyLen:%d, msgType:%s}",
+		packetHeader.Cmd, packetHeader.Uid, packetHeader.RouterID, packetHeader.SrcBusID, packetHeader.DstBusID,
+		len(packetBody), protoMessageType(pbMsg))
 	return SendMsg(packetHeader, packetBody)
 }
 
@@ -107,11 +110,13 @@ func SendMsgByBusId(busId uint32, routerKey, uid uint64, zone uint32, cmd g1_pro
 }
 
 func SendPbMsgByBusId(busId uint32, uid uint64, zone uint32, cmd g1_protocol.CMD, sendSeq uint16, srcTransId uint32, pbMsg proto.Message) error {
-	logger.Debugf("SendPbMsgByBusId: %#v", pbMsg.String())
 	data, err := proto.Marshal(pbMsg)
 	if err != nil {
 		return err
 	}
+	logger.CmdDebugf(uint32(cmd),
+		"SendPbMsgByBusId {dstBusId:%v, uid:%v, zone:%v, cmd:%v, bodyLen:%d, msgType:%s}",
+		busId, uid, zone, uint32(cmd), len(data), protoMessageType(pbMsg))
 	return SendMsgByBusId(busId, 0, uid, zone, cmd, sendSeq, srcTransId, data)
 }
 
@@ -185,11 +190,13 @@ func BroadcastMsgByServerType(svrType uint32, uid uint64, cmd g1_protocol.CMD, s
 }
 
 func BroadcastPbMsgByServerType(svrType uint32, uid uint64, cmd g1_protocol.CMD, sendSeq uint16, pbMsg proto.Message) error {
-	logger.Debugf("BroadcastPbMsgByServerType: %#v", pbMsg.String())
 	data, err := proto.Marshal(pbMsg)
 	if err != nil {
 		return err
 	}
+	logger.CmdDebugf(uint32(cmd),
+		"BroadcastPbMsgByServerType {svrType:%v, uid:%v, cmd:%v, bodyLen:%d, msgType:%s}",
+		svrType, uid, uint32(cmd), len(data), protoMessageType(pbMsg))
 	return BroadcastMsgByServerType(svrType, uid, cmd, sendSeq, data)
 }
 
@@ -222,6 +229,13 @@ var severInstanceMgr svrinstmgr.ServerInstanceMgr
 var router struct {
 	busImpl          bus.IBus
 	cbOnRecvSSPacket CbOnRecvSSPacket
+}
+
+func protoMessageType(msg proto.Message) string {
+	if msg == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("%T", msg)
 }
 
 func onRecvBusMsg(srcBusId uint32, data []byte) error {

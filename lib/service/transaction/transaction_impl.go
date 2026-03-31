@@ -105,7 +105,7 @@ func (t *Transaction) ParseMsg(data []byte, msg proto.Message) error {
 		t.Warningf("Fail to unmarshal req | %v", err)
 		return err
 	}
-	t.Debugf("parse msg: %#v", msg.String())
+	t.Debugf("parse msg {bodyLen:%d, msgType:%s}", len(data), protoMessageType(msg))
 	return nil
 }
 
@@ -128,7 +128,8 @@ func (t *Transaction) CallMsgByRouter(svrType uint32, routerId uint64, cmd g1_pr
 }
 
 func (t *Transaction) CallOtherMsgBySvrType(svrType uint32, routerId, uid uint64, zone uint32, cmd g1_protocol.CMD, req proto.Message, rsp proto.Message) error {
-	t.Debugf("CallMsgBySvrType: %#v", req.String())
+	t.Debugf("CallMsgBySvrType {dstSvrType:%v, routerId:%v, uid:%v, zone:%v, cmd:%v, reqType:%s}",
+		svrType, routerId, uid, zone, uint32(cmd), protoMessageType(req))
 	t.sendSeq += 1
 	err := router.SendPbMsgBySvrType(svrType, routerId, uid, zone, cmd, t.sendSeq, t.TransID(), req)
 	if err != nil {
@@ -140,7 +141,7 @@ func (t *Transaction) CallOtherMsgBySvrType(svrType uint32, routerId, uid uint64
 }
 
 func (t *Transaction) SendMsgByServerType(svrType uint32, cmd g1_protocol.CMD, req proto.Message) error {
-	t.Debugf("SendMsgByServerType: %#v", req.String())
+	t.Debugf("SendMsgByServerType {dstSvrType:%v, cmd:%v, reqType:%s}", svrType, uint32(cmd), protoMessageType(req))
 	t.sendSeq += 1
 	err := router.SendPbMsgBySvrTypeSimple(svrType, t.Uid(), t.Zone(), cmd, req)
 	if err != nil {
@@ -150,7 +151,7 @@ func (t *Transaction) SendMsgByServerType(svrType uint32, cmd g1_protocol.CMD, r
 }
 
 func (t *Transaction) SendMsgByRouter(svrType uint32, rid uint64, cmd g1_protocol.CMD, req proto.Message) error {
-	t.Debugf("SendMsgByRouter: %#v", req.String())
+	t.Debugf("SendMsgByRouter {dstSvrType:%v, rid:%v, cmd:%v, reqType:%s}", svrType, rid, uint32(cmd), protoMessageType(req))
 	t.sendSeq += 1
 	err := router.SendPbMsgByRouter(svrType, rid, t.Uid(), t.Zone(), cmd, req)
 	if err != nil {
@@ -160,7 +161,7 @@ func (t *Transaction) SendMsgByRouter(svrType uint32, rid uint64, cmd g1_protoco
 }
 
 func (t *Transaction) BroadcastByServerType(svrType uint32, cmd g1_protocol.CMD, req proto.Message) error {
-	t.Debugf("BroadcastByServerType: %#v", req.String())
+	t.Debugf("BroadcastByServerType {dstSvrType:%v, cmd:%v, reqType:%s}", svrType, uint32(cmd), protoMessageType(req))
 	t.sendSeq += 1
 	err := router.BroadcastPbMsgByServerType(svrType, t.Uid(), cmd, t.sendSeq, req)
 	if err != nil {
@@ -170,7 +171,7 @@ func (t *Transaction) BroadcastByServerType(svrType uint32, cmd g1_protocol.CMD,
 }
 
 func (t *Transaction) CallMsgByBusId(busId uint32, cmd g1_protocol.CMD, req proto.Message, rsp proto.Message) error {
-	t.Debugf("CallMsgByBusId: %#v", req.String())
+	t.Debugf("CallMsgByBusId {dstBusId:%v, cmd:%v, reqType:%s}", busId, uint32(cmd), protoMessageType(req))
 	t.sendSeq += 1
 	err := router.SendPbMsgByBusId(busId, t.Uid(), t.Zone(), cmd, t.sendSeq, t.TransID(), req)
 	if err != nil {
@@ -188,22 +189,22 @@ func (t *Transaction) waitRsp(dstSvrType uint32, dstSvrIns uint32, cmd g1_protoc
 	for {
 		select {
 		case <-ti.C:
-			logger.Errorf("timeout to CallMsgBySvrType {svrType:%v, svrIns:%v, uid:%v, cmd:%v, req:%#v}",
-				dstSvrType, dstSvrIns, t.Uid(), cmd, req.String())
+			logger.Errorf("timeout to CallMsgBySvrType {svrType:%v, svrIns:%v, uid:%v, cmd:%v, reqType:%s}",
+				dstSvrType, dstSvrIns, t.Uid(), cmd, protoMessageType(req))
 			return errors.New("timeout")
 		case packet, ok := <-t.chanIn:
 			if !ok {
 				logger.Errorf("Failed to CallMsgBySvrType as chanInPacket is closed "+
-					"{svrType:%v, svrIns:%v, uid:%v, cmd:%v, rid:%v req:%#v}",
-					dstSvrType, dstSvrIns, t.Uid(), cmd, t.Rid(), req.String())
+					"{svrType:%v, svrIns:%v, uid:%v, cmd:%v, rid:%v, reqType:%s}",
+					dstSvrType, dstSvrIns, t.Uid(), cmd, t.Rid(), protoMessageType(req))
 				return errors.New("channel is closed")
 			}
 			// Primary match is CmdSeq (Transaction-driven request/response correlation).
 			// Historically we also enforced rspCmd == reqCmd+1, but IDL-driven ssrpc may override cmd_resp.
 			if packet.Header.CmdSeq != t.sendSeq {
 				logger.Warningf("Received a packet which is not what I'm waiting for "+
-					"{dstSvrType:%v, dstSvrIns:%v, uid:%v, cmd:%v, rid:%v,req:%#v, recvPacket:%#v}",
-					dstSvrType, dstSvrIns, t.Uid(), cmd, t.Rid(), req.String(), packet.Header)
+					"{dstSvrType:%v, dstSvrIns:%v, uid:%v, cmd:%v, rid:%v, reqType:%s, recvPacket:%#v}",
+					dstSvrType, dstSvrIns, t.Uid(), cmd, t.Rid(), protoMessageType(req), packet.Header)
 				break
 			}
 
@@ -214,10 +215,17 @@ func (t *Transaction) waitRsp(dstSvrType uint32, dstSvrIns uint32, cmd g1_protoc
 			}
 
 			err := proto.Unmarshal(packet.Body, rsp)
-			t.Debugf("Received a rsp: %#v", rsp.String())
+			t.Debugf("Received rsp {rspCmd:%v, bodyLen:%d, rspType:%s}", packet.Header.Cmd, len(packet.Body), protoMessageType(rsp))
 			return err
 		}
 		ti.Stop()
 		ti = time.NewTimer(d)
 	}
+}
+
+func protoMessageType(msg proto.Message) string {
+	if msg == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("%T", msg)
 }
