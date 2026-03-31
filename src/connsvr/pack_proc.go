@@ -1,86 +1,17 @@
 package main
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
-	"github.com/Iori372552686/GoOne/lib/net/net_mgr"
 	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/connsvr/globals"
 	"github.com/Iori372552686/GoOne/src/connsvr/ws"
+	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 )
-
-type clientPacketRoute struct {
-	name   string
-	mgr    ws.ClientConnMgr
-	client *net_mgr.Client
-}
-
-func routeScore(client *net_mgr.Client, ip, port uint32) int {
-	if client == nil {
-		return -1
-	}
-	score := 0
-	if ip != 0 && client.Ip == ip {
-		score += 2
-	}
-	if port != 0 && client.Port == port {
-		score++
-	}
-	return score
-}
-
-func pickClientPacketRoute(routes []clientPacketRoute, ip, port uint32) *clientPacketRoute {
-	var (
-		bestIdx   = -1
-		bestScore = -1
-		tied      = false
-		available = -1
-	)
-	for i := range routes {
-		if routes[i].client != nil && available == -1 {
-			available = i
-		}
-		score := routeScore(routes[i].client, ip, port)
-		if score > bestScore {
-			bestIdx = i
-			bestScore = score
-			tied = false
-			continue
-		}
-		if score >= 0 && score == bestScore {
-			tied = true
-		}
-	}
-
-	if bestScore > 0 && bestIdx >= 0 && !tied {
-		return &routes[bestIdx]
-	}
-	if available >= 0 {
-		return &routes[available]
-	}
-	return nil
-}
-
-func sendClientPacket(uid uint64, ip, port uint32, header []byte, body []byte) error {
-	routes := []clientPacketRoute{
-		{name: "ws", mgr: globals.ConnWsSvr, client: globals.ConnWsSvr.GetClientByUid(uid)},
-		{name: "tcp", mgr: globals.ConnTcpSvr, client: globals.ConnTcpSvr.GetClientByUid(uid)},
-	}
-
-	route := pickClientPacketRoute(routes, ip, port)
-	if route == nil {
-		return fmt.Errorf("client route not found uid=%d ip=%d port=%d", uid, ip, port)
-	}
-	if err := route.mgr.SendByUid(uid, header, body); err != nil {
-		return fmt.Errorf("send client packet via %s failed uid=%d ip=%d port=%d: %w", route.name, uid, ip, port, err)
-	}
-	return nil
-}
 
 // proc WebSocket packet
 func onWebSocketPacket(conn net.Conn, data []byte) {
@@ -186,10 +117,10 @@ func onRecvSSPacket(packet *sharedstruct.SSPacket) {
 			Cmd:     packet.Header.Cmd,
 			BodyLen: packet.Header.BodyLen,
 		}
-		if err := sendClientPacket(packet.Header.Uid, packet.Header.Ip, packet.Header.Flag, csPacketHeader.ToBytes(), packet.Body); err != nil {
-			logger.Errorf("%v", err)
-			return
-		}
+		//globals.ConnTcpSvr.SendByUid(packet.Header.Uid, csPacketHeader.ToBytes(), packet.Body)
+		globals.ConnWsSvr.SendByUid(packet.Header.Uid, csPacketHeader.ToBytes(), packet.Body)
+	} else if packet.Header.Cmd == uint32(g1_protocol.CMD_CONN_KICK_OUT_REQ) {
+		//onSSPacketConnKickout(packet)
 	} else {
 		globals.TransMgr.ProcessSSPacket(packet)
 		packet = nil // packet所有权转交给transmgr，后面不能再用packet（包括data）
