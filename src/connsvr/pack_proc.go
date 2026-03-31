@@ -11,11 +11,12 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/connsvr/globals"
+	"github.com/Iori372552686/GoOne/src/connsvr/ws"
 )
 
 type clientPacketRoute struct {
 	name   string
-	mgr    clientConnMgr
+	mgr    ws.ClientConnMgr
 	client *net_mgr.Client
 }
 
@@ -103,7 +104,7 @@ func onWebSocketPacket(conn net.Conn, data []byte) {
 	}
 
 	// --- Try dispatcher: registered client-packet handlers (e.g. login pre-auth) ---
-	ic := newClientPacketIContext(conn, &packetHeader, globals.ConnWsSvr, ssrpc.TransportWS)
+	ic := ws.NewClientPacketIContext(conn, &packetHeader, globals.ConnWsSvr, ssrpc.TransportWS)
 	if _, handled := globals.ClientPacketDispatcher.DispatchWS(ic, packetHeader.Cmd, packetBody); handled {
 		return
 	}
@@ -151,7 +152,7 @@ func onTcpPacket(conn net.Conn, data []byte) {
 	}
 
 	// --- Try dispatcher: registered client-packet handlers (e.g. login pre-auth) ---
-	ic := newClientPacketIContext(conn, &packetHeader, globals.ConnTcpSvr, ssrpc.TransportTCP)
+	ic := ws.NewClientPacketIContext(conn, &packetHeader, globals.ConnTcpSvr, ssrpc.TransportTCP)
 	if _, handled := globals.ClientPacketDispatcher.DispatchWS(ic, packetHeader.Cmd, packetBody); handled {
 		return
 	}

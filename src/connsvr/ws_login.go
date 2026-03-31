@@ -10,6 +10,7 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/src/connsvr/globals"
 	"github.com/Iori372552686/GoOne/src/connsvr/login"
+	"github.com/Iori372552686/GoOne/src/connsvr/ws"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"github.com/golang/protobuf/proto"
 )
@@ -27,7 +28,7 @@ func (s *ClientLoginGatewayImpl) Login(ctx *ssrpc.Context, req *g1_protocol.Logi
 	if ctx == nil || ctx.IContext == nil {
 		return nil, ssrpc.E(g1_protocol.ErrorCode_ERR_INTERNAL, "missing client packet context")
 	}
-	clientCtx, ok := any(ctx.IContext).(*clientPacketIContext)
+	clientCtx, ok := any(ctx.IContext).(*ws.ClientPacketIContext)
 	if !ok {
 		logger.Errorf("conn login gateway: unexpected IContext type %T", ctx.IContext)
 		return nil, ssrpc.E(g1_protocol.ErrorCode_ERR_INTERNAL, "invalid client packet context")

@@ -4,7 +4,6 @@ package websvrv1
 
 import (
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
-	gin "github.com/gin-gonic/gin"
 )
 
 // WebApiServiceSS is the ssrpc service interface for WebApiService.
@@ -44,39 +43,6 @@ func NewWebApiServiceSServer(impl WebApiServiceSS, opts ssrpc.DefaultMWOptions) 
 type WebApiServiceSServer struct {
 	Impl WebApiServiceSS
 	MW []ssrpc.Middleware
-}
-
-// RegisterWebApiServiceToGin binds HTTP routes -> service methods (Gin).
-func RegisterWebApiServiceToGin(r gin.IRoutes, srv WebApiServiceSServer) {
-	if r == nil || srv.Impl == nil {
-		return
-	}
-
-	r.Handle("GET", "/v1/web/ping", ssrpc.WrapHTTPGin(
-		ssrpc.MethodDesc{
-			Cmd: 0,
-			Name: "web ping",
-		},
-		srv.MW,
-		func() any { return new(PingReq) },
-		func(ctx *ssrpc.Context, in any) (any, error) {
-			return srv.Impl.Ping(ctx, in.(*PingReq))
-		},
-	))
-
-	r.Handle("POST", "/v1/web/msg-sec-check", ssrpc.WrapHTTPGin(
-		ssrpc.MethodDesc{
-			Cmd: 0,
-			Sign: true,
-			Name: "msg security check",
-		},
-		srv.MW,
-		func() any { return new(MsgSecCheckReq) },
-		func(ctx *ssrpc.Context, in any) (any, error) {
-			return srv.Impl.MsgSecCheck(ctx, in.(*MsgSecCheckReq))
-		},
-	))
-
 }
 
 // RegisterWebApiServiceToGRPC registers gRPC handlers for WebApiService.

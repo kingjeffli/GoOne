@@ -177,7 +177,7 @@ docker compose -f env/env_docker.yaml up -d
 ./main.sh docker status  --env dev_local
 ```
 
-> Docker 配置来自：[`env/env_docker.yaml`](env/env_docker.yaml)
+> Docker 配置来自：[`env/env_docker.yaml`](etc/env/env_docker.yaml)
 
 ### 4.4 编译
 

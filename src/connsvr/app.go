@@ -56,16 +56,12 @@ func (self *AppSvrImpl) OnInit() error {
 	globals.SignMgr.InitAndRun(gconf.ConnSvrCfg.HTTPSigns)
 	//-- init RestApi mgr
 	globals.RestMgr.Init(gconf.ConnSvrCfg.RestApiConf, globals.SignMgr)
-
-	regClientPacketHandlers()
-
 	srv := connsvrv1.NewConnServiceSServer(&service.ConnServiceImpl{}, ssrpc.DefaultMWOptions{})
 	d := ssrpc.NewDispatcher()
 	connsvrv1.RegisterConnServiceToDispatcher(d, srv)
 	d.RegisterToTransactionMgr(globals.TransMgr)
 
 	globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
-
 	err = globals.ConnTcpSvr.CreateTcpServer("", gconf.ConnSvrCfg.ListenPort+1, onTcpPacket)
 	if err != nil {
 		logger.Errorf("Failed to initialize TcpServer | %v", err)
