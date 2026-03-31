@@ -40,6 +40,13 @@ type BaseCfg struct {
 	RestApiConf        []rest_api.Config  `yaml:"rest_api_config"`      // restapi配置
 	DbInstances        []redis.Config     `yaml:"db_instances"`         // redis配置
 	Pprof              bool               `yaml:"pprof"`                // 是否开启pprof
+	AdminServer        AdminServerConfig  `yaml:"admin_server"`         // admin server 配置
+}
+
+type AdminServerConfig struct {
+	Enabled bool   `yaml:"enabled"` // 是否开启统一 admin server
+	IP      string `yaml:"ip"`      // 监听 ip，为空时监听全部网卡
+	Port    int    `yaml:"port"`    // 监听端口，为 0 时按服务类型回退到默认端口
 }
 
 type ConnSvr struct {
@@ -56,10 +63,13 @@ type InfoSvr struct {
 }
 
 type MainSvr struct {
-	SelfBusId       string `yaml:"self_bus_id"`
-	LogDir          string `yaml:"log_dir"`
-	LogLevel        string `yaml:"log_level"`
-	TransShardCount int    `yaml:"trans_shard_count"`
+	SelfBusId              string   `yaml:"self_bus_id"`
+	LogDir                 string   `yaml:"log_dir"`
+	LogLevel               string   `yaml:"log_level"`
+	TransShardCount        int      `yaml:"trans_shard_count"`
+	RoleSyncPatchEnabled   bool     `yaml:"role_sync_patch_enabled"`
+	RoleSyncPatchAllowUids []uint64 `yaml:"role_sync_patch_allow_uids"`
+	RolePersistDebounceSec int      `yaml:"role_persist_debounce_sec"`
 }
 
 type MySqlSvr struct {

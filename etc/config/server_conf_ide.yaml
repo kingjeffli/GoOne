@@ -1,6 +1,10 @@
 # 根层级直接对应 BaseCfg 的字段
 base_cfg:
   pprof: true
+  admin_server:
+    enabled: true
+    ip: ""
+    port: 0
   register_addr: '113.45.34.170:12181'
   bus_mq_addr: 'amqp://guest:guest@113.45.34.170:15672/'
   game_data_dir: ../common/gamedata/data

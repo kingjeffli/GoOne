@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.2
-// source: roomcentersvr.proto
+// source: proto/service/roomcentersvr.proto
 
 package roomcenterv1
 
@@ -23,12 +23,11 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-var File_roomcentersvr_proto protoreflect.FileDescriptor
+var File_proto_service_roomcentersvr_proto protoreflect.FileDescriptor
 
-const file_roomcentersvr_proto_rawDesc = "" +
+const file_proto_service_roomcentersvr_proto_rawDesc = "" +
 	"\n" +
-	"\x13roomcentersvr.proto\x12\x12game.roomcenter.v1\x1a\x1egoone/options/v1/options.proto\x1a\fclient.proto\x1a\n" +
-	"room.proto\x1a\fstruct.proto\x1a\x1bgoogle/protobuf/empty.proto2\x99\x05\n" +
+	"!proto/service/roomcentersvr.proto\x12\x12game.roomcenter.v1\x1a\x1egoone/options/v1/options.proto\x1a\x17proto/core/client.proto\x1a\x15proto/core/room.proto\x1a\x17proto/core/struct.proto\x1a\x1bgoogle/protobuf/empty.proto2\x99\x05\n" +
 	"\x16RoomCenterInnerService\x12c\n" +
 	"\x04Tick\x12\x19.g1.protocol.InnerTickReq\x1a\x16.google.protobuf.Empty\"(\xca\xe4\x1d$\b\x88\xa0,\x18\x01z\x1croomcentersvr tick (one-way)\x12t\n" +
 	"\bRoomList\x12\x18.g1.protocol.RoomListReq\x1a\x18.g1.protocol.RoomListRsp\"4\xca\xe4\x1d0*#CMD_ROOM_CENTER_INNER_ROOM_LIST_REQz\troom list\x12~\n" +
@@ -37,7 +36,7 @@ const file_roomcentersvr_proto_rawDesc = "" +
 	"\x0eUpdateRoomInfo\x12\x19.g1.protocol.RoomShowInfo\x1a\x16.google.protobuf.Empty\"N\xca\xe4\x1dJ\x18\x01**CMD_ROOM_CENTER_INNER_UPDATE_ROOM_INFO_REQz\x1aupdate room info (one-way)\x12\x8d\x01\n" +
 	"\vDelRoomInfo\x12\x19.g1.protocol.RoomShowInfo\x1a\x16.google.protobuf.Empty\"K\xca\xe4\x1dG\x18\x01*'CMD_ROOM_CENTER_INNER_DEL_ROOM_INFO_REQz\x1adelete room info (one-way)BHZFgithub.com/Iori372552686/GoOne/api/gen/game/roomcenter/v1;roomcenterv1b\x06proto3"
 
-var file_roomcentersvr_proto_goTypes = []any{
+var file_proto_service_roomcentersvr_proto_goTypes = []any{
 	(*protocol.InnerTickReq)(nil),  // 0: g1.protocol.InnerTickReq
 	(*protocol.RoomListReq)(nil),   // 1: g1.protocol.RoomListReq
 	(*protocol.QuickStartReq)(nil), // 2: g1.protocol.QuickStartReq
@@ -46,7 +45,7 @@ var file_roomcentersvr_proto_goTypes = []any{
 	(*protocol.RoomListRsp)(nil),   // 5: g1.protocol.RoomListRsp
 	(*protocol.QuickStartRsp)(nil), // 6: g1.protocol.QuickStartRsp
 }
-var file_roomcentersvr_proto_depIdxs = []int32{
+var file_proto_service_roomcentersvr_proto_depIdxs = []int32{
 	0, // 0: game.roomcenter.v1.RoomCenterInnerService.Tick:input_type -> g1.protocol.InnerTickReq
 	1, // 1: game.roomcenter.v1.RoomCenterInnerService.RoomList:input_type -> g1.protocol.RoomListReq
 	2, // 2: game.roomcenter.v1.RoomCenterInnerService.QuickStart:input_type -> g1.protocol.QuickStartReq
@@ -64,25 +63,25 @@ var file_roomcentersvr_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_roomcentersvr_proto_init() }
-func file_roomcentersvr_proto_init() {
-	if File_roomcentersvr_proto != nil {
+func init() { file_proto_service_roomcentersvr_proto_init() }
+func file_proto_service_roomcentersvr_proto_init() {
+	if File_proto_service_roomcentersvr_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_roomcentersvr_proto_rawDesc), len(file_roomcentersvr_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_service_roomcentersvr_proto_rawDesc), len(file_proto_service_roomcentersvr_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   0,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_roomcentersvr_proto_goTypes,
-		DependencyIndexes: file_roomcentersvr_proto_depIdxs,
+		GoTypes:           file_proto_service_roomcentersvr_proto_goTypes,
+		DependencyIndexes: file_proto_service_roomcentersvr_proto_depIdxs,
 	}.Build()
-	File_roomcentersvr_proto = out.File
-	file_roomcentersvr_proto_goTypes = nil
-	file_roomcentersvr_proto_depIdxs = nil
+	File_proto_service_roomcentersvr_proto = out.File
+	file_proto_service_roomcentersvr_proto_goTypes = nil
+	file_proto_service_roomcentersvr_proto_depIdxs = nil
 }

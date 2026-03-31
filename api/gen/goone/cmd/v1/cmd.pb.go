@@ -30,6 +30,7 @@ const (
 	CMD_SC_CHAT                                 CMD = 12291
 	CMD_SC_DATA_CHANGE_NOTIFY                   CMD = 12292
 	CMD_SC_GAME_EVENT_NOTIFY                    CMD = 12293
+	CMD_SC_SYNC_USER_DATA_V2                    CMD = 12294
 	CMD_CONN_KICK_OUT_REQ                       CMD = 69632
 	CMD_CONN_KICK_OUT_RSP                       CMD = 69633
 	CMD_CONN_BROADCAST_REQ                      CMD = 69634
@@ -262,6 +263,7 @@ var (
 		12291:   "SC_CHAT",
 		12292:   "SC_DATA_CHANGE_NOTIFY",
 		12293:   "SC_GAME_EVENT_NOTIFY",
+		12294:   "SC_SYNC_USER_DATA_V2",
 		69632:   "CONN_KICK_OUT_REQ",
 		69633:   "CONN_KICK_OUT_RSP",
 		69634:   "CONN_BROADCAST_REQ",
@@ -491,6 +493,7 @@ var (
 		"SC_CHAT":                                 12291,
 		"SC_DATA_CHANGE_NOTIFY":                   12292,
 		"SC_GAME_EVENT_NOTIFY":                    12293,
+		"SC_SYNC_USER_DATA_V2":                    12294,
 		"CONN_KICK_OUT_REQ":                       69632,
 		"CONN_KICK_OUT_RSP":                       69633,
 		"CONN_BROADCAST_REQ":                      69634,
@@ -746,14 +749,15 @@ var File_goone_cmd_v1_cmd_proto protoreflect.FileDescriptor
 
 const file_goone_cmd_v1_cmd_proto_rawDesc = "" +
 	"\n" +
-	"\x16goone/cmd/v1/cmd.proto\x12\fgoone.cmd.v1*\xa2:\n" +
+	"\x16goone/cmd/v1/cmd.proto\x12\fgoone.cmd.v1*\xbd:\n" +
 	"\x03CMD\x12\r\n" +
 	"\t_CMD_ZERO\x10\x00\x12\x10\n" +
 	"\vSC_KICK_OUT\x10\x81`\x12\x16\n" +
 	"\x11SC_SYNC_USER_DATA\x10\x82`\x12\f\n" +
 	"\aSC_CHAT\x10\x83`\x12\x1a\n" +
 	"\x15SC_DATA_CHANGE_NOTIFY\x10\x84`\x12\x19\n" +
-	"\x14SC_GAME_EVENT_NOTIFY\x10\x85`\x12\x17\n" +
+	"\x14SC_GAME_EVENT_NOTIFY\x10\x85`\x12\x19\n" +
+	"\x14SC_SYNC_USER_DATA_V2\x10\x86`\x12\x17\n" +
 	"\x11CONN_KICK_OUT_REQ\x10\x80\xa0\x04\x12\x17\n" +
 	"\x11CONN_KICK_OUT_RSP\x10\x81\xa0\x04\x12\x18\n" +
 	"\x12CONN_BROADCAST_REQ\x10\x82\xa0\x04\x12\x18\n" +

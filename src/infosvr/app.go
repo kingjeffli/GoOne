@@ -1,12 +1,11 @@
 package main
 
 import (
-	"runtime"
-
 	infosvrv1 "github.com/Iori372552686/GoOne/api/gen/game/infosvr/v1"
 	"github.com/Iori372552686/GoOne/common/gconf"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
+	"github.com/Iori372552686/GoOne/lib/service/bootstrap"
 	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/util/marshal"
@@ -20,85 +19,54 @@ func onRecvSSPacket(packet *sharedstruct.SSPacket) {
 	packet = nil // packet所有权转交给transmgr，后面不能再用packet（包括data）
 }
 
-type InfoSvrImpl struct {
-}
-
-func (a *InfoSvrImpl) OnInit() error {
-	//-- set sys args
-	runtime.GOMAXPROCS(runtime.NumCPU() + 1)
-
-	//-- load cfg
-	err := a.OnReload()
-	if err != nil {
-		logger.Errorf("Failed to load config | %v", err)
-		return err
-	}
-
-	// init zap logger
-	if _, err = logger.InitLogger(gconf.InfoSvrCfg.LogDir, gconf.InfoSvrCfg.LogLevel, "infosvr"); err != nil {
-		return err
-	}
-
-	globals.InfoMgr.RedisMgr.InitAndRun(gconf.InfoSvrCfg.DbInstances)
-
-	err = router.InitAndRun(gconf.InfoSvrCfg.SelfBusId,
-		onRecvSSPacket,
-		gconf.InfoSvrCfg.BusMQAddr,
-		misc.ServerRouteRules,
-		gconf.InfoSvrCfg.RegisterAddr,
-	)
-	if err != nil {
-		return err
-	}
-
-	srv := infosvrv1.NewInfoServiceSServer(&service.InfoServiceImpl{}, ssrpc.DefaultMWOptions{})
-	d := ssrpc.NewDispatcher()
-	infosvrv1.RegisterInfoServiceToDispatcher(d, srv)
-	d.RegisterToTransactionMgr(globals.TransMgr)
-	globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
-
-	logger.Infof("infosvr init success")
-	return nil
-}
-
-func (a *InfoSvrImpl) OnReload() error {
-	err := marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.InfoSvrCfg)
-	if err != nil {
-		logger.Errorf("failed to load svr config | %s", err)
-		return err
-	}
-	return nil
-}
-
-/**
-* @Description:  proc
-* @return: bool
-* @Author: Iori
-* @Date: 2022-04-27 21:05:01
-**/
-func (self *InfoSvrImpl) OnProc() bool {
-	// mainloop  proc
-	return true
-}
-
-/**
-* @Description: mainloop tick
-* @param: lastMs
-* @param: nowMs
-* @Author: Iori
-* @Date: 2022-04-27 21:04:53
-**/
-func (self *InfoSvrImpl) OnTick(lastMs, nowMs int64) {
-}
-
-/**
-* @Description: main exit
-* @Author: Iori
-* @Date: 2022-04-27 21:05:07
-**/
-func (self *InfoSvrImpl) OnExit() {
-	// game exit todo something
-	logger.Flush()
-	logger.Infof("service exit, right now !")
-	logger.Infof("================== MainSvrImpl Stop =========================")
+func newApp() *bootstrap.ServiceApp {
+	return bootstrap.NewServiceApp(bootstrap.Options{
+		ServiceName: "infosvr",
+		LoadConfig: func() error {
+			return marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.InfoSvrCfg)
+		},
+		LoggerConfig: func() bootstrap.LoggerConfig {
+			return bootstrap.LoggerConfig{
+				Dir:   gconf.InfoSvrCfg.LogDir,
+				Level: gconf.InfoSvrCfg.LogLevel,
+				Name:  "infosvr",
+			}
+		},
+		AdminConfig: func() bootstrap.AdminConfig {
+			return bootstrap.NewAdminConfig(
+				"infosvr",
+				misc.ServerType_InfoSvr,
+				gconf.InfoSvrCfg.AdminServer.Enabled,
+				gconf.InfoSvrCfg.Pprof,
+				gconf.InfoSvrCfg.AdminServer.IP,
+				gconf.InfoSvrCfg.AdminServer.Port,
+			)
+		},
+		InitDeps: func() error {
+			return globals.InfoMgr.RedisMgr.InitAndRun(gconf.InfoSvrCfg.DbInstances)
+		},
+		RegisterHandlers: func() error {
+			srv := infosvrv1.NewInfoServiceSServer(&service.InfoServiceImpl{}, ssrpc.DefaultMWOptions{})
+			d := ssrpc.NewDispatcher()
+			infosvrv1.RegisterInfoServiceToDispatcher(d, srv)
+			d.RegisterToTransactionMgr(globals.TransMgr)
+			return nil
+		},
+		StartRuntime: func() error {
+			globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
+			return router.InitAndRun(
+				gconf.InfoSvrCfg.SelfBusId,
+				onRecvSSPacket,
+				gconf.InfoSvrCfg.BusMQAddr,
+				misc.ServerRouteRules,
+				gconf.InfoSvrCfg.RegisterAddr,
+			)
+		},
+		OnProc: func() bool {
+			return true
+		},
+		OnExit: func() {
+			logger.Infof("================== infosvr Stop =========================")
+		},
+	})
 }

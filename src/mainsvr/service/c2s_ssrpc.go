@@ -6,10 +6,10 @@ import (
 
 	"github.com/Iori372552686/GoOne/common/gamedata/repository/mall_config"
 	"github.com/Iori372552686/GoOne/common/gamedata/repository/texas_config"
-	"github.com/Iori372552686/GoOne/lib/service/bus"
-	"github.com/Iori372552686/GoOne/lib/util/sensitive_words"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
+	"github.com/Iori372552686/GoOne/lib/service/bus"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
+	"github.com/Iori372552686/GoOne/lib/util/sensitive_words"
 	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/mainsvr/globals"
 	"github.com/Iori372552686/GoOne/src/mainsvr/role"
@@ -48,7 +48,8 @@ func (s *MainC2SServiceImpl) Login(ctx *ssrpc.Context, req *g1_protocol.LoginReq
 	rsp.TimeNowMs = myRole.NowMs()
 	rsp.RoleInfo = new(g1_protocol.RoleInfo)
 	proto.Merge(rsp.RoleInfo, myRole.PbRole)
-	ctx.Infof("role login, %v", rsp.RoleInfo.String())
+	ctx.Infof("role login {uid:%d, role_size:%d}", ctx.Uid(), proto.Size(rsp.RoleInfo))
+	_ = myRole.FlushPending(ctx, false)
 
 	return rsp, nil
 }
@@ -86,11 +87,12 @@ func (s *MainC2SServiceImpl) HeartBeat(ctx *ssrpc.Context, req *g1_protocol.Hear
 	ret := g1_protocol.ErrorCode_ERR_OK
 	now := myRole.Now()
 	myRole.OnClientHeartbeat(now)
+	_ = myRole.FlushPending(ctx, false)
 
 	rsp := &g1_protocol.HeartBeatRsp{
 		ClientNowMsInReq: req.GetClientNowMs(),
 		ServerNowMs:      myRole.NowMs(),
-		Ret:             &g1_protocol.Ret{Code: ret},
+		Ret:              &g1_protocol.Ret{Code: ret},
 	}
 	return rsp, nil
 }
@@ -120,7 +122,8 @@ func (s *MainC2SServiceImpl) ChangeName(ctx *ssrpc.Context, req *g1_protocol.Cha
 
 	// 同步数据
 	myRole.PbRole.BasicInfo.Name = req.GetName()
-	myRole.SyncDataToClient(g1_protocol.ERoleSectionFlag_BASIC_INFO)
+	myRole.TouchBasicInfo("change_name")
+	_ = myRole.FlushPending(ctx, false)
 	return rsp, nil
 }
 
@@ -151,7 +154,7 @@ func (s *MainC2SServiceImpl) ChangeIcon(ctx *ssrpc.Context, req *g1_protocol.Cha
 		}
 	}
 
-	myRole.SyncDataToClient(g1_protocol.ERoleSectionFlag_ICON_INFO)
+	_ = myRole.FlushPending(ctx, false)
 	return rsp, nil
 }
 
@@ -197,8 +200,10 @@ func (s *MainC2SServiceImpl) GmSetRole(ctx *ssrpc.Context, req *g1_protocol.GMSe
 	}
 	myRole.PbRole.ConnSvrInfo.BusId = connBus
 
-	logger.Errorf("%v", myRole.PbRole.String())
-	myRole.SyncDataToClient(g1_protocol.ERoleSectionFlag_ALL)
+	logger.Infof("GM set role {uid:%d, role_size:%d}", ctx.Uid(), proto.Size(myRole.PbRole))
+	myRole.MarkFullSync(g1_protocol.ERoleSectionFlag_ALL)
+	myRole.MarkPersistDirty("gm_set_role")
+	_ = myRole.FlushPending(ctx, true)
 
 	return &g1_protocol.GMSetRoleRsp{Ret: &g1_protocol.Ret{Code: g1_protocol.ErrorCode_ERR_OK}}, nil
 }
@@ -210,7 +215,7 @@ func (s *MainC2SServiceImpl) GmAddItem(ctx *ssrpc.Context, req *g1_protocol.GMAd
 	}
 
 	ret := myRole.ItemAdd(req.GetId(), req.GetCount(), &role.Reason{g1_protocol.Reason_REASON_GM, 0})
-	myRole.SyncDataToClient(g1_protocol.ERoleSectionFlag_ALL)
+	_ = myRole.FlushPending(ctx, false)
 	return &g1_protocol.GMAddItemRsp{Ret: &g1_protocol.Ret{Code: ret}}, nil
 }
 
@@ -250,9 +255,7 @@ func (s *MainC2SServiceImpl) MallBuyPackage(ctx *ssrpc.Context, req *g1_protocol
 	}
 
 	myRole.MallAddBuyCount(req.GetConfId())
-	myRole.SyncDataToClient(g1_protocol.ERoleSectionFlag_MALL_INFO |
-		g1_protocol.ERoleSectionFlag_INVENTORY_INFO |
-		g1_protocol.ERoleSectionFlag_BASIC_INFO)
+	_ = myRole.FlushPending(ctx, false)
 	return rsp, nil
 }
 
@@ -522,5 +525,3 @@ func processConnSvrInfo(c interface {
 	connSvrInfo.BusId = c.OriSrcBusId()
 	connSvrInfo.ClientPos = remoteAddr
 }
-
-

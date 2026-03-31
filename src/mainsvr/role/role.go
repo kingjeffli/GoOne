@@ -6,7 +6,6 @@ import (
 
 	infosvrv1 "github.com/Iori372552686/GoOne/api/gen/game/infosvr/v1"
 	mysqlsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/mysqlsvr/v1"
-	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/util/safego"
 	"github.com/Iori372552686/GoOne/src/mainsvr/globals/rds"
 
@@ -28,6 +27,26 @@ type Role struct {
 	// 下面可以添加临时内存数据，不会持久化到数据库
 	HeartBeatExpiryTime int32
 	HeartBeatCount      int32
+
+	pendingFullSyncMask g1_protocol.ERoleSectionFlag
+	pendingPatchMask    g1_protocol.ERoleSectionFlag
+
+	inventoryUpserts int32Set
+	inventoryDeletes int32Set
+	mallUpserts      int32Set
+	mallDeletes      int32Set
+	iconUpserts      int32Set
+	iconDeletes      int32Set
+	frameUpserts     int32Set
+	frameDeletes     int32Set
+	actTaskUpserts   int32Set
+	actTaskDeletes   int32Set
+	iconEquipDirty   bool
+
+	needPersist       bool
+	persistDirtySince int32
+	lastPersistAt     int32
+	persistReasons    stringSet
 }
 
 func NewRole(uid uint64) *Role {
@@ -140,13 +159,13 @@ func (r *Role) SaveToDB(trans cmd_handler.IContext) error {
 
 	data, err := proto.Marshal(r.PbRole)
 	if err != nil {
-		r.Errorf("marshaling error {role:%v} | %v", r.PbRole, err)
+		r.Errorf("role marshal error {uid:%v, reasons:%v} | %v", r.Uid(), sortedStringValues(r.persistReasons), err)
 		return err
 	}
 
 	err = rds.RedisMgr.SetBytes(uint32(g1_protocol.DBType_DB_TYPE_ROLE), fmt.Sprintf("%s:%d", g1_protocol.DBType_DB_TYPE_ROLE.String(), r.Uid()), data)
 	if err != nil {
-		logger.Errorf("role SaveToDB set redis error", err)
+		logger.Errorf("role SaveToDB set redis error | %v", err)
 		return errors.New("role SaveToDB set redis error")
 	}
 
@@ -179,7 +198,7 @@ func (r *Role) SaveToMysql(trans cmd_handler.IContext) error {
 func (r *Role) SaveToDBIgnoreRsp() {
 	data, err := proto.Marshal(r.PbRole)
 	if err != nil {
-		r.Errorf("marshaling error {role:%v} | %v", r.PbRole, err)
+		r.Errorf("role marshal error {uid:%v, reasons:%v} | %v", r.Uid(), sortedStringValues(r.persistReasons), err)
 		return
 	}
 
@@ -187,7 +206,7 @@ func (r *Role) SaveToDBIgnoreRsp() {
 	safego.Go(func() {
 		err = rds.RedisMgr.SetBytes(uint32(g1_protocol.DBType_DB_TYPE_ROLE), fmt.Sprintf("%s:%d", g1_protocol.DBType_DB_TYPE_ROLE.String(), uid), data)
 		if err != nil {
-			logger.Errorf("role SaveToDBIgnoreRsp set redis error", err)
+			logger.Errorf("role SaveToDBIgnoreRsp set redis error | %v", err)
 			return
 		}
 	})
@@ -205,54 +224,8 @@ func (r *Role) OnRoleCreate() {
 // 理论上每次玩家数据有变动，都要将相应的数据段同步过去
 // 通过Flag控制同步有改变的数据段，减少数据的同步量
 func (r *Role) SyncDataToClient(dataFlag g1_protocol.ERoleSectionFlag) error {
-	connsvrBusId := r.PbRole.ConnSvrInfo.BusId
-	if connsvrBusId == 0 {
-		logger.Errorf("connect svr bus id 0")
-		return fmt.Errorf("the player are not online")
-	}
-
-	data := g1_protocol.ScSyncUserData{}
-	data.RoleInfo = new(g1_protocol.RoleInfo)
-
-	if dataFlag&g1_protocol.ERoleSectionFlag_REGISTER_INFO != 0 {
-		data.RoleInfo.RegisterInfo = r.PbRole.RegisterInfo
-	}
-	if dataFlag&g1_protocol.ERoleSectionFlag_LOGIN_INFO != 0 {
-		data.RoleInfo.LoginInfo = r.PbRole.LoginInfo
-	}
-	if dataFlag&g1_protocol.ERoleSectionFlag_GAME_INFO != 0 {
-		data.RoleInfo.GameInfo = r.PbRole.GameInfo
-	}
-	if dataFlag&g1_protocol.ERoleSectionFlag_BASIC_INFO != 0 {
-		data.RoleInfo.BasicInfo = r.PbRole.BasicInfo
-	}
-	if dataFlag&g1_protocol.ERoleSectionFlag_INVENTORY_INFO != 0 {
-		data.RoleInfo.InventoryInfo = r.PbRole.InventoryInfo
-	}
-	if dataFlag&g1_protocol.ERoleSectionFlag_ICON_INFO != 0 {
-		data.RoleInfo.IconInfo = r.PbRole.IconInfo
-	}
-	if dataFlag&g1_protocol.ERoleSectionFlag_MALL_INFO != 0 {
-		data.RoleInfo.MallInfo = r.PbRole.MallInfo
-	}
-	if dataFlag&g1_protocol.ERoleSectionFlag_MAIN_TASK_INFO != 0 {
-		data.RoleInfo.MainTaskInfo = r.PbRole.MainTaskInfo
-	}
-	if dataFlag&g1_protocol.ERoleSectionFlag_GUILD_INFO != 0 {
-		data.RoleInfo.GuildInfo = r.PbRole.GuildInfo
-	}
-	if dataFlag&g1_protocol.ERoleSectionFlag_GUIDE_INFO != 0 {
-		data.RoleInfo.GuideInfo = r.PbRole.GuideInfo
-	}
-	if dataFlag&g1_protocol.ERoleSectionFlag_OPEN_FUNC_INFO != 0 {
-		data.RoleInfo.OpenFunInfo = r.PbRole.OpenFunInfo
-	}
-	if dataFlag&g1_protocol.ERoleSectionFlag_ACTVITY_TASK_INFO != 0 {
-		data.RoleInfo.Actvity_Info = r.PbRole.Actvity_Info
-	}
-
-	//r.Debugf("sync: %v", data.String())
-	return router.SendPbMsgByBusIdSimple(connsvrBusId, r.Uid(), g1_protocol.CMD_SC_SYNC_USER_DATA, &data)
+	r.MarkFullSync(dataFlag)
+	return r.FlushClientSync()
 }
 
 func (r *Role) OnLogin(now int32) {
@@ -298,7 +271,7 @@ func (r *Role) OnClientHeartbeat(now int32) {
 	}
 
 	if syncFlag > 0 {
-		_ = r.SyncDataToClient(syncFlag)
+		r.MarkFullSync(syncFlag)
 	}
 
 	r.HeartBeatCount++

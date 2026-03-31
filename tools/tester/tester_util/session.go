@@ -123,3 +123,13 @@ func (s *Session) WaitTillCmd(cmd uint32, rsp proto.Message) error {
 	s.t.Logf("RecvCmd: {cmd:0x%x, rsp:%v}", cmd, rsp)
 	return nil
 }
+
+func (s *Session) WaitTillAnyCmd(rsps map[uint32]proto.Message) (uint32, error) {
+	cmd, err := WaitTillAnyCmd(s.conn, rsps)
+	if err != nil {
+		s.t.Errorf("[err]Failed to WaitTillAnyCmd {err:%v}", err)
+		return 0, err
+	}
+	s.t.Logf("RecvCmd: {cmd:0x%x, rsp:%v}", cmd, rsps[cmd])
+	return cmd, nil
+}

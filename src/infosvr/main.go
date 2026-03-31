@@ -11,6 +11,6 @@ func main() {
 	flag.Parse()
 	defer logger.Flush()
 
-	application.Init(&InfoSvrImpl{})
+	application.Init(newApp())
 	application.Run()
 }

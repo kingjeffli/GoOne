@@ -27,7 +27,7 @@ func OnMainJoinRoom(c cmd_handler.IContext, req *g1_protocol.JoinRoomReq, myRole
 
 	if rsp.Ret.Code == g1_protocol.ErrorCode_ERR_NOT_EXIST_GAME_ROOM {
 		myRole.ClearPlayRoomInfo()
-		myRole.SyncDataToClient(g1_protocol.ERoleSectionFlag_GAME_INFO)
+		_ = myRole.FlushPending(c, false)
 	}
 	return rsp
 }
@@ -78,6 +78,7 @@ func OnMainQuickStart(c cmd_handler.IContext, req *g1_protocol.QuickStartReq, my
 
 			if rsp.Ret.Code == g1_protocol.ErrorCode_ERR_OK {
 				myRole.AddPlayRoomID(rsp.RoomInfo.RoomId)
+				_ = myRole.FlushPending(c, false)
 				return rsp
 			}
 		}
@@ -102,7 +103,7 @@ func OnMainExitRoom(c cmd_handler.IContext, req *g1_protocol.LeaveGameReq, myRol
 
 	if rsp.Ret.Code == g1_protocol.ErrorCode_ERR_OK {
 		myRole.RemovePlayRoomID(req.RoomId)
-		myRole.SyncDataToClient(g1_protocol.ERoleSectionFlag_GAME_INFO)
+		_ = myRole.FlushPending(c, false)
 	}
 
 	return rsp

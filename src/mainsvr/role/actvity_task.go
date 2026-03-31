@@ -38,6 +38,7 @@ func (r *Role) ActTaskDelete(taskId int32) bool {
 	}
 
 	delete(r.PbRole.Actvity_Info.TaskMap, taskId)
+	r.MarkActvityTaskDirty(taskId, true)
 	return true
 }
 

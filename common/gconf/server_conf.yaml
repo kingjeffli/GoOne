@@ -1,5 +1,9 @@
 base_cfg:
   pprof: true
+  admin_server:
+    enabled: true
+    ip: ""
+    port: 0
   register_addr: '{{ zk_address }}'
   bus_mq_addr: '{{ rabbitmq_address }}'
   game_data_dir: '{{ root_path }}/gamedata'

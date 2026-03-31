@@ -1,123 +1,78 @@
 package main
 
 import (
+	connsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/connsvr/v1"
 	"github.com/Iori372552686/GoOne/common/gconf"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
+	"github.com/Iori372552686/GoOne/lib/service/bootstrap"
 	"github.com/Iori372552686/GoOne/lib/service/router"
-	"github.com/Iori372552686/GoOne/module/misc"
-
-	"github.com/Iori372552686/GoOne/lib/util/marshal"
-
-	connsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/connsvr/v1"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
+	"github.com/Iori372552686/GoOne/lib/util/marshal"
+	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/connsvr/globals"
 	"github.com/Iori372552686/GoOne/src/connsvr/service"
-
-	"runtime"
 )
 
-// gameSvr  struct
-type AppSvrImpl struct{}
-
-/**
-* @Description:init
-* @return: error
-* @Author: Iori
-* @Date: 2022-04-27 21:04:30
-**/
-func (self *AppSvrImpl) OnInit() error {
-	//-- set sys args
-	runtime.GOMAXPROCS(runtime.NumCPU() + 1)
-
-	//-- load cfg
-	err := self.OnReload()
-	if err != nil {
-		logger.Errorf("Failed to load config | %v", err)
-		return err
-	}
-
-	// init zap logger
-	if _, err = logger.InitLogger(gconf.ConnSvrCfg.LogDir, gconf.ConnSvrCfg.LogLevel, "connsvr"); err != nil {
-		return err
-	}
-
-	err = router.InitAndRun(gconf.ConnSvrCfg.SelfBusId,
-		onRecvSSPacket,
-		gconf.ConnSvrCfg.BusMQAddr,
-		misc.ServerRouteRules,
-		gconf.ConnSvrCfg.RegisterAddr,
-	)
-	if err != nil {
-		logger.Errorf("Failed to initialize Router | %v", err)
-		return err
-	}
-
-	//-- init Sign Mgr
-	globals.SignMgr.InitAndRun(gconf.ConnSvrCfg.HTTPSigns)
-	//-- init RestApi mgr
-	globals.RestMgr.Init(gconf.ConnSvrCfg.RestApiConf, globals.SignMgr)
-	srv := connsvrv1.NewConnServiceSServer(&service.ConnServiceImpl{}, ssrpc.DefaultMWOptions{})
-	d := ssrpc.NewDispatcher()
-	connsvrv1.RegisterConnServiceToDispatcher(d, srv)
-	d.RegisterToTransactionMgr(globals.TransMgr)
-
-	globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
-	err = globals.ConnTcpSvr.CreateTcpServer("", gconf.ConnSvrCfg.ListenPort+1, onTcpPacket)
-	if err != nil {
-		logger.Errorf("Failed to initialize TcpServer | %v", err)
-		return err
-	}
-
-	return globals.ConnWsSvr.CreateWebSocketServer("gin", "debug", gconf.ConnSvrCfg.ListenPort, onWebSocketPacket)
-}
-
-/**
-* @Description:  reload
-* @return: error
-* @Author: Iori
-* @Date: 2022-04-27 21:04:41
-**/
-func (self *AppSvrImpl) OnReload() error {
-	// load start_conf, game_xlc_cfg_data..
-	err := marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.ConnSvrCfg)
-	if err != nil {
-		logger.Errorf("Failed to load server config | %s", err)
-		return err
-	}
-
-	logger.Infof("svr_conf: %+v", gconf.ConnSvrCfg)
-	return nil
-}
-
-/**
-* @Description:  proc
-* @return: bool
-* @Author: Iori
-* @Date: 2022-04-27 21:05:01
-**/
-func (self *AppSvrImpl) OnProc() bool {
-	// mainloop  proc
-	return true
-}
-
-/**
-* @Description: mainloop tick
-* @param: lastMs
-* @param: nowMs
-* @Author: Iori
-* @Date: 2022-04-27 21:04:53
-**/
-func (self *AppSvrImpl) OnTick(lastMs, nowMs int64) {
-}
-
-/**
-* @Description: main exit
-* @Author: Iori
-* @Date: 2022-04-27 21:05:07
-**/
-func (self *AppSvrImpl) OnExit() {
-	// game exit todo something
-	logger.Flush()
-	logger.Infof("service exit, right now !")
-	logger.Infof("================== AppSvrImpl Stop =========================")
+func newApp() *bootstrap.ServiceApp {
+	return bootstrap.NewServiceApp(bootstrap.Options{
+		ServiceName: "connsvr",
+		LoadConfig: func() error {
+			if err := marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.ConnSvrCfg); err != nil {
+				return err
+			}
+			logger.Infof("svr_conf: %+v", gconf.ConnSvrCfg)
+			return nil
+		},
+		LoggerConfig: func() bootstrap.LoggerConfig {
+			return bootstrap.LoggerConfig{
+				Dir:   gconf.ConnSvrCfg.LogDir,
+				Level: gconf.ConnSvrCfg.LogLevel,
+				Name:  "connsvr",
+			}
+		},
+		AdminConfig: func() bootstrap.AdminConfig {
+			return bootstrap.NewAdminConfig(
+				"connsvr",
+				misc.ServerType_ConnSvr,
+				gconf.ConnSvrCfg.AdminServer.Enabled,
+				gconf.ConnSvrCfg.Pprof,
+				gconf.ConnSvrCfg.AdminServer.IP,
+				gconf.ConnSvrCfg.AdminServer.Port,
+			)
+		},
+		InitDeps: func() error {
+			globals.SignMgr.InitAndRun(gconf.ConnSvrCfg.HTTPSigns)
+			globals.RestMgr.Init(gconf.ConnSvrCfg.RestApiConf, globals.SignMgr)
+			return nil
+		},
+		RegisterHandlers: func() error {
+			srv := connsvrv1.NewConnServiceSServer(&service.ConnServiceImpl{}, ssrpc.DefaultMWOptions{})
+			d := ssrpc.NewDispatcher()
+			connsvrv1.RegisterConnServiceToDispatcher(d, srv)
+			d.RegisterToTransactionMgr(globals.TransMgr)
+			return nil
+		},
+		StartRuntime: func() error {
+			globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
+			if err := router.InitAndRun(
+				gconf.ConnSvrCfg.SelfBusId,
+				onRecvSSPacket,
+				gconf.ConnSvrCfg.BusMQAddr,
+				misc.ServerRouteRules,
+				gconf.ConnSvrCfg.RegisterAddr,
+			); err != nil {
+				return err
+			}
+			if err := globals.ConnTcpSvr.CreateTcpServer("", gconf.ConnSvrCfg.ListenPort+1, onTcpPacket); err != nil {
+				return err
+			}
+			return globals.ConnWsSvr.CreateWebSocketServer("gin", "debug", gconf.ConnSvrCfg.ListenPort, onWebSocketPacket)
+		},
+		OnProc: func() bool {
+			return true
+		},
+		OnExit: func() {
+			logger.Infof("================== connsvr Stop =========================")
+		},
+	})
 }

@@ -30,7 +30,6 @@ func SendCmd(conn net.Conn, uid uint64, cmd uint32, req proto.Message) error {
 func WaitTillCmd(conn net.Conn, cmd uint32, rsp proto.Message) error {
 	header := sharedstruct.CSPacketHeader{}
 	headerBuf := make([]byte, sharedstruct.ByteLenOfCSPacketHeader())
-	readBuf := [1024]byte{}
 
 	for header.Cmd != cmd {
 		_, err := io.ReadFull(conn, headerBuf)
@@ -40,7 +39,7 @@ func WaitTillCmd(conn net.Conn, cmd uint32, rsp proto.Message) error {
 
 		header.From(headerBuf)
 
-		body := readBuf[:header.BodyLen]
+		body := make([]byte, header.BodyLen)
 		_, err = io.ReadFull(conn, body)
 		if err != nil {
 			return err
@@ -49,7 +48,7 @@ func WaitTillCmd(conn net.Conn, cmd uint32, rsp proto.Message) error {
 		logger.Debugf("received: %#v", header)
 
 		if header.Cmd == cmd {
-			err = proto.Unmarshal(readBuf[:header.BodyLen], rsp)
+			err = proto.Unmarshal(body, rsp)
 			if err != nil {
 				return err
 			}
@@ -57,4 +56,33 @@ func WaitTillCmd(conn net.Conn, cmd uint32, rsp proto.Message) error {
 	}
 
 	return nil
+}
+
+func WaitTillAnyCmd(conn net.Conn, rsps map[uint32]proto.Message) (uint32, error) {
+	header := sharedstruct.CSPacketHeader{}
+	headerBuf := make([]byte, sharedstruct.ByteLenOfCSPacketHeader())
+
+	for {
+		_, err := io.ReadFull(conn, headerBuf)
+		if err != nil {
+			return 0, err
+		}
+
+		header.From(headerBuf)
+		body := make([]byte, header.BodyLen)
+		_, err = io.ReadFull(conn, body)
+		if err != nil {
+			return 0, err
+		}
+
+		logger.Debugf("received: %#v", header)
+		rsp := rsps[header.Cmd]
+		if rsp == nil {
+			continue
+		}
+		if err = proto.Unmarshal(body, rsp); err != nil {
+			return 0, err
+		}
+		return header.Cmd, nil
+	}
 }

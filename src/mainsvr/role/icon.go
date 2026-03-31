@@ -58,6 +58,9 @@ func (r *Role) IconAdd(id int32, reason *Reason) int {
 	if reason.Reason != g1_protocol.Reason_REASON_INIT {
 		icon.RedPoint = true
 	}
+	if shouldTrackMutation(reason) {
+		r.MarkIconDirty(id, false)
+	}
 	return 0
 }
 
@@ -70,6 +73,9 @@ func (r *Role) FrameAdd(id int32, reason *Reason) int {
 	frame := r.FrameGet(id, true)
 	if reason.Reason != g1_protocol.Reason_REASON_INIT {
 		frame.RedPoint = true
+	}
+	if shouldTrackMutation(reason) {
+		r.MarkFrameDirty(id, false)
 	}
 	return 0
 }
@@ -84,6 +90,7 @@ func (r *Role) IconChange(iconId int32) g1_protocol.ErrorCode {
 		return g1_protocol.ErrorCode_ERR_ICON_NOT_HAVE
 	}
 	r.PbRole.IconInfo.IconUrl = fmt.Sprintf("headicon_%d", iconId)
+	r.MarkIconEquipDirty()
 	return g1_protocol.ErrorCode_ERR_OK
 }
 
@@ -92,6 +99,7 @@ func (r *Role) FrameChange(frameId int32) g1_protocol.ErrorCode {
 		return g1_protocol.ErrorCode_ERR_FRAME_NOT_HAVE
 	}
 	r.PbRole.IconInfo.FrameId = frameId
+	r.MarkIconEquipDirty()
 	return g1_protocol.ErrorCode_ERR_OK
 }
 
@@ -104,6 +112,7 @@ func (r *Role) IconTouchRedPoint(id int32) int {
 	icon := r.IconGet(id, false)
 	if icon != nil {
 		icon.RedPoint = false
+		r.MarkIconDirty(id, false)
 	}
 	return 0
 }
@@ -112,6 +121,7 @@ func (r *Role) FrameTouchRedPoint(id int32) int {
 	frame := r.FrameGet(id, false)
 	if frame != nil {
 		frame.RedPoint = false
+		r.MarkFrameDirty(id, false)
 	}
 	return 0
 }

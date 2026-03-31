@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.2
-// source: mainsvrc2s.proto
+// source: proto/service/mainsvrc2s.proto
 
 package mainsvrv1
 
@@ -23,11 +23,11 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-var File_mainsvrc2s_proto protoreflect.FileDescriptor
+var File_proto_service_mainsvrc2s_proto protoreflect.FileDescriptor
 
-const file_mainsvrc2s_proto_rawDesc = "" +
+const file_proto_service_mainsvrc2s_proto_rawDesc = "" +
 	"\n" +
-	"\x10mainsvrc2s.proto\x12\x0fgame.mainsvr.v1\x1a\x1egoone/options/v1/options.proto\x1a\fclient.proto\x1a\bgm.proto\x1a\x1bgoogle/protobuf/empty.proto2\xfe-\n" +
+	"\x1eproto/service/mainsvrc2s.proto\x12\x0fgame.mainsvr.v1\x1a\x1egoone/options/v1/options.proto\x1a\x17proto/core/client.proto\x1a\x1bgoogle/protobuf/empty.proto2\xfe-\n" +
 	"\x0eMainC2SService\x12a\n" +
 	"\x05Login\x12\x15.g1.protocol.LoginReq\x1a\x15.g1.protocol.LoginRsp\"*\xca\xe4\x1d&*\x12CMD_MAIN_LOGIN_REQz\rmainsvr login\xf0\x01\x01\x12\x84\x01\n" +
 	"\x06Logout\x12\x16.g1.protocol.LogoutReq\x1a\x16.g1.protocol.LogoutRsp\"J\xca\xe4\x1dF*\x13CMD_MAIN_LOGOUT_REQz/mainsvr logout (rsp optional, see req.ByServer)\x12r\n" +
@@ -84,7 +84,7 @@ const file_mainsvrc2s_proto_rawDesc = "" +
 	"\vEarlySettle\x12\x1b.g1.protocol.EarlySettleReq\x1a\x1b.g1.protocol.EarlySettleRsp\"?\xca\xe4\x1d;*\x1eCMD_MAIN_GAME_EARLY_SETTLE_REQz\x19texas early settle (stub)\x12\x84\x01\n" +
 	"\fPreoperation\x12\x1c.g1.protocol.PreOperationReq\x1a\x1c.g1.protocol.PreOperationRsp\"8\xca\xe4\x1d4*\x1eCMD_MAIN_GAME_PREOPERATION_REQz\x12texas preoperationBBZ@github.com/Iori372552686/GoOne/api/gen/game/mainsvr/v1;mainsvrv1b\x06proto3"
 
-var file_mainsvrc2s_proto_goTypes = []any{
+var file_proto_service_mainsvrc2s_proto_goTypes = []any{
 	(*protocol.LoginReq)(nil),              // 0: g1.protocol.LoginReq
 	(*protocol.LogoutReq)(nil),             // 1: g1.protocol.LogoutReq
 	(*protocol.HeartBeatReq)(nil),          // 2: g1.protocol.HeartBeatReq
@@ -176,7 +176,7 @@ var file_mainsvrc2s_proto_goTypes = []any{
 	(*protocol.EarlySettleRsp)(nil),        // 88: g1.protocol.EarlySettleRsp
 	(*protocol.PreOperationRsp)(nil),       // 89: g1.protocol.PreOperationRsp
 }
-var file_mainsvrc2s_proto_depIdxs = []int32{
+var file_proto_service_mainsvrc2s_proto_depIdxs = []int32{
 	0,  // 0: game.mainsvr.v1.MainC2SService.Login:input_type -> g1.protocol.LoginReq
 	1,  // 1: game.mainsvr.v1.MainC2SService.Logout:input_type -> g1.protocol.LogoutReq
 	2,  // 2: game.mainsvr.v1.MainC2SService.HeartBeat:input_type -> g1.protocol.HeartBeatReq
@@ -274,25 +274,25 @@ var file_mainsvrc2s_proto_depIdxs = []int32{
 	0,  // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_mainsvrc2s_proto_init() }
-func file_mainsvrc2s_proto_init() {
-	if File_mainsvrc2s_proto != nil {
+func init() { file_proto_service_mainsvrc2s_proto_init() }
+func file_proto_service_mainsvrc2s_proto_init() {
+	if File_proto_service_mainsvrc2s_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mainsvrc2s_proto_rawDesc), len(file_mainsvrc2s_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_service_mainsvrc2s_proto_rawDesc), len(file_proto_service_mainsvrc2s_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   0,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_mainsvrc2s_proto_goTypes,
-		DependencyIndexes: file_mainsvrc2s_proto_depIdxs,
+		GoTypes:           file_proto_service_mainsvrc2s_proto_goTypes,
+		DependencyIndexes: file_proto_service_mainsvrc2s_proto_depIdxs,
 	}.Build()
-	File_mainsvrc2s_proto = out.File
-	file_mainsvrc2s_proto_goTypes = nil
-	file_mainsvrc2s_proto_depIdxs = nil
+	File_proto_service_mainsvrc2s_proto = out.File
+	file_proto_service_mainsvrc2s_proto_goTypes = nil
+	file_proto_service_mainsvrc2s_proto_depIdxs = nil
 }

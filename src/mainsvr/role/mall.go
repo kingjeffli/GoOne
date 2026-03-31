@@ -10,9 +10,9 @@ func (r *Role) MallGetItem(confId int32) *g1_protocol.PbMallItem {
 
 	if info.ItemMap == nil {
 		info.ItemMap = make(map[int32]*g1_protocol.PbMallItem)
-		if info.ItemMap[confId] == nil {
-			info.ItemMap[confId] = &g1_protocol.PbMallItem{ConfId: confId}
-		}
+	}
+	if info.ItemMap[confId] == nil {
+		info.ItemMap[confId] = &g1_protocol.PbMallItem{ConfId: confId}
 	}
 
 	return info.ItemMap[confId]
@@ -20,8 +20,9 @@ func (r *Role) MallGetItem(confId int32) *g1_protocol.PbMallItem {
 
 func (r *Role) MallDailyRefresh() {
 	info := r.PbRole.MallInfo
-	for _, v := range info.ItemMap {
+	for confId, v := range info.ItemMap {
 		v.DailyBuyCount = 0
+		r.MarkMallDirty(confId, false)
 	}
 }
 
@@ -29,6 +30,7 @@ func (r *Role) MallAddBuyCount(confId int32) {
 	item := r.MallGetItem(confId)
 	item.DailyBuyCount++
 	item.TotalBuyCount++
+	r.MarkMallDirty(confId, false)
 }
 
 func (r *Role) MallCheckBuyCondition(confId int32) g1_protocol.ErrorCode {

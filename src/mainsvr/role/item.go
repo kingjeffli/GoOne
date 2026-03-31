@@ -146,7 +146,13 @@ func (r *Role) ItemReduce(itemId int32, itemCount int64, reason *Reason) (*[]*pb
 	*ref -= itemCount
 
 	if *ref == 0 {
-		r.ItemRemove(itemId)
+		if isBasicInfoItem(itemId) {
+			r.TouchBasicInfo("basic_info")
+		} else {
+			r.ItemRemove(itemId)
+		}
+	} else {
+		r.trackItemMutation(itemId, false, reason)
 	}
 
 	r.Debugf("reduce item {id: %v, cnt: %v, after: %v, reason:[%d|%d]}",
@@ -176,7 +182,13 @@ func (r *Role) ItemsReduce(items *[]*pb.PbItem, reason *Reason) (*[]*pb.PbItem, 
 		}
 		*ref -= v.Count
 		if *ref == 0 {
-			r.ItemRemove(v.Id)
+			if isBasicInfoItem(v.Id) {
+				r.TouchBasicInfo("basic_info")
+			} else {
+				r.ItemRemove(v.Id)
+			}
+		} else {
+			r.trackItemMutation(v.Id, false, reason)
 		}
 		r.Debugf("reduce item {id: %v, cnt: %v, after: %v, reason:[%d|%d]}",
 			v.Id, v.Count, *ref, reason.Reason, reason.Scene)
@@ -189,6 +201,7 @@ func (r *Role) ItemRemove(itemId int32) {
 	if r.PbRole.InventoryInfo.ItemMap != nil {
 		delete(r.PbRole.InventoryInfo.ItemMap, itemId)
 	}
+	r.MarkInventoryDirty(itemId, true)
 }
 
 // 添加单个道具
@@ -244,9 +257,13 @@ func (r *Role) itemDoAdd(itemId int32, itemCount int64, reason *Reason) int {
 		pb.EItemID_LIVENESS,
 		pb.EItemID_GUILDGOLD:
 		*ref += itemCount
+		r.trackItemMutation(itemId, false, reason)
 
 	case pb.EItemID_EXP: // 经验单独处理
 		r.ExpAdd(itemCount)
+		if shouldTrackMutation(reason) {
+			r.TouchBasicInfo("basic_info")
+		}
 
 	default:
 		// 按MainType分层处理
@@ -265,6 +282,7 @@ func (r *Role) itemDoAdd(itemId int32, itemCount int64, reason *Reason) int {
 				ref = &r.PbRole.InventoryInfo.ItemMap[itemId].Count
 			}
 			*ref += itemCount
+			r.trackItemMutation(itemId, false, reason)
 		}
 	}
 

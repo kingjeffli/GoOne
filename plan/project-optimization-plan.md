@@ -273,6 +273,8 @@
 
 ### P2-1 统一服务启动模板
 
+状态：已完成（已抽出统一 bootstrap，六个服务启动顺序统一为 load config -> init logger -> init deps -> register handlers -> start runtime，并内置 admin server 的 healthz/readyz/metrics/pprof 与 `web_svr` 的优雅关闭）
+
 相关位置：
 
 - [src/connsvr/app.go](D:/WorkCode/GoOne/src/connsvr/app.go)

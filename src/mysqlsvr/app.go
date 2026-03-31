@@ -1,12 +1,11 @@
 package main
 
 import (
-	"runtime"
-
 	mysqlsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/mysqlsvr/v1"
 	"github.com/Iori372552686/GoOne/common/gconf"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
+	"github.com/Iori372552686/GoOne/lib/service/bootstrap"
 	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/util/marshal"
@@ -16,84 +15,61 @@ import (
 	"github.com/Iori372552686/GoOne/src/mysqlsvr/service"
 )
 
-type MysqlSvrImpl struct {
-}
-
 func onRecvSSPacket(packet *sharedstruct.SSPacket) {
 	globals.TransMgr.ProcessSSPacket(packet)
 	packet = nil // packet所有权转交给transmgr，后面不能再用packet（包括data）
 }
 
-func (a *MysqlSvrImpl) OnInit() error {
-	//-- set sys args
-	runtime.GOMAXPROCS(runtime.NumCPU() + 1)
-
-	//-- load cfg
-	err := a.OnReload()
-	if err != nil {
-		logger.Fatalf("Failed to load config | %v", err)
-		return err
-	}
-
-	// init logger
-	if _, err = logger.InitLogger(gconf.MySqlSvrCfg.LogDir, gconf.MySqlSvrCfg.LogLevel, "mysqlsvr"); err != nil {
-		return err
-	}
-
-	//-- init ormMgr
-	err = globals.OrmMgr.InitAndRun(gconf.MySqlSvrCfg.OrmConf, manager.GetTables()...)
-	if err != nil {
-		logger.Errorf("OrmMgr InitAndRun error !! err | %v", err)
-		return err
-	}
-
-	//-- init orm cache in some table
-	//cacher := xorm.NewLRUCacher(xorm.NewMemoryStore(), misc.MaxOrmLruCacheLimitNum)
-	//err = globals.OrmMgr.GetOrmEngine().MapCacher(&define.ActivityRoleInfo{}, cacher)
-	//err1 := globals.OrmMgr.GetOrmEngine().MapCacher(&define.ConvertRoleInfo{}, cacher)
-	//if err != nil || err1 != nil {
-	//	logger.Errorf("init orm cache error !! err | %v  ,err1 | %v", err, err1)
-	//	return err
-	//}
-
-	err = router.InitAndRun(gconf.MySqlSvrCfg.SelfBusId,
-		onRecvSSPacket,
-		gconf.MySqlSvrCfg.BusMQAddr,
-		misc.ServerRouteRules,
-		gconf.MySqlSvrCfg.RegisterAddr,
-	)
-	if err != nil {
-		logger.Fatalf("Failed to initialize router | %v", err)
-		return err
-	}
-
-	srv := mysqlsvrv1.NewMysqlServiceSServer(&service.MysqlServiceImpl{}, ssrpc.DefaultMWOptions{})
-	d := ssrpc.NewDispatcher()
-	mysqlsvrv1.RegisterMysqlServiceToDispatcher(d, srv)
-	d.RegisterToTransactionMgr(globals.TransMgr)
-	globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
-
-	logger.Infof("mysqlsvr init success")
-	return nil
-}
-
-func (a *MysqlSvrImpl) OnReload() error {
-	err := marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.MySqlSvrCfg)
-	if err != nil {
-		logger.Fatalf("failed to load svr config | %s", err)
-		return err
-	}
-	return nil
-}
-
-func (a *MysqlSvrImpl) OnProc() bool { // return: isIdle
-	return true
-}
-
-func (a *MysqlSvrImpl) OnTick(lastMs, nowMs int64) {
-}
-
-func (a *MysqlSvrImpl) OnExit() {
-	manager.Close()
-	globals.MysqlMgr.Destroy()
+func newApp() *bootstrap.ServiceApp {
+	return bootstrap.NewServiceApp(bootstrap.Options{
+		ServiceName: "mysqlsvr",
+		LoadConfig: func() error {
+			return marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.MySqlSvrCfg)
+		},
+		LoggerConfig: func() bootstrap.LoggerConfig {
+			return bootstrap.LoggerConfig{
+				Dir:   gconf.MySqlSvrCfg.LogDir,
+				Level: gconf.MySqlSvrCfg.LogLevel,
+				Name:  "mysqlsvr",
+			}
+		},
+		AdminConfig: func() bootstrap.AdminConfig {
+			return bootstrap.NewAdminConfig(
+				"mysqlsvr",
+				misc.ServerType_MysqlSvr,
+				gconf.MySqlSvrCfg.AdminServer.Enabled,
+				gconf.MySqlSvrCfg.Pprof,
+				gconf.MySqlSvrCfg.AdminServer.IP,
+				gconf.MySqlSvrCfg.AdminServer.Port,
+			)
+		},
+		InitDeps: func() error {
+			return globals.OrmMgr.InitAndRun(gconf.MySqlSvrCfg.OrmConf, manager.GetTables()...)
+		},
+		RegisterHandlers: func() error {
+			srv := mysqlsvrv1.NewMysqlServiceSServer(&service.MysqlServiceImpl{}, ssrpc.DefaultMWOptions{})
+			d := ssrpc.NewDispatcher()
+			mysqlsvrv1.RegisterMysqlServiceToDispatcher(d, srv)
+			d.RegisterToTransactionMgr(globals.TransMgr)
+			return nil
+		},
+		StartRuntime: func() error {
+			globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
+			return router.InitAndRun(
+				gconf.MySqlSvrCfg.SelfBusId,
+				onRecvSSPacket,
+				gconf.MySqlSvrCfg.BusMQAddr,
+				misc.ServerRouteRules,
+				gconf.MySqlSvrCfg.RegisterAddr,
+			)
+		},
+		OnProc: func() bool {
+			return true
+		},
+		OnExit: func() {
+			manager.Close()
+			globals.MysqlMgr.Destroy()
+			logger.Infof("================== mysqlsvr Stop =========================")
+		},
+	})
 }

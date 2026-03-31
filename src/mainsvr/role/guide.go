@@ -12,10 +12,12 @@ func (r *Role) GuideCompleted(id int32) int {
 		}
 	}
 	r.PbRole.GuideInfo.IdLis = append(r.PbRole.GuideInfo.IdLis, id)
+	r.TouchGuideInfo("guide")
 	return 0
 }
 
 func (r *Role) GuideInProgress(id int32) int {
 	r.PbRole.GuideInfo.CurId = id
+	r.TouchGuideInfo("guide")
 	return 0
 }

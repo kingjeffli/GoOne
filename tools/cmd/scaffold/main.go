@@ -128,7 +128,7 @@ func main() {
 	flag.Parse()
 	defer logger.Flush()
 
-	application.Init(&{{.ImplName}}{})
+	application.Init(newApp())
 	application.Run()
 }
 `
@@ -136,11 +136,10 @@ func main() {
 var tplAppGo = `package main
 
 import (
-	"runtime"
-
 	"{{.Module}}/common/gconf"
 	"{{.Module}}/lib/api/logger"
 	"{{.Module}}/lib/api/sharedstruct"
+	"{{.Module}}/lib/service/bootstrap"
 	"{{.Module}}/lib/service/router"
 	"{{.Module}}/lib/util/marshal"
 	"{{.Module}}/module/misc"
@@ -153,65 +152,57 @@ func onRecvSSPacket(packet *sharedstruct.SSPacket) {
 	packet = nil
 }
 
-type {{.ImplName}} struct{}
-
-func (a *{{.ImplName}}) OnInit() error {
-	runtime.GOMAXPROCS(runtime.NumCPU() + 1)
-
-	if err := a.OnReload(); err != nil {
-		logger.Errorf("Failed to load config | %v", err)
-		return err
-	}
-
-	// TODO: update gconf reference after adding config struct.
-	// if _, err := logger.InitLogger(gconf.{{.StructName}}SvrCfg.LogDir, gconf.{{.StructName}}SvrCfg.LogLevel, "{{.Name}}"); err != nil {
-	// 	return err
-	// }
-
-	// TODO: init router after adding config.
-	// err := router.InitAndRun(gconf.{{.StructName}}SvrCfg.SelfBusId,
-	// 	onRecvSSPacket,
-	// 	gconf.{{.StructName}}SvrCfg.BusMQAddr,
-	// 	misc.ServerRouteRules,
-	// 	gconf.{{.StructName}}SvrCfg.RegisterAddr,
-	// )
-	// if err != nil {
-	// 	return err
-	// }
-
-	cmd_handler.RegCmd()
-	globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
-
-	logger.Infof("{{.Name}} init success")
-	return nil
-}
-
-func (a *{{.ImplName}}) OnReload() error {
-	// TODO: update to load your config struct.
-	// err := marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.{{.StructName}}SvrCfg)
-	// if err != nil {
-	// 	logger.Errorf("failed to load svr config | %%s", err)
-	// 	return err
-	// }
-	return nil
-}
-
-func (a *{{.ImplName}}) OnProc() bool {
-	return true
-}
-
-func (a *{{.ImplName}}) OnTick(lastMs, nowMs int64) {
-}
-
-func (a *{{.ImplName}}) OnExit() {
-	logger.Flush()
-	logger.Infof("service exit, right now !")
-	logger.Infof("================== {{.ImplName}} Stop =========================")
+func newApp() *bootstrap.ServiceApp {
+	return bootstrap.NewServiceApp(bootstrap.Options{
+		ServiceName: "{{.Name}}",
+		LoadConfig: func() error {
+			// TODO: update to load your config struct.
+			// return marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.{{.StructName}}SvrCfg)
+			return nil
+		},
+		LoggerConfig: func() bootstrap.LoggerConfig {
+			// TODO: update gconf reference after adding config struct.
+			// return bootstrap.LoggerConfig{
+			// 	Dir:   gconf.{{.StructName}}SvrCfg.LogDir,
+			// 	Level: gconf.{{.StructName}}SvrCfg.LogLevel,
+			// 	Name:  "{{.Name}}",
+			// }
+			return bootstrap.LoggerConfig{Name: "{{.Name}}"}
+		},
+		AdminConfig: func() bootstrap.AdminConfig {
+			return bootstrap.NewAdminConfig("{{.Name}}", 0, false, false, "", 0)
+		},
+		RegisterHandlers: func() error {
+			cmd_handler.RegCmd()
+			return nil
+		},
+		StartRuntime: func() error {
+			// TODO: init router after adding config.
+			// if err := router.InitAndRun(
+			// 	gconf.{{.StructName}}SvrCfg.SelfBusId,
+			// 	onRecvSSPacket,
+			// 	gconf.{{.StructName}}SvrCfg.BusMQAddr,
+			// 	misc.ServerRouteRules,
+			// 	gconf.{{.StructName}}SvrCfg.RegisterAddr,
+			// ); err != nil {
+			// 	return err
+			// }
+			globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
+			return nil
+		},
+		OnProc: func() bool {
+			return true
+		},
+		OnExit: func() {
+			logger.Infof("================== {{.Name}} Stop =========================")
+		},
+	})
 }
 
 // Suppress unused import warnings during scaffold phase.
 var (
 	_ = gconf.SvrConfFile
+	_ = bootstrap.LoggerConfig{}
 	_ = router.InitAndRun
 	_ = marshal.LoadConfFile
 	_ = (*sharedstruct.SSPacket)(nil)
