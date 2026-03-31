@@ -281,8 +281,8 @@ func (r *Role) MarkPersistDirty(reason string) {
 }
 
 func (r *Role) persistDebounceSec() int32 {
-	if gconf.MainSvrCfg.RolePersistDebounceSec > 0 {
-		return int32(gconf.MainSvrCfg.RolePersistDebounceSec)
+	if gconf.MainSvrCfg.Capacity.RolePersistDebounceSec > 0 {
+		return int32(gconf.MainSvrCfg.Capacity.RolePersistDebounceSec)
 	}
 	return defaultRolePersistDebounceSec
 }
@@ -333,10 +333,10 @@ func (r *Role) FlushPending(trans cmd_handler.IContext, forcePersist bool) error
 }
 
 func (r *Role) ShouldUseSyncPatch() bool {
-	if !gconf.MainSvrCfg.RoleSyncPatchEnabled {
+	if !gconf.MainSvrCfg.Capacity.RoleSyncPatchEnabled {
 		return false
 	}
-	allowUids := gconf.MainSvrCfg.RoleSyncPatchAllowUids
+	allowUids := gconf.MainSvrCfg.Capacity.RoleSyncPatchAllowUids
 	if len(allowUids) == 0 {
 		return true
 	}

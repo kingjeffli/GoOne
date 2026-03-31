@@ -305,6 +305,8 @@
 
 ### P2-3 配置体验可以更统一
 
+状态：已完成（已引入分组配置结构、统一 `yaml/json` tag、统一 `gconf.Load*` + 启动前校验，并更新样例/部署模板配置）
+
 相关位置：
 
 - [common/gconf/config.go](D:/WorkCode/GoOne/common/gconf/config.go)

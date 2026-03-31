@@ -8,3 +8,4 @@ build/*
 /.bin/*
 /docs/
 deploy/hosts/host_dev.txt
+/.gocache

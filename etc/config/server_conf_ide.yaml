@@ -1,123 +1,139 @@
-# 根层级直接对应 BaseCfg 的字段
+# 分组配置写法，仍兼容旧的平铺字段
 base_cfg:
-  pprof: true
-  admin_server:
-    enabled: true
-    ip: ""
-    port: 0
-  register_addr: '113.45.34.170:12181'
-  bus_mq_addr: 'amqp://guest:guest@113.45.34.170:15672/'
-  game_data_dir: ../common/gamedata/data
-  sensitive_words_file: ../common/conf/sensitive.txt
+  runtime:
+    register_addr: '113.45.34.170:12181'
+    bus_mq_addr: 'amqp://guest:guest@113.45.34.170:15672/'
+    admin_server:
+      enabled: true
+      ip: ""
+      port: 0
 
+  dependencies:
+    game_data_dir: ../common/gamedata/data
+    sensitive_words_file: ../common/conf/sensitive.txt
 
-  http_sign:
-    - index_name: default
-      private_key: d1233f2b7e9885ffb8a8268d06f44c6e2
-      sign_name: sign
-      expired_time: 1800
-      timestamp_name: timestamp
-      sign_type: md5
-      request_id_name: ''
+    http_sign:
+      - index_name: default
+        private_key: d1233f2b7e9885ffb8a8268d06f44c6e2
+        sign_name: sign
+        expired_time: 1800
+        timestamp_name: timestamp
+        sign_type: md5
+        request_id_name: ''
 
-  db_instances:
-    - instance_id: 1
-      ip: 113.45.34.170
-      port: 16379
-      password: go123456
-      is_cluster: false
-      description: role info data
-    - instance_id: 3
-      ip: 113.45.34.170
-      port: 16379
-      password: go123456
-      is_cluster: false
-      description: brief info data
-
-
-  orm_instances:
-    - index_name: default
-      master:
+    db_instances:
+      - instance_id: 1
         ip: 113.45.34.170
-        port: 13306
-        user: g1_game
-        password: gg123456
-        db_name: g1_game
-      slaves: []
-      description: test db1
-      max_idle: 10
-      max_open: 200
-      show_sql: true
-      init_flag: true
-      drive_name: mysql
+        port: 16379
+        password: go123456
+        is_cluster: false
+        description: role info data
+      - instance_id: 3
+        ip: 113.45.34.170
+        port: 16379
+        password: go123456
+        is_cluster: false
+        description: brief info data
 
+    orm_instances:
+      - index_name: default
+        master:
+          ip: 113.45.34.170
+          port: 13306
+          user: g1_game
+          password: gg123456
+          db_name: g1_game
+        slaves: []
+        description: test db1
+        max_idle: 10
+        max_open: 200
+        show_sql: true
+        init_flag: true
+        drive_name: mysql
 
-  rest_api_config:
-    - service_name: default
-      urls:
-        - 'http://113.45.34.170:8000/mg/api/sdk/getGameRole?'
-      sign_name: default
+    rest_api_config:
+      - service_name: default
+        urls:
+          - 'http://113.45.34.170:8000/mg/api/sdk/getGameRole?'
+        sign_name: default
 
-  nacos_conf:
-    ip_addr:
-    port: 8848
-    namespace_id: b3870fb7-1ed0-4764-937f-0071ed2e1cc4
-    group_name: poker_gameconf
-    user_name: poker
-    password: poker123
-    log_dir: \tmp\nacos\log
-    cache_dir: \tmp\nacos\cache
-    rotate_time: 1h
-    max_age: 3
-    log_level: debug
+    nacos_conf:
+      ip_addr:
+      port: 8848
+      namespace_id: b3870fb7-1ed0-4764-937f-0071ed2e1cc4
+      group_name: poker_gameconf
+      user_name: poker
+      password: poker123
+      log_dir: \tmp\nacos\log
+      cache_dir: \tmp\nacos\cache
+      rotate_time: 1h
+      max_age: 3
+      log_level: debug
+
+  debug:
+    pprof: true
 
 connsvr:
-  self_bus_id: 1.1.1.251
-  listen_port: 11000
-  log_dir: ./logs/
-  log_level: debug
+  identity:
+    self_bus_id: 1.1.1.251
+  runtime:
+    listen_port: 11000
+  debug:
+    log_dir: ./logs/
+    log_level: debug
 
 infosvr:
-  self_bus_id: 1.1.3.251
-  log_dir: ../logs
-  log_level: debug
+  identity:
+    self_bus_id: 1.1.3.251
+  debug:
+    log_dir: ../logs
+    log_level: debug
 
 mainsvr:
-  self_bus_id: 1.1.2.251
-  log_dir: ../logs
-  log_level: debug
-  trans_shard_count: 0
+  identity:
+    self_bus_id: 1.1.2.251
+  debug:
+    log_dir: ../logs
+    log_level: debug
+  capacity:
+    trans_shard_count: 0
 
 mysqlsvr:
-  self_bus_id: 1.1.4.251
-  log_dir: ../logs
-  log_level: debug
+  identity:
+    self_bus_id: 1.1.4.251
+  debug:
+    log_dir: ../logs
+    log_level: debug
 
 websvr:
-  self_bus_id: 1.1.12.251
-  log_dir: ../logs
-  log_level: debug
-
-  http_server:
-    port: 10001
-    session_name: GoOne@Gin.Seeeion
-    mode: debug
-    auth_enable: false
-
-  grpc_server:
-    enabled: true
-    ip: ""
-    port: 10002
-
+  identity:
+    self_bus_id: 1.1.12.251
+  debug:
+    log_dir: ../logs
+    log_level: debug
+  runtime:
+    http_server:
+      port: 10001
+      session_name: GoOne@Gin.Seeeion
+      mode: debug
+      auth_enable: false
+    grpc_server:
+      enabled: true
+      ip: ""
+      port: 10002
 
 roomcentersvr:
-  self_bus_id: 1.1.11.251
-  log_dir: ../logs
-  log_level: debug
-  trans_shard_count: 0
+  identity:
+    self_bus_id: 1.1.11.251
+  debug:
+    log_dir: ../logs
+    log_level: debug
+  capacity:
+    trans_shard_count: 0
 
 texassvr:
-  self_bus_id: 1.1.80.251
-  log_dir: ../logs
-  log_level: debug
-
+  identity:
+    self_bus_id: 1.1.80.251
+  debug:
+    log_dir: ../logs
+    log_level: debug

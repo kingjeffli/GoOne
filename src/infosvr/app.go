@@ -8,7 +8,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/bootstrap"
 	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
-	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/infosvr/globals"
 	"github.com/Iori372552686/GoOne/src/infosvr/service"
@@ -23,12 +22,12 @@ func newApp() *bootstrap.ServiceApp {
 	return bootstrap.NewServiceApp(bootstrap.Options{
 		ServiceName: "infosvr",
 		LoadConfig: func() error {
-			return marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.InfoSvrCfg)
+			return gconf.LoadInfoConfig(*gconf.SvrConfFile)
 		},
 		LoggerConfig: func() bootstrap.LoggerConfig {
 			return bootstrap.LoggerConfig{
-				Dir:   gconf.InfoSvrCfg.LogDir,
-				Level: gconf.InfoSvrCfg.LogLevel,
+				Dir:   gconf.InfoSvrCfg.Debug.LogDir,
+				Level: gconf.InfoSvrCfg.Debug.LogLevel,
 				Name:  "infosvr",
 			}
 		},
@@ -36,14 +35,14 @@ func newApp() *bootstrap.ServiceApp {
 			return bootstrap.NewAdminConfig(
 				"infosvr",
 				misc.ServerType_InfoSvr,
-				gconf.InfoSvrCfg.AdminServer.Enabled,
-				gconf.InfoSvrCfg.Pprof,
-				gconf.InfoSvrCfg.AdminServer.IP,
-				gconf.InfoSvrCfg.AdminServer.Port,
+				gconf.InfoSvrCfg.CommonRuntime.AdminServer.Enabled,
+				gconf.InfoSvrCfg.CommonDebug.Pprof,
+				gconf.InfoSvrCfg.CommonRuntime.AdminServer.IP,
+				gconf.InfoSvrCfg.CommonRuntime.AdminServer.Port,
 			)
 		},
 		InitDeps: func() error {
-			return globals.InfoMgr.RedisMgr.InitAndRun(gconf.InfoSvrCfg.DbInstances)
+			return globals.InfoMgr.RedisMgr.InitAndRun(gconf.InfoSvrCfg.Dependencies.DbInstances)
 		},
 		RegisterHandlers: func() error {
 			srv := infosvrv1.NewInfoServiceSServer(&service.InfoServiceImpl{}, ssrpc.DefaultMWOptions{})
@@ -55,11 +54,11 @@ func newApp() *bootstrap.ServiceApp {
 		StartRuntime: func() error {
 			globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
 			return router.InitAndRun(
-				gconf.InfoSvrCfg.SelfBusId,
+				gconf.InfoSvrCfg.Identity.SelfBusId,
 				onRecvSSPacket,
-				gconf.InfoSvrCfg.BusMQAddr,
+				gconf.InfoSvrCfg.CommonRuntime.BusMQAddr,
 				misc.ServerRouteRules,
-				gconf.InfoSvrCfg.RegisterAddr,
+				gconf.InfoSvrCfg.CommonRuntime.RegisterAddr,
 			)
 		},
 		OnProc: func() bool {

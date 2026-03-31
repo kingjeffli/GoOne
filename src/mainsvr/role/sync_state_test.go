@@ -104,10 +104,10 @@ func TestInventoryDirtySetKeepsNetChange(t *testing.T) {
 }
 
 func TestShouldFlushPersistNowHonorsDebounce(t *testing.T) {
-	oldDebounce := gconf.MainSvrCfg.RolePersistDebounceSec
-	gconf.MainSvrCfg.RolePersistDebounceSec = 10
+	oldDebounce := gconf.MainSvrCfg.Capacity.RolePersistDebounceSec
+	gconf.MainSvrCfg.Capacity.RolePersistDebounceSec = 10
 	defer func() {
-		gconf.MainSvrCfg.RolePersistDebounceSec = oldDebounce
+		gconf.MainSvrCfg.Capacity.RolePersistDebounceSec = oldDebounce
 	}()
 
 	r := newSyncTestRole(1005)
