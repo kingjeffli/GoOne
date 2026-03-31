@@ -3,14 +3,16 @@ package role
 import (
 	"errors"
 	"fmt"
+
 	infosvrv1 "github.com/Iori372552686/GoOne/api/gen/game/infosvr/v1"
 	mysqlsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/mysqlsvr/v1"
 	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/util/safego"
 	"github.com/Iori372552686/GoOne/src/mainsvr/globals/rds"
 
-	"google.golang.org/protobuf/proto"
 	"sync"
+
+	"google.golang.org/protobuf/proto"
 
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	"github.com/Iori372552686/GoOne/lib/api/datetime"
@@ -249,7 +251,7 @@ func (r *Role) SyncDataToClient(dataFlag g1_protocol.ERoleSectionFlag) error {
 		data.RoleInfo.Actvity_Info = r.PbRole.Actvity_Info
 	}
 
-	r.Infof("sync: %v", data.String())
+	//r.Debugf("sync: %v", data.String())
 	return router.SendPbMsgByBusIdSimple(connsvrBusId, r.Uid(), g1_protocol.CMD_SC_SYNC_USER_DATA, &data)
 }
 

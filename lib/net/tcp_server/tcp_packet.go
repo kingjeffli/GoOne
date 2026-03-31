@@ -2,8 +2,9 @@ package tcp_server
 
 import (
 	"encoding/binary"
-	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"net"
+
+	"github.com/Iori372552686/GoOne/lib/api/logger"
 )
 
 type TcpPacketInfo struct {
@@ -38,7 +39,7 @@ func (s *TcpPacketSvr) OnRead(conn net.Conn, data []byte) int {
 			bodyLen := s.packetInfo.BodyLen(data[consumed : consumed+headerLen])
 			if bodyLen < 0 {
 				logger.Warningf("Received an invalid tcp packet header, closing connection {remote:%v}", conn.RemoteAddr())
-				_ = conn.Close()
+				conn.Close()
 				return dataLen
 			}
 			if dataLen >= consumed+headerLen+bodyLen { // header and body is ready
