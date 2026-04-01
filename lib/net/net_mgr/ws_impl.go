@@ -29,6 +29,7 @@ func (t *ConnWsTcpSvr) initAndRun(implType, mode string, port int, cb func(conn 
 
 func (t *ConnWsTcpSvr) OnConn(conn net.Conn) {
 	logger.Infof("new conn: %s", conn.RemoteAddr().String())
+	observeGatewayEvent("ws", "accepted")
 }
 
 func (self *ConnWsTcpSvr) OnRead(conn net.Conn, data []byte) int {
@@ -37,6 +38,7 @@ func (self *ConnWsTcpSvr) OnRead(conn net.Conn, data []byte) int {
 }
 
 func (t *ConnWsTcpSvr) OnClose(conn net.Conn) {
+	observeGatewayEvent("ws", "closed")
 	uid := t.removeConn(conn)
 	if uid == 0 {
 		return
@@ -67,6 +69,7 @@ func (t *ConnWsTcpSvr) SendByUid(uid uint64, data1 []byte, data2 []byte) error {
 	err := t.WriteData(conn.Conn, data1, data2)
 	if err != nil {
 		conn.Conn.Close()
+		observeGatewayEvent("ws", "write_error")
 		logger.Errorf("Closed connection for failing to write data {uid: %v}| %v", uid, err)
 		return err
 	}
@@ -84,6 +87,7 @@ func (t *ConnWsTcpSvr) BroadcastByZone(zone int32, data1 []byte, data2 []byte) {
 		err := t.WriteData(conn.Conn, data1, data2)
 		if err != nil {
 			conn.Conn.Close()
+			observeGatewayEvent("ws", "write_error")
 			logger.Errorf("Closed connection for failing to write data {uid: %v}| %v\", uid, err")
 			continue
 		}
@@ -145,6 +149,7 @@ func (t *ConnWsTcpSvr) removeConn(conn net.Conn) uint64 {
 
 func (t *ConnWsTcpSvr) kick(conn net.Conn, uid uint64, reason g1_protocol.EKickOutReason) {
 	defer t.Close(conn)
+	observeGatewayEvent("ws", "kick")
 
 	logger.Infof("Kick out client {uid:%v, reason:%v, ip:%v}", uid, reason, conn.RemoteAddr())
 
@@ -162,6 +167,7 @@ func (t *ConnWsTcpSvr) kick(conn net.Conn, uid uint64, reason g1_protocol.EKickO
 	}
 	err = t.WriteData(conn, header.ToBytes(), msgData)
 	if err != nil {
+		observeGatewayEvent("ws", "write_error")
 		logger.Errorf("Failed to write data in kick | %v", err)
 		return
 	}

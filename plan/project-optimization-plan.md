@@ -292,6 +292,8 @@
 
 ### P2-2 真正接入 metrics，而不是只保留扩展点
 
+状态：已完成（已为 `ssrpc`、`router`、`TransactionMgr`、Redis、MySQL、网关连接接入 Prometheus 指标，并补充 Grafana dashboard 模板 `deploy/observability/grafana/goone-runtime-dashboard.json`）
+
 相关位置：
 
 - [lib/service/ssrpc/metrics.go](D:/WorkCode/GoOne/lib/service/ssrpc/metrics.go)

@@ -51,6 +51,7 @@ func InitAndRun(selfBusId string, cb CbOnRecvSSPacket, rabbitmqAddr string,
 func SendMsg(packetHeader *sharedstruct.SSPacketHeader, packetBody []byte) error {
 	//logger.Infof("Send bus cmd: %v | %v", g1_protocol.CMD(packetHeader.Cmd), packetHeader)
 	if router.busImpl != nil && packetHeader.DstBusID == router.busImpl.SelfBusId() {
+		finish := beginRouterObserve("send", "local", packetHeader.Cmd)
 		packet := &sharedstruct.SSPacket{
 			Header: *packetHeader,
 		}
@@ -61,10 +62,13 @@ func SendMsg(packetHeader *sharedstruct.SSPacketHeader, packetBody []byte) error
 		if router.cbOnRecvSSPacket != nil {
 			router.cbOnRecvSSPacket(packet)
 		}
+		finish(len(packetBody), nil)
 		return nil
 	}
 
+	finish := beginRouterObserve("send", "bus", packetHeader.Cmd)
 	err := router.busImpl.Send(packetHeader.DstBusID, packetHeader.ToBytes(), packetBody)
+	finish(len(packetBody), err)
 	if err != nil {
 		e := fmt.Sprintf("failed to send bus message {header:%#v, bodyLen:%v} | %v",
 			packetHeader, len(packetBody), err)
@@ -241,16 +245,20 @@ func protoMessageType(msg proto.Message) string {
 func onRecvBusMsg(srcBusId uint32, data []byte) error {
 	//logger.Debugf("Received message bus:%v, len: %v\n", bus.IpIntToString(srcBusId), len(data))
 	if len(data) < sharedstruct.ByteLenOfSSPacketHeader() {
-		return fmt.Errorf("bus message is too short {len:%v, expect:%v}", len(data), sharedstruct.ByteLenOfSSPacketHeader())
+		err := fmt.Errorf("bus message is too short {len:%v, expect:%v}", len(data), sharedstruct.ByteLenOfSSPacketHeader())
+		observeRouterInvalidReceive("invalid_short_packet", err, len(data))
+		return err
 	}
 
 	packet := new(sharedstruct.SSPacket)
 	packet.Header.From(data)
 	packet.Body = data[sharedstruct.ByteLenOfSSPacketHeader():]
 	logger.CmdDebugf(packet.Header.Cmd, "[uid: %d] Received bus message: %+v", packet.Header.Uid, packet.Header)
+	finish := beginRouterObserve("receive", "bus", packet.Header.Cmd)
 	if router.cbOnRecvSSPacket != nil {
 		router.cbOnRecvSSPacket(packet)
 	}
+	finish(len(packet.Body), nil)
 
 	return nil
 }

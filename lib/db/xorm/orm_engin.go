@@ -84,6 +84,7 @@ func (self *OrmSql) AddInstance(conf Config, tables ...interface{}) (*xorm.Engin
 	impl.SetMaxOpenConns(conf.MaxOpen)
 	impl.ShowExecTime(true)
 	self.Engine = impl
+	registerOrmMetrics(self.name, self)
 
 	err = self.SyncTables(tables...)
 	if err != nil {
@@ -91,7 +92,9 @@ func (self *OrmSql) AddInstance(conf Config, tables ...interface{}) (*xorm.Engin
 	}
 
 	//check
+	finishPing := beginXormPingObserve(self.name)
 	err = impl.Ping()
+	finishPing(err)
 	if err != nil {
 		defer impl.Close()
 		logger.Errorf("data source Ping() error | %v", err.Error())
@@ -129,7 +132,9 @@ func (self *OrmSql) refresh() (err error) {
 * @Date: 2022-05-21 16:48:40
 **/
 func (self *OrmSql) MonitorConn() {
+	finishPing := beginXormPingObserve(self.name)
 	err := self.Engine.Ping()
+	finishPing(err)
 	if err != nil {
 		err = self.refresh()
 		if err != nil {

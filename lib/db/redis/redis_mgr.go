@@ -148,7 +148,10 @@ func (m *RedisMgr) DoFlatCmd(instID uint32, result interface{}, cmd, key string,
 	if client == nil {
 		return fmt.Errorf("RedisDoCmd cannot get a client {id:%v, cmd:%s}", instID, cmd)
 	}
-	return client.Do(radix.FlatCmd(result, cmd, key, args...))
+	finish := beginRedisObserve(instID, cmd)
+	err := client.Do(radix.FlatCmd(result, cmd, key, args...))
+	finish(err)
+	return err
 }
 
 /**
@@ -167,7 +170,10 @@ func (m *RedisMgr) DoCmd(instID uint32, result interface{}, cmd string, args ...
 	if client == nil {
 		return fmt.Errorf("RedisDoCmd cannot get a client {id:%v, cmd:%s}", instID, cmd)
 	}
-	return client.Do(radix.Cmd(result, cmd, args...))
+	finish := beginRedisObserve(instID, cmd)
+	err := client.Do(radix.Cmd(result, cmd, args...))
+	finish(err)
+	return err
 }
 
 /**

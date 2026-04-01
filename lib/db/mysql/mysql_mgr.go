@@ -48,6 +48,7 @@ func (m *MysqlMgr) AddInstance(id uint32, ip string, port int16, user, pass, sch
 	}
 
 	m.dbs.Store(id, conn)
+	registerMySQLDB(id, conn)
 
 	return nil
 }
@@ -66,19 +67,29 @@ func (m *MysqlMgr) GetDb(id uint32) *sql.DB {
 }
 
 func (m *MysqlMgr) Execute(id uint32, query string, args ...interface{}) (sql.Result, error) {
+	finish := beginMySQLObserve(id, query, "EXEC")
 	db := m.GetDb(id)
 	if db == nil {
-		return nil, fmt.Errorf("execute on an non-exist db {id:%v, q:%v}", id, query)
+		err := fmt.Errorf("execute on an non-exist db {id:%v, q:%v}", id, query)
+		finish(err)
+		return nil, err
 	}
 
-	return db.Exec(query, args...)
+	result, err := db.Exec(query, args...)
+	finish(err)
+	return result, err
 }
 
 func (m *MysqlMgr) Query(id uint32, query string, args ...interface{}) (*sql.Rows, error) {
+	finish := beginMySQLObserve(id, query, "QUERY")
 	db := m.GetDb(id)
 	if db == nil {
-		return nil, fmt.Errorf("execute on an non-exist db {id:%v, q:%v}", id, query)
+		err := fmt.Errorf("execute on an non-exist db {id:%v, q:%v}", id, query)
+		finish(err)
+		return nil, err
 	}
 
-	return db.Query(query, args...)
+	rows, err := db.Query(query, args...)
+	finish(err)
+	return rows, err
 }

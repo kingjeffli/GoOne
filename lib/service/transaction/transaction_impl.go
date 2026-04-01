@@ -57,12 +57,15 @@ func (t *Transaction) DebugDepthf(depth int, format string, args ...interface{})
 }
 
 func (t *Transaction) run(cmdHandler cmd_handler.CmdHandlerFunc, packet *sharedstruct.SSPacket, chanRet chan<- uint32) {
+	start := time.Now()
+	ret := g1_protocol.ErrorCode_ERR_OK
 	safego.SafeFunc(func() {
-		ret := cmdHandler(t, packet.Body)
+		ret = cmdHandler(t, packet.Body)
 		if ret != g1_protocol.ErrorCode_ERR_OK {
 			logger.Errorf("cmdHandler failed: %v", ret)
 		}
 	})
+	observeTransactionHandler(t.Cmd(), ret, time.Since(start))
 
 	chanRet <- t.transID
 }
@@ -189,6 +192,7 @@ func (t *Transaction) waitRsp(dstSvrType uint32, dstSvrIns uint32, cmd g1_protoc
 	for {
 		select {
 		case <-ti.C:
+			observeTransactionTimeout("wait_rsp", cmd)
 			logger.Errorf("timeout to CallMsgBySvrType {svrType:%v, svrIns:%v, uid:%v, cmd:%v, reqType:%s}",
 				dstSvrType, dstSvrIns, t.Uid(), cmd, protoMessageType(req))
 			return errors.New("timeout")

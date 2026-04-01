@@ -33,6 +33,7 @@ func (self *ConnKcpSvr) InitAndRun(port int, cb func(conn *Kcp.UDPSession, data 
 **/
 func (self *ConnKcpSvr) OnConn(conn *Kcp.UDPSession) {
 	logger.Infof("kcp new conn: %s", conn.RemoteAddr().String())
+	observeGatewayEvent("kcp", "accepted")
 	return
 }
 
@@ -59,6 +60,7 @@ func (self *ConnKcpSvr) OnRead(conn *Kcp.UDPSession, data []byte) int {
 **/
 func (self *ConnKcpSvr) OnClose(conn *Kcp.UDPSession) {
 	logger.Infof("kcp client close {RemoteIp: %v}", conn.RemoteAddr())
+	observeGatewayEvent("kcp", "closed")
 
 	self.removeConn(conn)
 	return

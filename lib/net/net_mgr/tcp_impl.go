@@ -35,6 +35,7 @@ func (t *ConnTcpSvr) initAndRun(ip string, port int, cb func(conn net.Conn, data
 // 被Listener协程调用，一个TcpSvr对应一个Listener协程
 func (t *ConnTcpSvr) OnConn(conn net.Conn) {
 	logger.Infof("new conn: %s", conn.RemoteAddr().String())
+	observeGatewayEvent("tcp", "accepted")
 }
 
 // 被Read协程调用，每个Connection对应一个Read协调
@@ -44,6 +45,7 @@ func (t *ConnTcpSvr) OnPacket(conn net.Conn, data []byte) {
 
 // 被Read协程调用，每个Connection对应一个Read协调
 func (t *ConnTcpSvr) OnClose(conn net.Conn) {
+	observeGatewayEvent("tcp", "closed")
 	uid := t.removeConn(conn)
 	if uid == 0 {
 		return
@@ -75,6 +77,7 @@ func (t *ConnTcpSvr) SendByUid(uid uint64, data1 []byte, data2 []byte) error {
 	err := t.WriteData(conn.Conn, data1, data2)
 	if err != nil {
 		conn.Conn.Close()
+		observeGatewayEvent("tcp", "write_error")
 		logger.Errorf("Closed connection for failing to write data {uid: %v}| %v", uid, err)
 		return err
 	}
@@ -92,6 +95,7 @@ func (t *ConnTcpSvr) BroadcastByZone(zone int32, data1 []byte, data2 []byte) {
 		err := t.WriteData(conn.Conn, data1, data2)
 		if err != nil {
 			conn.Conn.Close()
+			observeGatewayEvent("tcp", "write_error")
 			logger.Errorf("Closed connection for failing to write data {uid: %v}| %v\", uid, err")
 			continue
 		}
@@ -153,6 +157,7 @@ func (t *ConnTcpSvr) removeConn(conn net.Conn) uint64 {
 
 func (t *ConnTcpSvr) kick(conn net.Conn, uid uint64, reason g1_protocol.EKickOutReason) {
 	defer t.Close(conn)
+	observeGatewayEvent("tcp", "kick")
 
 	logger.Infof("Kick out client {uid:%v, reason:%v, ip:%v}", uid, reason, conn.RemoteAddr())
 
@@ -170,6 +175,7 @@ func (t *ConnTcpSvr) kick(conn net.Conn, uid uint64, reason g1_protocol.EKickOut
 	}
 	err = t.WriteData(conn, header.ToBytes(), msgData)
 	if err != nil {
+		observeGatewayEvent("tcp", "write_error")
 		logger.Errorf("Failed to write data in kick | %v", err)
 		return
 	}

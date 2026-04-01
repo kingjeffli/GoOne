@@ -54,13 +54,19 @@ type ConnWsTcpSvr struct {
 }
 
 func NewTcpSvr() *ConnTcpSvr {
-	return &ConnTcpSvr{}
+	svr := &ConnTcpSvr{}
+	registerGatewaySource("tcp", svr)
+	return svr
 }
 
 func NewKcpSvr() *ConnKcpSvr {
-	return &ConnKcpSvr{}
+	svr := &ConnKcpSvr{}
+	registerGatewaySource("kcp", svr)
+	return svr
 }
 
 func NewWsTcpSvr() *ConnWsTcpSvr {
-	return &ConnWsTcpSvr{}
+	svr := &ConnWsTcpSvr{}
+	registerGatewaySource("ws", svr)
+	return svr
 }

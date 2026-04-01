@@ -61,6 +61,7 @@ func (m *TransactionMgr) InitAndRunWithConfig(cfg TransactionMgrConfig) {
 	m.config = cfg
 	m.useSerialKey = true
 	m.maxTransNum = cfg.MaxTrans
+	registerTransactionMgr(m)
 
 	shardBufSize := perShardBufferSize(cfg.MaxTrans, cfg.ShardCount)
 	m.shards = make([]*transactionShard, 0, cfg.ShardCount)
@@ -235,13 +236,17 @@ func (s *transactionShard) processSSPacket(packet *sharedstruct.SSPacket) int32 
 	if dstTransID != 0 {
 		trans, in := s.transMap[dstTransID]
 		if !in {
+			observeTransactionPacket("response", cmd, "missing_transaction")
 			logger.Errorf("received a response can't be handled by any transaction{header:%#v}", packet.Header)
 			return -3
 		}
 		if !packet.SendToChan(trans.chanIn, 3*time.Second) {
+			observeTransactionPacket("response", cmd, "dispatch_timeout")
+			observeTransactionTimeout("dispatch_response", g1_protocol.CMD(cmd))
 			logger.Errorf("timeout to send message to transaction {header: %#v}", packet.Header)
 			return -4
 		}
+		observeTransactionPacket("response", cmd, "delivered")
 		return 0
 	}
 
@@ -250,22 +255,26 @@ func (s *transactionShard) processSSPacket(packet *sharedstruct.SSPacket) int32 
 		packets := s.pendingPackets[serialKey]
 		if len(packets) >= s.mgr.config.MaxPendingPerKey {
 			s.mgr.onPacketDropped()
+			observeTransactionPacket("request", cmd, "dropped_pending_full")
 			logger.Errorf("Drop a packet for serial key {key:%d, uid:%d, rid:%d, cmd:%d}", serialKey, uid, rid, cmd)
 			return -1
 		}
 
 		s.pendingPackets[serialKey] = append(packets, packet)
 		s.mgr.onPendingPacketAdded()
+		observeTransactionPacket("request", cmd, "queued")
 		return 0
 	}
 
 	cmdHandler, in := s.mgr.cmdHandlers[g1_protocol.CMD(cmd)]
 	if !in {
+		observeTransactionPacket("request", cmd, "missing_handler")
 		logger.Errorf("no reg cmd {cmd:0x%x}", cmd)
 		return -2
 	}
 
 	if !s.mgr.tryAcquireTransSlot() {
+		observeTransactionPacket("request", cmd, "rejected_max_trans")
 		logger.Errorf("reach transaction count limit {max:%v, packetHeader:%v}", s.mgr.maxTransNum, packet.Header)
 		return -5
 	}
@@ -279,6 +288,7 @@ func (s *transactionShard) processSSPacket(packet *sharedstruct.SSPacket) int32 
 		s.keyInProcess[serialKey] = true
 	}
 
+	observeTransactionPacket("request", cmd, "started")
 	go transaction.run(cmdHandler, packet, s.chanTransRet)
 	return 0
 }
