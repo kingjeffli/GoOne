@@ -52,7 +52,7 @@ func (impl *RoomMgr) Tick(nowMs int64) {
 				zone.Index,
 				0,
 				0,
-				&pb.InnerTickReq{NowMs: nowMs, SrcBusId: bus.IpStringToInt(gconf.RoomCenterSvrCfg.SelfBusId)},
+				&pb.InnerTickReq{NowMs: nowMs, SrcBusId: bus.IpStringToInt(gconf.RoomCenterSvrCfg.Identity.SelfBusId)},
 			)
 		}
 	}

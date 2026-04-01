@@ -13,7 +13,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	"github.com/Iori372552686/GoOne/lib/util/idgen"
-	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/lib/util/safego"
 	"github.com/Iori372552686/GoOne/lib/util/sensitive_words"
 	"github.com/Iori372552686/GoOne/module/misc"
@@ -31,12 +30,12 @@ func newApp() *bootstrap.ServiceApp {
 	return bootstrap.NewServiceApp(bootstrap.Options{
 		ServiceName: "mainsvr",
 		LoadConfig: func() error {
-			if err := marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.MainSvrCfg); err != nil {
+			if err := gconf.LoadMainConfig(*gconf.SvrConfFile); err != nil {
 				return err
 			}
-			if gconf.MainSvrCfg.GameDataDir != "" {
-				logger.Infof("Loading local file by gameconf_dir: %v ", gconf.MainSvrCfg.GameDataDir)
-				if err := gamedata.InitLocal(gconf.MainSvrCfg.GameDataDir); err != nil {
+			if gconf.MainSvrCfg.Dependencies.GameDataDir != "" {
+				logger.Infof("Loading local file by gameconf_dir: %v ", gconf.MainSvrCfg.Dependencies.GameDataDir)
+				if err := gamedata.InitLocal(gconf.MainSvrCfg.Dependencies.GameDataDir); err != nil {
 					return err
 				}
 			}
@@ -45,8 +44,8 @@ func newApp() *bootstrap.ServiceApp {
 		},
 		LoggerConfig: func() bootstrap.LoggerConfig {
 			return bootstrap.LoggerConfig{
-				Dir:   gconf.MainSvrCfg.LogDir,
-				Level: gconf.MainSvrCfg.LogLevel,
+				Dir:   gconf.MainSvrCfg.Debug.LogDir,
+				Level: gconf.MainSvrCfg.Debug.LogLevel,
 				Name:  "mainsvr",
 			}
 		},
@@ -54,15 +53,15 @@ func newApp() *bootstrap.ServiceApp {
 			return bootstrap.NewAdminConfig(
 				"mainsvr",
 				misc.ServerType_MainSvr,
-				gconf.MainSvrCfg.AdminServer.Enabled,
-				gconf.MainSvrCfg.Pprof,
-				gconf.MainSvrCfg.AdminServer.IP,
-				gconf.MainSvrCfg.AdminServer.Port,
+				gconf.MainSvrCfg.CommonRuntime.AdminServer.Enabled,
+				gconf.MainSvrCfg.CommonDebug.Pprof,
+				gconf.MainSvrCfg.CommonRuntime.AdminServer.IP,
+				gconf.MainSvrCfg.CommonRuntime.AdminServer.Port,
 			)
 		},
 		InitDeps: func() error {
-			sensitive_words.Init(gconf.MainSvrCfg.SensitiveWordsFile)
-			if err := rds.RedisMgr.InitAndRun(gconf.MainSvrCfg.DbInstances); err != nil {
+			sensitive_words.Init(gconf.MainSvrCfg.Dependencies.SensitiveWordsFile)
+			if err := rds.RedisMgr.InitAndRun(gconf.MainSvrCfg.Dependencies.DbInstances); err != nil {
 				return err
 			}
 			idGen, err := idgen.NewIDGen()
@@ -70,9 +69,9 @@ func newApp() *bootstrap.ServiceApp {
 				return err
 			}
 			globals.IDGen = idGen
-			if gconf.MainSvrCfg.NacosConf.IPAddr != "" {
-				logger.Infof("Loading remote gameconf by Nacos group: %v ", gconf.MainSvrCfg.NacosConf.GroupName)
-				if err := gamedata.InitNet(net_conf.NewNacosConfigClient(gconf.MainSvrCfg.NacosConf), gconf.MainSvrCfg.NacosConf.GroupName); err != nil {
+			if gconf.MainSvrCfg.Dependencies.NacosConf.IPAddr != "" {
+				logger.Infof("Loading remote gameconf by Nacos group: %v ", gconf.MainSvrCfg.Dependencies.NacosConf.GroupName)
+				if err := gamedata.InitNet(net_conf.NewNacosConfigClient(gconf.MainSvrCfg.Dependencies.NacosConf), gconf.MainSvrCfg.Dependencies.NacosConf.GroupName); err != nil {
 					return err
 				}
 			}
@@ -86,7 +85,7 @@ func newApp() *bootstrap.ServiceApp {
 			return nil
 		},
 		StartRuntime: func() error {
-			transShardCount := gconf.MainSvrCfg.TransShardCount
+			transShardCount := gconf.MainSvrCfg.Capacity.TransShardCount
 			if transShardCount <= 0 {
 				transShardCount = transaction.DefaultShardCount()
 			}
@@ -97,11 +96,11 @@ func newApp() *bootstrap.ServiceApp {
 			})
 			logger.Infof("mainsvr transmgr shards=%d serial_key=routerid_or_uid", transShardCount)
 			return router.InitAndRun(
-				gconf.MainSvrCfg.SelfBusId,
+				gconf.MainSvrCfg.Identity.SelfBusId,
 				onRecvSSPacket,
-				gconf.MainSvrCfg.BusMQAddr,
+				gconf.MainSvrCfg.CommonRuntime.BusMQAddr,
 				misc.ServerRouteRules,
-				gconf.MainSvrCfg.RegisterAddr,
+				gconf.MainSvrCfg.CommonRuntime.RegisterAddr,
 			)
 		},
 		OnProc: func() bool {

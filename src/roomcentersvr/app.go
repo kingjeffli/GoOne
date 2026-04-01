@@ -12,7 +12,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	"github.com/Iori372552686/GoOne/lib/util/idgen"
-	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/lib/util/safego"
 	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/roomcentersvr/globals"
@@ -31,12 +30,12 @@ func newApp() *bootstrap.ServiceApp {
 	return bootstrap.NewServiceApp(bootstrap.Options{
 		ServiceName: "roomcentersvr",
 		LoadConfig: func() error {
-			if err := marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.RoomCenterSvrCfg); err != nil {
+			if err := gconf.LoadRoomCenterConfig(*gconf.SvrConfFile); err != nil {
 				return err
 			}
-			if gconf.RoomCenterSvrCfg.GameDataDir != "" {
-				logger.Infof("Loading local file by gameconf_dir: %v ", gconf.RoomCenterSvrCfg.GameDataDir)
-				if err := gamedata.InitLocal(gconf.RoomCenterSvrCfg.GameDataDir); err != nil {
+			if gconf.RoomCenterSvrCfg.Dependencies.GameDataDir != "" {
+				logger.Infof("Loading local file by gameconf_dir: %v ", gconf.RoomCenterSvrCfg.Dependencies.GameDataDir)
+				if err := gamedata.InitLocal(gconf.RoomCenterSvrCfg.Dependencies.GameDataDir); err != nil {
 					return err
 				}
 			}
@@ -44,8 +43,8 @@ func newApp() *bootstrap.ServiceApp {
 		},
 		LoggerConfig: func() bootstrap.LoggerConfig {
 			return bootstrap.LoggerConfig{
-				Dir:   gconf.RoomCenterSvrCfg.LogDir,
-				Level: gconf.RoomCenterSvrCfg.LogLevel,
+				Dir:   gconf.RoomCenterSvrCfg.Debug.LogDir,
+				Level: gconf.RoomCenterSvrCfg.Debug.LogLevel,
 				Name:  "roomcentersvr",
 			}
 		},
@@ -53,10 +52,10 @@ func newApp() *bootstrap.ServiceApp {
 			return bootstrap.NewAdminConfig(
 				"roomcentersvr",
 				misc.ServerType_RoomCenterSvr,
-				gconf.RoomCenterSvrCfg.AdminServer.Enabled,
-				gconf.RoomCenterSvrCfg.Pprof,
-				gconf.RoomCenterSvrCfg.AdminServer.IP,
-				gconf.RoomCenterSvrCfg.AdminServer.Port,
+				gconf.RoomCenterSvrCfg.CommonRuntime.AdminServer.Enabled,
+				gconf.RoomCenterSvrCfg.CommonDebug.Pprof,
+				gconf.RoomCenterSvrCfg.CommonRuntime.AdminServer.IP,
+				gconf.RoomCenterSvrCfg.CommonRuntime.AdminServer.Port,
 			)
 		},
 		InitDeps: func() error {
@@ -65,9 +64,9 @@ func newApp() *bootstrap.ServiceApp {
 				return err
 			}
 			id.IDGen = idGen
-			if gconf.RoomCenterSvrCfg.NacosConf.IPAddr != "" {
-				logger.Infof("Loading remote gameconf by Nacos group: %v ", gconf.RoomCenterSvrCfg.NacosConf.GroupName)
-				if err := gamedata.InitNet(net_conf.NewNacosConfigClient(gconf.RoomCenterSvrCfg.NacosConf), gconf.RoomCenterSvrCfg.NacosConf.GroupName); err != nil {
+			if gconf.RoomCenterSvrCfg.Dependencies.NacosConf.IPAddr != "" {
+				logger.Infof("Loading remote gameconf by Nacos group: %v ", gconf.RoomCenterSvrCfg.Dependencies.NacosConf.GroupName)
+				if err := gamedata.InitNet(net_conf.NewNacosConfigClient(gconf.RoomCenterSvrCfg.Dependencies.NacosConf), gconf.RoomCenterSvrCfg.Dependencies.NacosConf.GroupName); err != nil {
 					return err
 				}
 			}
@@ -82,7 +81,7 @@ func newApp() *bootstrap.ServiceApp {
 			return nil
 		},
 		StartRuntime: func() error {
-			transShardCount := gconf.RoomCenterSvrCfg.TransShardCount
+			transShardCount := gconf.RoomCenterSvrCfg.Capacity.TransShardCount
 			if transShardCount <= 0 {
 				transShardCount = transaction.DefaultShardCount()
 			}
@@ -93,11 +92,11 @@ func newApp() *bootstrap.ServiceApp {
 			})
 			logger.Infof("roomcentersvr transmgr shards=%d serial_key=routerid_or_uid", transShardCount)
 			if err := router.InitAndRun(
-				gconf.RoomCenterSvrCfg.SelfBusId,
+				gconf.RoomCenterSvrCfg.Identity.SelfBusId,
 				onRecvSSPacket,
-				gconf.RoomCenterSvrCfg.BusMQAddr,
+				gconf.RoomCenterSvrCfg.CommonRuntime.BusMQAddr,
 				misc.ServerRouteRules,
-				gconf.RoomCenterSvrCfg.RegisterAddr,
+				gconf.RoomCenterSvrCfg.CommonRuntime.RegisterAddr,
 			); err != nil {
 				return err
 			}

@@ -12,7 +12,6 @@ import (
 	"github.com/Iori372552686/GoOne/common/gconf"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/lib/service/bootstrap"
-	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/lib/util/sensitive_words"
 	"github.com/Iori372552686/GoOne/lib/web/web_gin"
 	"github.com/Iori372552686/GoOne/module/misc"
@@ -34,13 +33,13 @@ func newApp() *bootstrap.ServiceApp {
 	return bootstrap.NewServiceApp(bootstrap.Options{
 		ServiceName: "websvr",
 		LoadConfig: func() error {
-			if err := marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.WebSvrCfg); err != nil {
+			if err := gconf.LoadWebConfig(*gconf.SvrConfFile); err != nil {
 				return err
 			}
 			logger.Infof("svr_conf: %+v", gconf.WebSvrCfg)
-			if gconf.WebSvrCfg.GameDataDir != "" {
-				logger.Infof("Loading local file by gameconf_dir: %v ", gconf.WebSvrCfg.GameDataDir)
-				if err := gamedata.InitLocal(gconf.WebSvrCfg.GameDataDir); err != nil {
+			if gconf.WebSvrCfg.Dependencies.GameDataDir != "" {
+				logger.Infof("Loading local file by gameconf_dir: %v ", gconf.WebSvrCfg.Dependencies.GameDataDir)
+				if err := gamedata.InitLocal(gconf.WebSvrCfg.Dependencies.GameDataDir); err != nil {
 					return err
 				}
 			}
@@ -48,8 +47,8 @@ func newApp() *bootstrap.ServiceApp {
 		},
 		LoggerConfig: func() bootstrap.LoggerConfig {
 			return bootstrap.LoggerConfig{
-				Dir:   gconf.WebSvrCfg.LogDir,
-				Level: gconf.WebSvrCfg.LogLevel,
+				Dir:   gconf.WebSvrCfg.Debug.LogDir,
+				Level: gconf.WebSvrCfg.Debug.LogLevel,
 				Name:  "websvr",
 			}
 		},
@@ -57,23 +56,23 @@ func newApp() *bootstrap.ServiceApp {
 			return bootstrap.NewAdminConfig(
 				"websvr",
 				misc.ServerType_WebSvr,
-				gconf.WebSvrCfg.AdminServer.Enabled,
-				gconf.WebSvrCfg.Pprof,
-				gconf.WebSvrCfg.AdminServer.IP,
-				gconf.WebSvrCfg.AdminServer.Port,
+				gconf.WebSvrCfg.CommonRuntime.AdminServer.Enabled,
+				gconf.WebSvrCfg.CommonDebug.Pprof,
+				gconf.WebSvrCfg.CommonRuntime.AdminServer.IP,
+				gconf.WebSvrCfg.CommonRuntime.AdminServer.Port,
 			)
 		},
 		InitDeps: func() error {
-			if err := globals.RedisMgr.InitAndRun(gconf.WebSvrCfg.DbInstances); err != nil {
+			if err := globals.RedisMgr.InitAndRun(gconf.WebSvrCfg.Dependencies.DbInstances); err != nil {
 				return err
 			}
-			globals.SignMgr.InitAndRun(gconf.WebSvrCfg.HTTPSigns)
-			globals.RestMgr.Init(gconf.WebSvrCfg.RestApiConf, globals.SignMgr)
-			sensitive_words.Init(gconf.WebSvrCfg.SensitiveWordsFile)
+			globals.SignMgr.InitAndRun(gconf.WebSvrCfg.Dependencies.HTTPSigns)
+			globals.RestMgr.Init(gconf.WebSvrCfg.Dependencies.RestApiConf, globals.SignMgr)
+			sensitive_words.Init(gconf.WebSvrCfg.Dependencies.SensitiveWordsFile)
 			return nil
 		},
 		StartRuntime: func() error {
-			httpSrv, err := web_gin.StartGin(gconf.WebSvrCfg.HttpServer, controller.LoadWebRoutes)
+			httpSrv, err := web_gin.StartGin(gconf.WebSvrCfg.Runtime.HttpServer, controller.LoadWebRoutes)
 			if err != nil {
 				return err
 			}
@@ -95,7 +94,7 @@ func newApp() *bootstrap.ServiceApp {
 }
 
 func (r *webRuntime) startGRPCServer() error {
-	conf := gconf.WebSvrCfg.GRPCServer
+	conf := gconf.WebSvrCfg.Runtime.GRPCServer
 	if !conf.Enabled {
 		return nil
 	}

@@ -8,7 +8,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/bootstrap"
 	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
-	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/mysqlsvr/globals"
 	"github.com/Iori372552686/GoOne/src/mysqlsvr/manager"
@@ -24,12 +23,12 @@ func newApp() *bootstrap.ServiceApp {
 	return bootstrap.NewServiceApp(bootstrap.Options{
 		ServiceName: "mysqlsvr",
 		LoadConfig: func() error {
-			return marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.MySqlSvrCfg)
+			return gconf.LoadMySQLConfig(*gconf.SvrConfFile)
 		},
 		LoggerConfig: func() bootstrap.LoggerConfig {
 			return bootstrap.LoggerConfig{
-				Dir:   gconf.MySqlSvrCfg.LogDir,
-				Level: gconf.MySqlSvrCfg.LogLevel,
+				Dir:   gconf.MySqlSvrCfg.Debug.LogDir,
+				Level: gconf.MySqlSvrCfg.Debug.LogLevel,
 				Name:  "mysqlsvr",
 			}
 		},
@@ -37,14 +36,14 @@ func newApp() *bootstrap.ServiceApp {
 			return bootstrap.NewAdminConfig(
 				"mysqlsvr",
 				misc.ServerType_MysqlSvr,
-				gconf.MySqlSvrCfg.AdminServer.Enabled,
-				gconf.MySqlSvrCfg.Pprof,
-				gconf.MySqlSvrCfg.AdminServer.IP,
-				gconf.MySqlSvrCfg.AdminServer.Port,
+				gconf.MySqlSvrCfg.CommonRuntime.AdminServer.Enabled,
+				gconf.MySqlSvrCfg.CommonDebug.Pprof,
+				gconf.MySqlSvrCfg.CommonRuntime.AdminServer.IP,
+				gconf.MySqlSvrCfg.CommonRuntime.AdminServer.Port,
 			)
 		},
 		InitDeps: func() error {
-			return globals.OrmMgr.InitAndRun(gconf.MySqlSvrCfg.OrmConf, manager.GetTables()...)
+			return globals.OrmMgr.InitAndRun(gconf.MySqlSvrCfg.Dependencies.OrmConf, manager.GetTables()...)
 		},
 		RegisterHandlers: func() error {
 			srv := mysqlsvrv1.NewMysqlServiceSServer(&service.MysqlServiceImpl{}, ssrpc.DefaultMWOptions{})
@@ -56,11 +55,11 @@ func newApp() *bootstrap.ServiceApp {
 		StartRuntime: func() error {
 			globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
 			return router.InitAndRun(
-				gconf.MySqlSvrCfg.SelfBusId,
+				gconf.MySqlSvrCfg.Identity.SelfBusId,
 				onRecvSSPacket,
-				gconf.MySqlSvrCfg.BusMQAddr,
+				gconf.MySqlSvrCfg.CommonRuntime.BusMQAddr,
 				misc.ServerRouteRules,
-				gconf.MySqlSvrCfg.RegisterAddr,
+				gconf.MySqlSvrCfg.CommonRuntime.RegisterAddr,
 			)
 		},
 		OnProc: func() bool {

@@ -7,7 +7,6 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/bootstrap"
 	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
-	"github.com/Iori372552686/GoOne/lib/util/marshal"
 	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/connsvr/globals"
 	"github.com/Iori372552686/GoOne/src/connsvr/service"
@@ -17,7 +16,7 @@ func newApp() *bootstrap.ServiceApp {
 	return bootstrap.NewServiceApp(bootstrap.Options{
 		ServiceName: "connsvr",
 		LoadConfig: func() error {
-			if err := marshal.LoadConfFile(*gconf.SvrConfFile, &gconf.ConnSvrCfg); err != nil {
+			if err := gconf.LoadConnConfig(*gconf.SvrConfFile); err != nil {
 				return err
 			}
 			logger.Infof("svr_conf: %+v", gconf.ConnSvrCfg)
@@ -25,8 +24,8 @@ func newApp() *bootstrap.ServiceApp {
 		},
 		LoggerConfig: func() bootstrap.LoggerConfig {
 			return bootstrap.LoggerConfig{
-				Dir:   gconf.ConnSvrCfg.LogDir,
-				Level: gconf.ConnSvrCfg.LogLevel,
+				Dir:   gconf.ConnSvrCfg.Debug.LogDir,
+				Level: gconf.ConnSvrCfg.Debug.LogLevel,
 				Name:  "connsvr",
 			}
 		},
@@ -34,15 +33,15 @@ func newApp() *bootstrap.ServiceApp {
 			return bootstrap.NewAdminConfig(
 				"connsvr",
 				misc.ServerType_ConnSvr,
-				gconf.ConnSvrCfg.AdminServer.Enabled,
-				gconf.ConnSvrCfg.Pprof,
-				gconf.ConnSvrCfg.AdminServer.IP,
-				gconf.ConnSvrCfg.AdminServer.Port,
+				gconf.ConnSvrCfg.CommonRuntime.AdminServer.Enabled,
+				gconf.ConnSvrCfg.CommonDebug.Pprof,
+				gconf.ConnSvrCfg.CommonRuntime.AdminServer.IP,
+				gconf.ConnSvrCfg.CommonRuntime.AdminServer.Port,
 			)
 		},
 		InitDeps: func() error {
-			globals.SignMgr.InitAndRun(gconf.ConnSvrCfg.HTTPSigns)
-			globals.RestMgr.Init(gconf.ConnSvrCfg.RestApiConf, globals.SignMgr)
+			globals.SignMgr.InitAndRun(gconf.ConnSvrCfg.Dependencies.HTTPSigns)
+			globals.RestMgr.Init(gconf.ConnSvrCfg.Dependencies.RestApiConf, globals.SignMgr)
 			return nil
 		},
 		RegisterHandlers: func() error {
@@ -55,18 +54,18 @@ func newApp() *bootstrap.ServiceApp {
 		StartRuntime: func() error {
 			globals.TransMgr.InitAndRun(misc.MaxTransNumber, false, 0)
 			if err := router.InitAndRun(
-				gconf.ConnSvrCfg.SelfBusId,
+				gconf.ConnSvrCfg.Identity.SelfBusId,
 				onRecvSSPacket,
-				gconf.ConnSvrCfg.BusMQAddr,
+				gconf.ConnSvrCfg.CommonRuntime.BusMQAddr,
 				misc.ServerRouteRules,
-				gconf.ConnSvrCfg.RegisterAddr,
+				gconf.ConnSvrCfg.CommonRuntime.RegisterAddr,
 			); err != nil {
 				return err
 			}
-			if err := globals.ConnTcpSvr.CreateTcpServer("", gconf.ConnSvrCfg.ListenPort+1, onTcpPacket); err != nil {
+			if err := globals.ConnTcpSvr.CreateTcpServer("", gconf.ConnSvrCfg.Runtime.ListenPort+1, onTcpPacket); err != nil {
 				return err
 			}
-			return globals.ConnWsSvr.CreateWebSocketServer("gin", "debug", gconf.ConnSvrCfg.ListenPort, onWebSocketPacket)
+			return globals.ConnWsSvr.CreateWebSocketServer("gin", "debug", gconf.ConnSvrCfg.Runtime.ListenPort, onWebSocketPacket)
 		},
 		OnProc: func() bool {
 			return true
