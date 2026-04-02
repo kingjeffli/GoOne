@@ -23,6 +23,7 @@ type grpcIContext struct {
 	ctx  context.Context
 	uid  uint64
 	zone uint32
+	rid  uint32
 }
 
 var _ cmd_handler.IContext = (*grpcIContext)(nil)
@@ -46,7 +47,7 @@ func newGRPCIContext(ctx context.Context) *grpcIContext {
 
 func (g *grpcIContext) Uid() uint64         { return g.uid }
 func (g *grpcIContext) Zone() uint32        { return g.zone }
-func (g *grpcIContext) Rid() uint64         { return 0 }
+func (g *grpcIContext) Rid() uint32         { return g.rid }
 func (g *grpcIContext) OriSrcBusId() uint32 { return 0 }
 func (g *grpcIContext) Ip() uint32          { return 0 }
 func (g *grpcIContext) Flag() uint32        { return 0 }

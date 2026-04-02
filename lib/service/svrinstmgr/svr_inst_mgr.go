@@ -37,13 +37,14 @@ var _ = SvrRouterRule_IoCache_RouterID
 type ServerInstanceMgr struct {
 	routeRules map[uint32]uint32
 
-	mapSvrTypeToIns map[uint32][]uint32
-	client          registry.Client
-	reg             registry.Registrar
-	discovery       registry.Discovery
-	watcher         registry.Watcher
-	stopWatch       func()
-	lock            sync.RWMutex
+	mapSvrTypeToIns    map[uint32][]uint32
+	consistentHashRing map[uint32]*consistentHash
+	client             registry.Client
+	reg                registry.Registrar
+	discovery          registry.Discovery
+	watcher            registry.Watcher
+	stopWatch          func()
+	lock               sync.RWMutex
 }
 
 // -------------------------------- public --------------------------------
@@ -65,6 +66,7 @@ func (s *ServerInstanceMgr) InitAndRun(selfBusID string, routeRules map[uint32]u
 	s.discovery = c
 	s.routeRules = routeRules
 	s.mapSvrTypeToIns = make(map[uint32][]uint32)
+	s.consistentHashRing = make(map[uint32]*consistentHash)
 
 	// Register self into /online/<selfBusID> (ephemeral node).
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -202,6 +204,7 @@ func (s *ServerInstanceMgr) refreshServices(services []*registry.ServiceInstance
 
 	// 所有的busID加到ServerType->ServerInstance的map中
 	s.mapSvrTypeToIns = make(map[uint32][]uint32)
+	s.consistentHashRing = make(map[uint32]*consistentHash)
 	for _, child := range children {
 		busID, _, _, severType, _ := bus.ParseBusID(child)
 		s.mapSvrTypeToIns[severType] = append(s.mapSvrTypeToIns[severType], busID)
@@ -215,6 +218,9 @@ func (s *ServerInstanceMgr) refreshServices(services []*registry.ServiceInstance
 		// 排序去重
 		sort.Slice(s.mapSvrTypeToIns[k], func(i, j int) bool { return s.mapSvrTypeToIns[k][i] < s.mapSvrTypeToIns[k][j] })
 		s.mapSvrTypeToIns[k] = Uint32SliceDeduplicateSorted(s.mapSvrTypeToIns[k])
+		if shouldBuildConsistentHashRing(s.routeRules[k]) {
+			s.consistentHashRing[k] = newConsistentHashSorted(s.mapSvrTypeToIns[k], defaultConsistentHashVirtualNodes)
+		}
 
 		// 输出日志（strings.Builder，避免 fmt ignored-error 告警）
 		var b strings.Builder
@@ -247,6 +253,18 @@ func (s *ServerInstanceMgr) refreshServices(services []*registry.ServiceInstance
 	}
 }
 
+func shouldBuildConsistentHashRing(rule uint32) bool {
+	switch rule {
+	case SvrRouterRule_IoCache_RouterID,
+		SvrRouterRule_ConsistentHash_UID,
+		SvrRouterRule_ConsistentHash_ZoneID,
+		SvrRouterRule_ConsistentHash_RouterID:
+		return true
+	default:
+		return false
+	}
+}
+
 // 随机获取svr
 func (s *ServerInstanceMgr) getSvrInsByRandom(svrType uint32) uint32 {
 	s.lock.RLock()
@@ -264,13 +282,18 @@ func (s *ServerInstanceMgr) getSvrInsByRandom(svrType uint32) uint32 {
 // 通过UID获取一个svr，这里对uid取模
 func (s *ServerInstanceMgr) getSvrInsByConsistentHash(svrType uint32, key uint64) uint32 {
 	s.lock.RLock()
-	defer s.lock.RUnlock()
-
 	svrs := s.mapSvrTypeToIns[svrType]
 	if len(svrs) == 0 {
+		s.lock.RUnlock()
 		return 0
 	}
-	return newConsistentHash(svrs, 50).get(key)
+	ring := s.consistentHashRing[svrType]
+	s.lock.RUnlock()
+
+	if ring != nil {
+		return ring.get(key)
+	}
+	return newConsistentHash(svrs, defaultConsistentHashVirtualNodes).get(key)
 }
 
 // 兼容旧名字：Hash_* 路由仍然是取模（不要改语义）

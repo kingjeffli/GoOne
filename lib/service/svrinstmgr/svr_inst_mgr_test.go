@@ -49,3 +49,15 @@ func TestServerInstanceMgr_ModuloHashAndConsistentHashAreDifferentRules(t *testi
 		t.Fatalf("ConsistentHash_UID returned unexpected node: %v", got)
 	}
 }
+
+func TestConsistentHash_SortedCtorMatchesDefaultCtor(t *testing.T) {
+	nodes := []uint32{30, 10, 20, 20}
+	defaultCtor := newConsistentHash(nodes, defaultConsistentHashVirtualNodes)
+	sortedCtor := newConsistentHashSorted([]uint32{10, 20, 30}, defaultConsistentHashVirtualNodes)
+
+	for _, key := range []uint64{1, 7, 42, 99, 123456789} {
+		if got, want := sortedCtor.get(key), defaultCtor.get(key); got != want {
+			t.Fatalf("key %d: sorted ctor got %v, want %v", key, got, want)
+		}
+	}
+}
