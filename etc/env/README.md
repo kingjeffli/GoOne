@@ -21,10 +21,10 @@
 ./main.sh docker install --env dev1 --limit 113.45.34.170
 ```
 
-直接运行底层脚本也可以：
+直接运行底层脚本也可以（仓库根目录下）：
 
 ```bash
-cd env
+cd etc/env
 ./docker.sh install --env dev1
 ```
 

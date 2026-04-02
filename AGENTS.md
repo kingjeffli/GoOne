@@ -1,43 +1,68 @@
 # AGENTS.md
 
 ## Scope
-These instructions apply to the whole `GoOne` repository. Prefer code over docs when they disagree; `framwork.md` explicitly notes some README/history drift.
+These instructions apply to the whole `GoOne` repository.
+Prefer code over README or older docs when they disagree.
 
-## Big picture
-- `GoOne` is a Go microservice game backend built around `Application -> router -> bus -> TransactionMgr`, with newer IDL-driven `ssrpc` layered on top of the same SSPacket/transaction runtime.
-- Main services live under `src/`: `connsvr` (client TCP/WS gateway), `mainsvr` (player logic), `infosvr` (brief profile/cache), `mysqlsvr` (persistence), `roomcentersvr` (room lifecycle), `web_svr` (Gin HTTP admin APIs).
-- Typical internal flow is: client packet -> `connsvr` -> `lib/service/router` -> bus/routing by `BusId` and `module/misc.ServerRouteRules` -> target service `globals.TransMgr`.
-- Every service follows `lib/service/application/app.go`: implement `OnInit/OnReload/OnProc/OnTick/OnExit`, call `application.Init(...)`, then `application.Run()`.
+## Repository Snapshot
+- `GoOne` is a Go microservice game backend.
+- Active services under `src/` are `connsvr`, `infosvr`, `mainsvr`, `mysqlsvr`, `roomcentersvr`, and `web_svr`.
+- Core shared layers live under `lib/`, shared config under `common/gconf`, protocol sources under `api/proto/` and `game_protocol/proto/`, generated code under `api/gen/`.
+- Deployment and local environment entrypoints are `main.sh`, `deploy/`, and `etc/env/`.
 
-## Runtime/config conventions
-- Shared config shape is defined in `common/gconf/config.go`; services read the `-svr_conf` flag and unmarshal their section plus `base_cfg`.
-- Sample local configs are `common/gconf/server_conf_ide.yaml` and `env/server_conf_ide.yaml` (if both exist in your branch, inspect the one your startup path uses).
-- `BusId` embeds service type; routing rules are centralized in `module/misc/constant.go`. Do not invent per-service routing logic without checking `svrinstmgr` expectations.
-- `mainsvr` and `roomcentersvr` run `TransMgr.InitAndRun(..., true, ...)` for serialized per-router work; `connsvr`/`infosvr` do not. Preserve that concurrency model when adding handlers.
+## Runtime Model
+- Service entrypoints follow `src/<service>/main.go`: parse flags, call `application.Init(newApp())`, then `application.Run()`.
+- `newApp()` normally returns `bootstrap.NewServiceApp(...)` and defines `LoadConfig`, `InitDeps`, `RegisterHandlers`, `StartRuntime`, `OnProc`, `OnTick`, and `OnExit`.
+- Main packet flow is: client -> `connsvr` -> `lib/service/router` -> bus/routing rules -> target service `globals.TransMgr`.
+- `web_svr` is the main exception: it starts Gin HTTP routes and optional gRPC listeners rather than joining the normal bus transaction loop.
 
-## Handler patterns you should follow
-- Current default is IDL-driven `ssrpc`: generated registration lives under `api/gen/**`, and services usually wire it from `app.go` via `Register<Service>ToDispatcher(...)` + `d.RegisterToTransactionMgr(...)` (or the direct `Register<Service>ToTransactionMgr(...)` helper where a service still uses it).
-- Legacy `globals.TransMgr.RegisterCmd(...)` / `cmd_handler/register.go` is now mainly for unfinished migrations, compatibility shims, or scaffolded services. Do not assume every active service still has that file.
-- When a handler requires loaded domain state, reuse the same loading patterns as existing `ssrpc` implementations (for example `globals.RoleMgr` in `src/mainsvr/service/c2s_ssrpc.go`, room managers in `src/roomcentersvr/service/`) instead of duplicating fetch logic.
-- Web APIs are different: `src/web_svr/app.go` boots Gin via `lib/web/web_gin` and mounts routes through `controller.LoadWebRoutes`, not through the bus-driven transaction loop.
+## Service Conventions
+- `connsvr` is the TCP/WebSocket gateway and owns client-facing listeners.
+- `mainsvr` holds player-facing business logic and commonly loads role state through `globals.RoleMgr`.
+- `roomcentersvr` owns room lifecycle and room tick work.
+- `mysqlsvr` is persistence-oriented and depends on ORM instances from config.
+- `infosvr` is a lighter cache/profile service.
+- `web_svr` mounts HTTP routes from `src/web_svr/controller` and may expose gRPC as well.
 
-## Generated code / safe edit boundaries
-- Do **not** hand-edit generated files: `api/gen/**`, `game_protocol/protocol/*.pb.go`, `common/gamedata/repository/**/*.gen.go`.
-- Game data repositories self-register in `init()` and hot-swap with `atomic.Value` (example: `common/gamedata/repository/global_config/GlobalData.gen.go`); change the source data/tooling, not the generated repository code.
-- `go.mod` uses `replace github.com/Iori372552686/game_protocol => ./game_protocol`, so protocol changes belong in the local `game_protocol/` module and must be regenerated consistently.
+## Config Rules
+- Shared config definitions are in `common/gconf/config.go`.
+- All services read the `-svr_conf` flag and load `base_cfg` plus their own service section.
+- Prefer the grouped config layout such as `base_cfg.runtime`, `base_cfg.dependencies`, `base_cfg.debug`, and `<service>.identity/debug/runtime/capacity`.
+- Legacy flat fields still exist for compatibility; do not remove them casually unless the loader and config files are updated together.
+- Bus services require `base_cfg.runtime.register_addr` and `base_cfg.runtime.bus_mq_addr`.
+- `websvr` requires `runtime.http_server.port`; `runtime.grpc_server.port` is required only when gRPC is enabled.
+- Local gamedata typically comes from `dependencies.game_data_dir`; remote/hot-reload setup goes through `dependencies.nacos_conf`.
 
-## Workflows that matter here
-- Preferred top-level entrypoint is `main.sh`; start with:
-  - `./main.sh doctor`
-  - `./main.sh build`
-  - `./main.sh build web`
-- `./main.sh check-genproto` validates `api/gen/**` against `tools/cmd/genproto`; `./main.sh check-genproto --full` additionally validates `game_protocol/protocol/**` via the full `proto_goone` flow. On Windows, the equivalent full check is `.\scripts\check_genproto.ps1 -Full`. GitHub Actions runs the default check via `.github/workflows/check-genproto.yml`.
-- `build.sh` still contains legacy targets for services no longer present under `src/`; do not assume it reflects the full current topology. For services missing there (for example `roomcentersvr`), build directly with `go build -o build/roomcentersvr ./src/roomcentersvr`.
-- Local dependencies come from `env/env_docker.yaml` (MySQL/Redis/ZooKeeper/RabbitMQ). Some tests are integration-like and expect those services running.
-- On Windows, prefer PowerShell for proto generation (`.\scripts\proto_goone.ps1`) and WSL/Git-Bash for `main.sh`/`build.sh`.
+## Handler And Routing Rules
+- Default integration path is IDL-driven `ssrpc`.
+- Register handlers with generated code from `api/gen/**`, usually via `New<Service>SServer(...)`, `Register<Service>ToDispatcher(...)`, and `d.RegisterToTransactionMgr(...)`.
+- Treat legacy `globals.TransMgr.RegisterCmd(...)` or `cmd_handler/register.go` as compatibility paths for older code, not the default for new work.
+- When a handler needs domain state, reuse existing managers such as `globals.RoleMgr` or room managers instead of re-implementing load paths.
+- Routing behavior depends on `BusId`, `module/misc.ServerRouteRules`, and `lib/service/svrinstmgr`; avoid ad-hoc routing logic.
+- Preserve the serialized transaction model in `mainsvr` and `roomcentersvr`; they intentionally use sharded transaction processing that differs from lighter services like `connsvr`.
 
-## Integration points to inspect before deep changes
-- Registry/config/bus backends are chosen by URI-like config strings in YAML (`register_addr`, `bus_mq_addr`) and implemented under `lib/contrib/**` and `lib/service/bus/**`.
-- `common/gamedata/gamedata.go` supports local file loading and Nacos hot reload; services may initialize either path depending on `NacosConf`.
-- Deployment/ops behavior is in `deploy/README.md`, `deploy/deploy.sh`, and `deploy/scripts/server.sh`; environment management is in `env/README.md` and `env/docker.sh`.
+## Generated Code Boundaries
+- Do not hand-edit `api/gen/**`.
+- Do not hand-edit `game_protocol/protocol/*.pb.go`.
+- Do not hand-edit `common/gamedata/repository/**/*.gen.go`.
+- When protocol changes are needed, edit the source proto files and regenerate.
+- `go.mod` replaces `github.com/Iori372552686/game_protocol` with local `./game_protocol`, so protocol work belongs in the local module.
+
+## Build And Verification
+- Preferred top-level entrypoint is `main.sh`.
+- Start with `./main.sh doctor` when checking a local environment.
+- Common builds are `./main.sh build` and `./main.sh build web`.
+- `build.sh` is legacy and does not fully reflect the active `src/` tree; for missing targets such as `roomcentersvr`, build directly with `go build -o build/roomcentersvr ./src/roomcentersvr`.
+- Validate generated code with `./main.sh check-genproto`.
+- Use `./main.sh check-genproto --full` when `game_protocol` output also needs verification.
+- On Windows, prefer PowerShell for proto scripts such as `.\scripts\check_genproto.ps1 -Full`; prefer WSL or Git-Bash for `main.sh` and `build.sh`.
+- Local middleware dependencies are defined under `etc/env/env_docker.yaml`.
+
+## Where To Look First
+- For service startup and dependency wiring, inspect `src/<service>/app.go`.
+- For shared boot behavior, inspect `lib/service/bootstrap/` and `lib/service/application/app.go`.
+- For config changes, inspect `common/gconf/config.go`.
+- For routing or service discovery issues, inspect `lib/service/router/`, `lib/service/svrinstmgr/`, `lib/service/bus/`, and `module/misc/`.
+- For web changes, inspect `src/web_svr/controller/` before touching bus-side handlers.
+- For deployment behavior, inspect `deploy/README.md`, `deploy/deploy.sh`, and `deploy/scripts/server.sh`.
 
