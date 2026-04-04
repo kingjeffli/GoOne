@@ -51,11 +51,11 @@ Prefer code over README or older docs when they disagree.
 ## Build And Verification
 - Preferred top-level entrypoint is `main.sh`.
 - Start with `./main.sh doctor` when checking a local environment.
-- Common builds are `./main.sh build` and `./main.sh build web`.
-- `build.sh` is legacy and does not fully reflect the active `src/` tree; for missing targets such as `roomcentersvr`, build directly with `go build -o build/roomcentersvr ./src/roomcentersvr`.
+- Common builds are `./main.sh build`, `./main.sh build web`, and `./main.sh build roomcenter`.
+- `build.sh` is the repository build helper for the active `src/` services only: `connsvr`, `mainsvr`, `infosvr`, `mysqlsvr`, `roomcentersvr`, and `web_svr` (output binary `websvr`).
+- On Windows, use `./build.ps1` for local builds; use PowerShell proto helpers such as `.\scripts\check_genproto.ps1 -Full`, and prefer WSL or Git-Bash for `main.sh`.
 - Validate generated code with `./main.sh check-genproto`.
 - Use `./main.sh check-genproto --full` when `game_protocol` output also needs verification.
-- On Windows, prefer PowerShell for proto scripts such as `.\scripts\check_genproto.ps1 -Full`; prefer WSL or Git-Bash for `main.sh` and `build.sh`.
 - Local middleware dependencies are defined under `etc/env/env_docker.yaml`.
 
 ## Where To Look First

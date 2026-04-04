@@ -3,6 +3,8 @@ package bus
 import (
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Iori372552686/GoOne/lib/api/logger"
@@ -19,6 +21,9 @@ type BusImplNatsMQ struct {
 	url           string
 	subjectPrefix string
 	queueGroup    string
+	stopCh        chan struct{}
+	closed        atomic.Bool
+	closeOnce     sync.Once
 }
 
 func NewBusImplNatsMQ(selfBusId uint32, onRecvMsg MsgHandler, conf NatsConfig) IBus {
@@ -35,6 +40,7 @@ func NewBusImplNatsMQ(selfBusId uint32, onRecvMsg MsgHandler, conf NatsConfig) I
 		url:           strings.TrimSpace(conf.URL),
 		subjectPrefix: prefix,
 		queueGroup:    strings.TrimSpace(conf.QueueGroup),
+		stopCh:        make(chan struct{}),
 	}
 	go impl.run()
 	return impl
@@ -48,6 +54,9 @@ func (b *BusImplNatsMQ) subjectFor(busId uint32) string {
 }
 
 func (b *BusImplNatsMQ) Send(dstBusId uint32, data1 []byte, data2 []byte) error {
+	if b.closed.Load() {
+		return ErrBusClosed
+	}
 	header := busPacketHeader{}
 	header.version = 0
 	header.passCode = passCode
@@ -74,6 +83,14 @@ func (b *BusImplNatsMQ) Send(dstBusId uint32, data1 []byte, data2 []byte) error 
 	return nil
 }
 
+func (b *BusImplNatsMQ) Close() error {
+	b.closeOnce.Do(func() {
+		b.closed.Store(true)
+		close(b.stopCh)
+	})
+	return nil
+}
+
 func (b *BusImplNatsMQ) process() error {
 	if b.url == "" {
 		return fmt.Errorf("nats url is empty")
@@ -96,15 +113,19 @@ func (b *BusImplNatsMQ) process() error {
 		sub, err = nc.QueueSubscribe(mySubject, b.queueGroup, func(m *nats.Msg) {
 			buf := make([]byte, len(m.Data))
 			copy(buf, m.Data)
-			// Apply backpressure instead of silently dropping messages.
-			b.chanIn <- buf
+			select {
+			case b.chanIn <- buf:
+			case <-b.stopCh:
+			}
 		})
 	} else {
 		sub, err = nc.Subscribe(mySubject, func(m *nats.Msg) {
 			buf := make([]byte, len(m.Data))
 			copy(buf, m.Data)
-			// Apply backpressure instead of silently dropping messages.
-			b.chanIn <- buf
+			select {
+			case b.chanIn <- buf:
+			case <-b.stopCh:
+			}
 		})
 	}
 	if err != nil {
@@ -115,6 +136,8 @@ func (b *BusImplNatsMQ) process() error {
 
 	for {
 		select {
+		case <-b.stopCh:
+			return nil
 		case msgOut, ok := <-b.chanOut:
 			if !ok {
 				return fmt.Errorf("chanOut of bus is closed")
@@ -147,8 +170,14 @@ func (b *BusImplNatsMQ) process() error {
 func (b *BusImplNatsMQ) run() {
 	retryCount := 0
 	for {
+		if b.closed.Load() {
+			return
+		}
 		processStartTime := time.Now()
 		err := b.process()
+		if b.closed.Load() {
+			return
+		}
 		if time.Since(processStartTime) > time.Minute {
 			retryCount = 0
 		}
@@ -159,7 +188,11 @@ func (b *BusImplNatsMQ) run() {
 		}
 		logger.Errorf("Error occur in processing bus(nats). Retry later {retryTimes: %v, afterSeconds:%v} | %v",
 			retryCount, retryAfterSeconds, err)
-		time.Sleep(time.Duration(retryAfterSeconds) * time.Second)
+		select {
+		case <-b.stopCh:
+			return
+		case <-time.After(time.Duration(retryAfterSeconds) * time.Second):
+		}
 	}
 }
 

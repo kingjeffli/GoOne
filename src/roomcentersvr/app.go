@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	roomcenterv1 "github.com/Iori372552686/GoOne/api/gen/game/roomcenter/v1"
 	"github.com/Iori372552686/GoOne/common/gamedata"
 	"github.com/Iori372552686/GoOne/common/gconf"
@@ -8,7 +9,7 @@ import (
 	"github.com/Iori372552686/GoOne/lib/api/net_conf"
 	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
 	"github.com/Iori372552686/GoOne/lib/service/bootstrap"
-	"github.com/Iori372552686/GoOne/lib/service/router"
+	service_router "github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	"github.com/Iori372552686/GoOne/lib/util/idgen"
@@ -91,7 +92,7 @@ func newApp() *bootstrap.ServiceApp {
 				MaxPendingPerKey: 200,
 			})
 			logger.Infof("roomcentersvr transmgr shards=%d serial_key=routerid_or_uid", transShardCount)
-			if err := router.InitAndRun(
+			if err := service_router.InitAndRun(
 				gconf.RoomCenterSvrCfg.Identity.SelfBusId,
 				onRecvSSPacket,
 				gconf.RoomCenterSvrCfg.CommonRuntime.BusMQAddr,
@@ -115,6 +116,14 @@ func newApp() *bootstrap.ServiceApp {
 			safego.Go(func() {
 				globals.RoomListMgr.Tick(nowMs)
 			})
+		},
+		OnShutdown: func(ctx context.Context) error {
+			service_router.BeginShutdown()
+			shutdownErr := globals.TransMgr.Close(ctx)
+			if err := service_router.Close(); err != nil && shutdownErr == nil {
+				shutdownErr = err
+			}
+			return shutdownErr
 		},
 		OnExit: func() {
 			logger.Infof("================== roomcentersvr Stop =========================")

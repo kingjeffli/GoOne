@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Iori372552686/GoOne/lib/api/logger"
@@ -20,6 +22,9 @@ type BusImplKafkaMQ struct {
 	brokers       []string
 	topicPrefix   string
 	groupIDPrefix string
+	stopCh        chan struct{}
+	closed        atomic.Bool
+	closeOnce     sync.Once
 }
 
 func NewBusImplKafkaMQ(selfBusId uint32, onRecvMsg MsgHandler, conf KafkaConfig) IBus {
@@ -40,6 +45,7 @@ func NewBusImplKafkaMQ(selfBusId uint32, onRecvMsg MsgHandler, conf KafkaConfig)
 		brokers:       conf.Brokers,
 		topicPrefix:   topicPrefix,
 		groupIDPrefix: groupPrefix,
+		stopCh:        make(chan struct{}),
 	}
 	go impl.run()
 	return impl
@@ -57,6 +63,9 @@ func (b *BusImplKafkaMQ) groupFor(busId uint32) string {
 }
 
 func (b *BusImplKafkaMQ) Send(dstBusId uint32, data1 []byte, data2 []byte) error {
+	if b.closed.Load() {
+		return ErrBusClosed
+	}
 	header := busPacketHeader{}
 	header.version = 0
 	header.passCode = passCode
@@ -80,6 +89,14 @@ func (b *BusImplKafkaMQ) Send(dstBusId uint32, data1 []byte, data2 []byte) error
 	if !sendToMsgChan(b.chanOut, msg, b.timeout) {
 		return fmt.Errorf("kafka bus.chanOut<-msg time out")
 	}
+	return nil
+}
+
+func (b *BusImplKafkaMQ) Close() error {
+	b.closeOnce.Do(func() {
+		b.closed.Store(true)
+		close(b.stopCh)
+	})
 	return nil
 }
 
@@ -117,13 +134,18 @@ func (b *BusImplKafkaMQ) process() error {
 			}
 			buf := make([]byte, len(m.Value))
 			copy(buf, m.Value)
-			// Apply backpressure instead of silently dropping messages.
-			b.chanIn <- buf
+			select {
+			case b.chanIn <- buf:
+			case <-b.stopCh:
+				return
+			}
 		}
 	}()
 
 	for {
 		select {
+		case <-b.stopCh:
+			return nil
 		case msgOut, ok := <-b.chanOut:
 			if !ok {
 				return fmt.Errorf("chanOut of bus is closed")
@@ -159,8 +181,14 @@ func (b *BusImplKafkaMQ) process() error {
 func (b *BusImplKafkaMQ) run() {
 	retryCount := 0
 	for {
+		if b.closed.Load() {
+			return
+		}
 		processStartTime := time.Now()
 		err := b.process()
+		if b.closed.Load() {
+			return
+		}
 		if time.Since(processStartTime) > time.Minute {
 			retryCount = 0
 		}
@@ -171,7 +199,11 @@ func (b *BusImplKafkaMQ) run() {
 		}
 		logger.Errorf("Error occur in processing bus(kafka). Retry later {retryTimes: %v, afterSeconds:%v} | %v",
 			retryCount, retryAfterSeconds, err)
-		time.Sleep(time.Duration(retryAfterSeconds) * time.Second)
+		select {
+		case <-b.stopCh:
+			return
+		case <-time.After(time.Duration(retryAfterSeconds) * time.Second):
+		}
 	}
 }
 

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	mainsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/mainsvr/v1"
 	"github.com/Iori372552686/GoOne/common/gamedata"
 	"github.com/Iori372552686/GoOne/common/gconf"
@@ -110,6 +112,14 @@ func newApp() *bootstrap.ServiceApp {
 			if lastMs/datetime.MS_PER_MINUTE != nowMs/datetime.MS_PER_MINUTE {
 				safego.Go(func() { globals.RoleMgr.Tick() })
 			}
+		},
+		OnShutdown: func(ctx context.Context) error {
+			router.BeginShutdown()
+			shutdownErr := globals.TransMgr.Close(ctx)
+			if err := router.Close(); err != nil && shutdownErr == nil {
+				shutdownErr = err
+			}
+			return shutdownErr
 		},
 		OnExit: func() {
 			logger.Infof("================== mainsvr Stop =========================")

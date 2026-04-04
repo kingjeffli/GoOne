@@ -7,6 +7,8 @@ set -euo pipefail
 # Root dir = script dir (not current working dir)
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="${ROOT_DIR}/deploy"
+ENV_DIR="${ROOT_DIR}/etc/env"
+SCRIPT_DIR="${ROOT_DIR}/scripts"
 
 # Reuse deploy/common.sh for consistent logging & config parsing
 # shellcheck source=deploy/common.sh
@@ -62,6 +64,7 @@ ${COLOR_BOLD}Examples${COLOR_RESET}
   # build
   ./main.sh build
   ./main.sh build web
+  ./main.sh build roomcenter
 
   # deploy
   ./main.sh deploy --env dev1 --action restart --role websvr
@@ -73,7 +76,7 @@ ${COLOR_BOLD}Examples${COLOR_RESET}
   ./main.sh host init --limit 192.168.50.250
   ./main.sh host init --variant centos --dry-run
 
-  # go version manager (delegates to env/go-manager.sh)
+  # go version manager (delegates to scripts/go-manager.sh)
   ./main.sh go list
   ./main.sh go current
   ./main.sh go install 1.25.0
@@ -86,6 +89,8 @@ ${COLOR_BOLD}Examples${COLOR_RESET}
 
 ${COLOR_BOLD}Notes${COLOR_RESET}
   - Most deploy/init-host options are forwarded to ${COLOR_CYAN}deploy/deploy.sh${COLOR_RESET} / ${COLOR_CYAN}deploy/init-host.sh${COLOR_RESET}.
+  - ${COLOR_CYAN}build.sh${COLOR_RESET} builds the active services under ${COLOR_CYAN}src/${COLOR_RESET}: connsvr, mainsvr, infosvr, mysqlsvr, roomcentersvr, web_svr.
+  - On Windows, prefer ${COLOR_CYAN}.\build.ps1${COLOR_RESET} for local builds and PowerShell proto helpers under ${COLOR_CYAN}scripts/*.ps1${COLOR_RESET}; use WSL/Git-Bash for ${COLOR_CYAN}main.sh${COLOR_RESET}.
   - Set ${COLOR_CYAN}NO_COLOR=1${COLOR_RESET} to disable colored output.
 EOF
 }
@@ -135,16 +140,16 @@ doctor() {
 
   kv "bash" "$(command -v bash 2>/dev/null || echo "${COLOR_YELLOW}NOT FOUND${COLOR_RESET}")"
   kv "go" "$(command -v go 2>/dev/null || echo "${COLOR_YELLOW}NOT FOUND${COLOR_RESET}")"
-  if [[ -f "${ROOT_DIR}/env/go-manager.sh" ]]; then
-    kv "go-manager" "${COLOR_GREEN}OK${COLOR_RESET}  (${ROOT_DIR}/env/go-manager.sh)"
+  if [[ -f "${SCRIPT_DIR}/go-manager.sh" ]]; then
+    kv "go-manager" "${COLOR_GREEN}OK${COLOR_RESET}  (${SCRIPT_DIR}/go-manager.sh)"
   else
-    kv "go-manager" "${COLOR_YELLOW}NOT FOUND${COLOR_RESET}  (${ROOT_DIR}/env/go-manager.sh)"
+    kv "go-manager" "${COLOR_YELLOW}NOT FOUND${COLOR_RESET}  (${SCRIPT_DIR}/go-manager.sh)"
   fi
 
-  if [[ -f "${ROOT_DIR}/env/docker.sh" ]]; then
-    kv "env/docker.sh" "${COLOR_GREEN}OK${COLOR_RESET}  (${ROOT_DIR}/env/docker.sh)"
+  if [[ -f "${ENV_DIR}/docker.sh" ]]; then
+    kv "etc/env/docker.sh" "${COLOR_GREEN}OK${COLOR_RESET}  (${ENV_DIR}/docker.sh)"
   else
-    kv "env/docker.sh" "${COLOR_YELLOW}NOT FOUND${COLOR_RESET}  (${ROOT_DIR}/env/docker.sh)"
+    kv "etc/env/docker.sh" "${COLOR_YELLOW}NOT FOUND${COLOR_RESET}  (${ENV_DIR}/docker.sh)"
   fi
 
   if command -v ansible-playbook >/dev/null 2>&1; then
@@ -157,11 +162,11 @@ doctor() {
   require_file "${DEPLOY_DIR}/deploy.sh"
   require_file "${DEPLOY_DIR}/init-host.sh"
   require_file "${DEPLOY_DIR}/install.sh"
-  require_file "${ROOT_DIR}/env/go-manager.sh"
-  require_file "${ROOT_DIR}/env/docker.sh"
-  require_file "${ROOT_DIR}/env/docker-playbook.yml"
-  require_file "${ROOT_DIR}/env/env_docker.yaml"
-  log_ok "Scripts OK: build.sh, deploy/*, env/*"
+  require_file "${SCRIPT_DIR}/go-manager.sh"
+  require_file "${ENV_DIR}/docker.sh"
+  require_file "${ENV_DIR}/docker-playbook.yml"
+  require_file "${ENV_DIR}/env_docker.yaml"
+  log_ok "Scripts OK: build.sh, deploy/*, scripts/*, etc/env/*"
 
   hr
   title "Inventory (quick view)"
@@ -221,14 +226,14 @@ case "$cmd" in
   go)
     sub="${1:-help}"
     shift || true
-    # Delegate to env/go-manager.sh (handles install/list/use/current/uninstall/check/help)
-    (cd "${ROOT_DIR}/env" && ./go-manager.sh "$sub" "$@")
+    # Delegate to scripts/go-manager.sh (handles install/list/use/current/uninstall/check/help)
+    (cd "${SCRIPT_DIR}" && ./go-manager.sh "$sub" "$@")
     ;;
 
   docker)
     sub="${1:-help}"
     shift || true
-    (cd "${ROOT_DIR}/env" && ./docker.sh "$sub" "$@")
+    (cd "${ENV_DIR}" && ./docker.sh "$sub" "$@")
     ;;
 
   build)

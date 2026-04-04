@@ -1,6 +1,9 @@
 package transaction
 
 import (
+	"context"
+	"errors"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -25,6 +28,10 @@ type TransactionMgr struct {
 	activeTransactions atomic.Int64
 	pendingPackets     atomic.Int64
 	droppedPackets     atomic.Int64
+	closing            atomic.Bool
+	closeCh            chan struct{}
+	closeOnce          sync.Once
+	shardWG            sync.WaitGroup
 }
 
 type transactionShard struct {
@@ -61,6 +68,7 @@ func (m *TransactionMgr) InitAndRunWithConfig(cfg TransactionMgrConfig) {
 	m.config = cfg
 	m.useSerialKey = true
 	m.maxTransNum = cfg.MaxTrans
+	m.closeCh = make(chan struct{})
 	registerTransactionMgr(m)
 
 	shardBufSize := perShardBufferSize(cfg.MaxTrans, cfg.ShardCount)
@@ -78,6 +86,7 @@ func (m *TransactionMgr) InitAndRunWithConfig(cfg TransactionMgrConfig) {
 			pendingPackets: make(map[uint64][]*sharedstruct.SSPacket),
 		}
 		m.shards = append(m.shards, shard)
+		m.shardWG.Add(1)
 		go shard.run()
 	}
 }
@@ -97,12 +106,47 @@ func (m *TransactionMgr) ProcessSSPacket(packet *sharedstruct.SSPacket) {
 	if packet == nil {
 		return
 	}
+	if m.closing.Load() && packet.Header.DstTransID == 0 {
+		observeTransactionPacket("request", packet.Header.Cmd, "rejected_shutdown")
+		logger.Warningf("transmgr is shutting down, reject request {header:%#v}", packet.Header)
+		return
+	}
 	shard := m.selectShard(packet)
 	if shard == nil {
 		logger.Errorf("transmgr is not initialized, drop packet {header:%#v}", packet.Header)
 		return
 	}
 	shard.chanInPacket <- packet
+}
+
+func (m *TransactionMgr) Close(ctx context.Context) error {
+	if !m.started {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	m.closeOnce.Do(func() {
+		m.closing.Store(true)
+		close(m.closeCh)
+	})
+
+	done := make(chan struct{})
+	go func() {
+		m.shardWG.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		unregisterTransactionMgr(m)
+		m.shards = nil
+		m.started = false
+		return nil
+	case <-ctx.Done():
+		return errors.Join(errors.New("transaction manager shutdown timed out"), ctx.Err())
+	}
 }
 
 // 发给自己（SelfBusId）的消息直接调用ProcessSSPacket，而不到网络上转一圈
@@ -208,6 +252,7 @@ func (m *TransactionMgr) onPacketDropped() {
 }
 
 func (s *transactionShard) run() {
+	defer s.mgr.shardWG.Done()
 	for {
 		select {
 		case packet, ok := <-s.chanInPacket:
@@ -222,7 +267,33 @@ func (s *transactionShard) run() {
 				return
 			}
 			s.processTransactionRet(transID)
+		case <-s.mgr.closeCh:
+			if s.canStop() {
+				return
+			}
+			if !s.drainOne() {
+				time.Sleep(time.Millisecond)
+			}
 		}
+	}
+}
+
+func (s *transactionShard) canStop() bool {
+	return len(s.chanInPacket) == 0 && len(s.chanTransRet) == 0 && len(s.transMap) == 0 && len(s.pendingPackets) == 0
+}
+
+func (s *transactionShard) drainOne() bool {
+	select {
+	case packet := <-s.chanInPacket:
+		if packet != nil {
+			s.processSSPacket(packet)
+		}
+		return true
+	case transID := <-s.chanTransRet:
+		s.processTransactionRet(transID)
+		return true
+	default:
+		return false
 	}
 }
 

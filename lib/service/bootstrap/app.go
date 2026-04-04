@@ -27,6 +27,12 @@ type Options struct {
 	StartRuntime     func() error
 	OnProc           func() bool
 	OnTick           func(lastMs, nowMs int64)
+	// OnShutdown runs before admin shutdown / OnExit and should perform
+	// graceful, timeout-bound runtime stop work.
+	OnShutdown       func(ctx context.Context) error
+	ShutdownTimeout  time.Duration
+	// OnExit runs after graceful shutdown attempts and is meant for final
+	// best-effort cleanup/logging.
 	OnExit           func()
 }
 
@@ -102,6 +108,9 @@ func (a *ServiceApp) OnExit() {
 	a.ready.Store(false)
 	a.alive.Store(false)
 
+	if err := a.shutdownRuntime(); err != nil {
+		logger.Errorf("%s runtime shutdown error | %v", a.serviceName(), err)
+	}
 	if err := a.shutdownAdmin(); err != nil {
 		logger.Errorf("%s admin shutdown error | %v", a.serviceName(), err)
 	}
@@ -110,6 +119,19 @@ func (a *ServiceApp) OnExit() {
 	}
 	logger.Infof("%s shutdown complete", a.serviceName())
 	logger.Flush()
+}
+
+func (a *ServiceApp) shutdownRuntime() error {
+	if a.options.OnShutdown == nil {
+		return nil
+	}
+	timeout := a.options.ShutdownTimeout
+	if timeout <= 0 {
+		timeout = defaultShutdownTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return a.options.OnShutdown(ctx)
 }
 
 func (a *ServiceApp) loadConfig(reinitLogger bool) error {

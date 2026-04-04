@@ -21,7 +21,7 @@ Options:
   -e, --env <group>         target group in deploy/hosts/host_dev.txt (dev1/dev2/dev_local)
   -i, --inventory <file>    inventory file (default: deploy/hosts/host_dev.txt)
   -l, --limit <pattern>     ansible --limit (must match hosts in inventory)
-  --compose <file>          compose yaml to upload (default: env/env_docker.yaml)
+  --compose <file>          compose yaml to upload (default: etc/env/env_docker.yaml)
   --remote-dir <dir>        remote directory to store docker-compose.yml (default: /data/GoOne/env)
   --project <name>          docker compose project name (default: goone-env)
   --check                   ansible --check

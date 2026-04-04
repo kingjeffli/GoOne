@@ -2,6 +2,7 @@ package bus
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -13,6 +14,7 @@ type MsgHandler func(srcBusID uint32, data []byte) error
 type IBus interface {
 	SelfBusId() uint32
 	Send(dstBusId uint32, data1 []byte, data2 []byte) error
+	Close() error
 
 	// 默认规则：
 	// 1. onRecvMsg由实现类的内部协程调用，且只会由一个协程调用。
@@ -26,6 +28,8 @@ type IBus interface {
 const (
 	passCode = 0xFEED
 )
+
+var ErrBusClosed = errors.New("bus is closed")
 
 type busPacket struct {
 	Header busPacketHeader

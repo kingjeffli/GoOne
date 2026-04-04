@@ -85,6 +85,13 @@ func registerTransactionMgr(m *TransactionMgr) {
 	registeredTransactionMgrs.Store(m, struct{}{})
 }
 
+func unregisterTransactionMgr(m *TransactionMgr) {
+	if m == nil {
+		return
+	}
+	registeredTransactionMgrs.Delete(m)
+}
+
 func observeTransactionPacket(phase string, cmd uint32, result string) {
 	transactionPacketsTotal.WithLabelValues(phase, transactionCmdLabel(cmd), result).Inc()
 }

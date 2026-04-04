@@ -78,7 +78,9 @@ func newApp() *bootstrap.ServiceApp {
 			}
 			runtime.httpSrv = httpSrv
 			if err := runtime.startGRPCServer(); err != nil {
-				runtime.shutdown()
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_ = runtime.shutdown(ctx)
 				return err
 			}
 			return nil
@@ -86,8 +88,10 @@ func newApp() *bootstrap.ServiceApp {
 		OnProc: func() bool {
 			return true
 		},
+		OnShutdown: func(ctx context.Context) error {
+			return runtime.shutdown(ctx)
+		},
 		OnExit: func() {
-			runtime.shutdown()
 			logger.Infof("================== websvr Stop =========================")
 		},
 	})
@@ -128,17 +132,33 @@ func (r *webRuntime) startGRPCServer() error {
 	return nil
 }
 
-func (r *webRuntime) shutdown() {
+func (r *webRuntime) shutdown(ctx context.Context) error {
+	var shutdownErr error
 	if r.grpcSrv != nil {
-		r.grpcSrv.GracefulStop()
+		done := make(chan struct{})
+		grpcSrv := r.grpcSrv
+		go func() {
+			grpcSrv.GracefulStop()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-ctx.Done():
+			grpcSrv.Stop()
+			if shutdownErr == nil {
+				shutdownErr = ctx.Err()
+			}
+		}
 		r.grpcSrv = nil
 	}
 	if r.httpSrv != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
 		if err := r.httpSrv.Shutdown(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Errorf("http shutdown error | %v", err)
+			if shutdownErr == nil {
+				shutdownErr = err
+			}
 		}
 		r.httpSrv = nil
 	}
+	return shutdownErr
 }

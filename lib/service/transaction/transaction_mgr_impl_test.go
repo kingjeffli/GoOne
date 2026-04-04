@@ -1,6 +1,7 @@
 package transaction
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -100,6 +101,55 @@ func TestTransactionMgrSerializesByRouterIDAndTracksDrops(t *testing.T) {
 		stats := mgr.StatsSnapshot()
 		return stats.ActiveTransactions == 0 && stats.PendingPackets == 0 && stats.DroppedPackets == 1
 	}, "router-id serialized transactions to drain")
+}
+
+func TestTransactionMgrCloseRejectsNewRequestsAndWaitsForInflight(t *testing.T) {
+	mgr := &TransactionMgr{}
+	started := make(chan uint64, 2)
+	release := make(chan struct{}, 1)
+
+	mgr.RegisterCmd(testTransactionCmd, func(c cmd_handler.IContext, data []byte) g1_protocol.ErrorCode {
+		started <- c.Uid()
+		<-release
+		return g1_protocol.ErrorCode_ERR_OK
+	})
+	mgr.InitAndRunWithConfig(TransactionMgrConfig{
+		MaxTrans:         4,
+		ShardCount:       1,
+		MaxPendingPerKey: 2,
+	})
+
+	mgr.ProcessSSPacket(makeTestPacket(3001, 0, testTransactionCmd))
+	if uid := waitStarted(t, started); uid != 3001 {
+		t.Fatalf("expected first transaction uid=3001, got %d", uid)
+	}
+
+	closeDone := make(chan error, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		closeDone <- mgr.Close(ctx)
+	}()
+
+	// New requests should be rejected once shutdown begins.
+	mgr.ProcessSSPacket(makeTestPacket(3002, 0, testTransactionCmd))
+	ensureNoStart(t, started, 150*time.Millisecond)
+
+	release <- struct{}{}
+
+	select {
+	case err := <-closeDone:
+		if err != nil {
+			t.Fatalf("Close returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for Close to finish")
+	}
+
+	stats := mgr.StatsSnapshot()
+	if stats.ActiveTransactions != 0 {
+		t.Fatalf("expected no active transactions after close, got %d", stats.ActiveTransactions)
+	}
 }
 
 func makeTestPacket(uid, rid uint64, cmd g1_protocol.CMD) *sharedstruct.SSPacket {

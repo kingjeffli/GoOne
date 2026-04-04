@@ -2,6 +2,7 @@ package router
 
 import (
 	"bytes"
+	"sync"
 	"testing"
 
 	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
@@ -12,6 +13,7 @@ type fakeBus struct {
 	selfBusID uint32
 
 	sendCalls int
+	closeCalls int
 	lastDst   uint32
 	lastData1 []byte
 	lastData2 []byte
@@ -29,7 +31,44 @@ func (b *fakeBus) Send(dstBusId uint32, data1 []byte, data2 []byte) error {
 	return nil
 }
 
-func (b *fakeBus) SetReceiver(onRecvMsg bus.MsgHandler) {}
+func (b *fakeBus) SetReceiver(_ bus.MsgHandler) {}
+
+func (b *fakeBus) Close() error {
+	b.closeCalls++
+	return nil
+}
+
+func TestRouterCloseClosesBusAndClearsState(t *testing.T) {
+	oldBus := router.busImpl
+	oldCb := router.cbOnRecvSSPacket
+	oldBegin := router.beginShutdownOnce
+	oldClose := router.closeOnce
+	t.Cleanup(func() {
+		router.busImpl = oldBus
+		router.cbOnRecvSSPacket = oldCb
+		router.beginShutdownOnce = oldBegin
+		router.closeOnce = oldClose
+	})
+
+	fb := &fakeBus{selfBusID: 0x01020304}
+	router.busImpl = fb
+	router.cbOnRecvSSPacket = func(packet *sharedstruct.SSPacket) {}
+	router.beginShutdownOnce = sync.Once{}
+	router.closeOnce = sync.Once{}
+
+	if err := Close(); err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+	if fb.closeCalls != 1 {
+		t.Fatalf("expected bus Close to be called once, got %d", fb.closeCalls)
+	}
+	if router.busImpl != nil {
+		t.Fatal("expected router busImpl to be cleared")
+	}
+	if router.cbOnRecvSSPacket != nil {
+		t.Fatal("expected router callback to be cleared")
+	}
+}
 
 func TestSendMsg_LocalBusShortCircuits(t *testing.T) {
 	oldBus := router.busImpl

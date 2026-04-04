@@ -3,6 +3,7 @@ package router
 import (
 	"errors"
 	"fmt"
+	"sync"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 
 	"github.com/Iori372552686/GoOne/lib/api/logger"
@@ -22,6 +23,9 @@ import (
 // -------------------------------- public --------------------------------
 
 func SelfBusId() uint32 {
+	if router.busImpl == nil {
+		return 0
+	}
 	return router.busImpl.SelfBusId()
 }
 
@@ -34,6 +38,8 @@ type CbOnRecvSSPacket func(*sharedstruct.SSPacket) // frameMsg的所有权，归
 // cb CbOnRecvSSPacket将由底层(bus)协程调用
 func InitAndRun(selfBusId string, cb CbOnRecvSSPacket, rabbitmqAddr string,
 	routeRules map[uint32]uint32, zookeeperAddr string) error {
+	router.beginShutdownOnce = sync.Once{}
+	router.closeOnce = sync.Once{}
 	err := severInstanceMgr.InitAndRun(selfBusId, routeRules, zookeeperAddr)
 	if err != nil {
 		return err
@@ -45,6 +51,28 @@ func InitAndRun(selfBusId string, cb CbOnRecvSSPacket, rabbitmqAddr string,
 		return errors.New("failed to create bus implement")
 	}
 	return nil
+}
+
+func BeginShutdown() {
+	router.beginShutdownOnce.Do(func() {
+		severInstanceMgr.Close()
+	})
+}
+
+func Close() error {
+	var closeErr error
+	router.closeOnce.Do(func() {
+		BeginShutdown()
+		if router.busImpl != nil {
+			router.busImpl.SetReceiver(nil)
+			if err := router.busImpl.Close(); err != nil {
+				closeErr = err
+			}
+		}
+		router.busImpl = nil
+		router.cbOnRecvSSPacket = nil
+	})
+	return closeErr
 }
 
 // 最终通过bus发消息的地方（其他都是易用性封装）
@@ -64,6 +92,9 @@ func SendMsg(packetHeader *sharedstruct.SSPacketHeader, packetBody []byte) error
 		}
 		finish(len(packetBody), nil)
 		return nil
+	}
+	if router.busImpl == nil {
+		return errors.New("router bus is not initialized")
 	}
 
 	finish := beginRouterObserve("send", "bus", packetHeader.Cmd)
@@ -233,6 +264,8 @@ var severInstanceMgr svrinstmgr.ServerInstanceMgr
 var router struct {
 	busImpl          bus.IBus
 	cbOnRecvSSPacket CbOnRecvSSPacket
+	beginShutdownOnce sync.Once
+	closeOnce         sync.Once
 }
 
 func protoMessageType(msg proto.Message) string {

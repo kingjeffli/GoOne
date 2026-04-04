@@ -2,6 +2,9 @@ package bus
 
 import (
 	"fmt"
+	"sync"
+	"sync/atomic"
+
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/lib/service/bus/nsq"
 
@@ -20,10 +23,13 @@ type BusImplNsqMQ struct {
 	chanName    string
 	concurrency int
 
-	timeout time.Duration
-	chanOut chan outMsg
-	chanIn  chan []byte
-	onRecv  MsgHandler
+	timeout   time.Duration
+	chanOut   chan outMsg
+	chanIn    chan []byte
+	onRecv    MsgHandler
+	stopCh    chan struct{}
+	closed    atomic.Bool
+	closeOnce sync.Once
 }
 
 /**
@@ -48,6 +54,7 @@ func NewBusImplNsqMQ(selfBusId uint32, onRecvMsg MsgHandler, conf NSQConfig) *Bu
 	impl.chanIn = make(chan []byte, 10000)
 	impl.onRecv = onRecvMsg
 	impl.concurrency = conf.Concurrency
+	impl.stopCh = make(chan struct{})
 
 	go impl.run()
 	return impl
@@ -86,6 +93,9 @@ func (b *BusImplNsqMQ) SetReceiver(onRecvMsg MsgHandler) {
 * @Date: 2022-04-25 16:27:44
 **/
 func (b *BusImplNsqMQ) Send(dstBusId uint32, data1 []byte, data2 []byte) error {
+	if b.closed.Load() {
+		return ErrBusClosed
+	}
 	header := busPacketHeader{}
 	header.version = 0
 	header.passCode = passCode
@@ -110,6 +120,14 @@ func (b *BusImplNsqMQ) Send(dstBusId uint32, data1 []byte, data2 []byte) error {
 	if !sendToMsgChan(b.chanOut, msg, b.timeout) {
 		return fmt.Errorf("nsq bus.chanOut<-msg time out")
 	} // msg所有权已转移，后面不能再使用msg
+	return nil
+}
+
+func (b *BusImplNsqMQ) Close() error {
+	b.closeOnce.Do(func() {
+		b.closed.Store(true)
+		close(b.stopCh)
+	})
 	return nil
 }
 
@@ -168,8 +186,10 @@ func (b *BusImplNsqMQ) process() error {
 			}
 			buf := make([]byte, len(data))
 			copy(buf, data)
-			// Apply backpressure instead of silently dropping messages.
-			b.chanIn <- buf
+			select {
+			case b.chanIn <- buf:
+			case <-b.stopCh:
+			}
 			return nil
 		},
 	)
@@ -189,6 +209,8 @@ func (b *BusImplNsqMQ) process() error {
 	//listen
 	for {
 		select {
+		case <-b.stopCh:
+			return nil
 		case msgOut, ok := <-b.chanOut:
 			if !ok {
 				return fmt.Errorf("chanOut of bus is closed")
@@ -234,9 +256,15 @@ func (b *BusImplNsqMQ) run() {
 	retryCount := 0
 
 	for {
+		if b.closed.Load() {
+			return
+		}
 		processStartTime := time.Now()
 
 		err := b.process()
+		if b.closed.Load() {
+			return
+		}
 
 		if time.Now().Sub(processStartTime) > time.Minute {
 			retryCount = 0 // 正常运行1分钟以上，则重置retryCount
@@ -248,7 +276,11 @@ func (b *BusImplNsqMQ) run() {
 		}
 		logger.Errorf("Error occur in processing bus. Retry later {retryTimes: %v, afterSeconds:%v} | %v",
 			retryCount, retryAfterSeconds, err)
-		time.Sleep(time.Duration(retryAfterSeconds) * time.Second)
+		select {
+		case <-b.stopCh:
+			return
+		case <-time.After(time.Duration(retryAfterSeconds) * time.Second):
+		}
 	}
 }
 

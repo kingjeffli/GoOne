@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Iori372552686/GoOne/lib/api/logger"
@@ -24,6 +26,9 @@ type BusImplRocketMQ struct {
 	nameServers   []string
 	topic         string
 	consumerGroup string
+	stopCh        chan struct{}
+	closed        atomic.Bool
+	closeOnce     sync.Once
 }
 
 func NewBusImplRocketMQ(selfBusId uint32, onRecvMsg MsgHandler, conf RocketMQConfig) IBus {
@@ -44,6 +49,7 @@ func NewBusImplRocketMQ(selfBusId uint32, onRecvMsg MsgHandler, conf RocketMQCon
 		nameServers:   conf.NameServers,
 		topic:         topic,
 		consumerGroup: group,
+		stopCh:        make(chan struct{}),
 	}
 	go impl.run()
 	return impl
@@ -57,6 +63,9 @@ func (b *BusImplRocketMQ) tagFor(busId uint32) string {
 }
 
 func (b *BusImplRocketMQ) Send(dstBusId uint32, data1 []byte, data2 []byte) error {
+	if b.closed.Load() {
+		return ErrBusClosed
+	}
 	header := busPacketHeader{}
 	header.version = 0
 	header.passCode = passCode
@@ -79,6 +88,14 @@ func (b *BusImplRocketMQ) Send(dstBusId uint32, data1 []byte, data2 []byte) erro
 	if !sendToMsgChan(b.chanOut, msg, b.timeout) {
 		return fmt.Errorf("rocketmq bus.chanOut<-msg time out")
 	}
+	return nil
+}
+
+func (b *BusImplRocketMQ) Close() error {
+	b.closeOnce.Do(func() {
+		b.closed.Store(true)
+		close(b.stopCh)
+	})
 	return nil
 }
 
@@ -114,8 +131,11 @@ func (b *BusImplRocketMQ) process() error {
 				}
 				buf := make([]byte, len(m.Body))
 				copy(buf, m.Body)
-				// Apply backpressure instead of silently dropping messages.
-				b.chanIn <- buf
+				select {
+				case b.chanIn <- buf:
+				case <-b.stopCh:
+					return consumer.ConsumeSuccess, nil
+				}
 			}
 			return consumer.ConsumeSuccess, nil
 		}); err != nil {
@@ -130,6 +150,8 @@ func (b *BusImplRocketMQ) process() error {
 
 	for {
 		select {
+		case <-b.stopCh:
+			return nil
 		case msgOut, ok := <-b.chanOut:
 			if !ok {
 				return fmt.Errorf("chanOut of bus is closed")
@@ -164,8 +186,14 @@ func (b *BusImplRocketMQ) process() error {
 func (b *BusImplRocketMQ) run() {
 	retryCount := 0
 	for {
+		if b.closed.Load() {
+			return
+		}
 		processStartTime := time.Now()
 		err := b.process()
+		if b.closed.Load() {
+			return
+		}
 		if time.Since(processStartTime) > time.Minute {
 			retryCount = 0
 		}
@@ -176,7 +204,11 @@ func (b *BusImplRocketMQ) run() {
 		}
 		logger.Errorf("Error occur in processing bus(rocketmq). Retry later {retryTimes: %v, afterSeconds:%v} | %v",
 			retryCount, retryAfterSeconds, err)
-		time.Sleep(time.Duration(retryAfterSeconds) * time.Second)
+		select {
+		case <-b.stopCh:
+			return
+		case <-time.After(time.Duration(retryAfterSeconds) * time.Second):
+		}
 	}
 }
 

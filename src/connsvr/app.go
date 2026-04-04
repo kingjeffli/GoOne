@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	connsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/connsvr/v1"
 	"github.com/Iori372552686/GoOne/common/gconf"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
@@ -69,6 +70,14 @@ func newApp() *bootstrap.ServiceApp {
 		},
 		OnProc: func() bool {
 			return true
+		},
+		OnShutdown: func(ctx context.Context) error {
+			router.BeginShutdown()
+			shutdownErr := globals.TransMgr.Close(ctx)
+			if err := router.Close(); err != nil && shutdownErr == nil {
+				shutdownErr = err
+			}
+			return shutdownErr
 		},
 		OnExit: func() {
 			logger.Infof("================== connsvr Stop =========================")

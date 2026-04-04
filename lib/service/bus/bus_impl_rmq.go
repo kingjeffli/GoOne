@@ -2,6 +2,8 @@ package bus
 
 import (
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Iori372552686/GoOne/lib/api/logger"
@@ -13,6 +15,9 @@ type BusImplRabbitMQ struct {
 	timeout   time.Duration
 	chanOut   chan outMsg
 	onRecv    MsgHandler
+	stopCh    chan struct{}
+	closed    atomic.Bool
+	closeOnce sync.Once
 }
 
 func NewBusImplRabbitMQ(selfBusId uint32, onRecvMsg MsgHandler, addr string) *BusImplRabbitMQ {
@@ -21,6 +26,7 @@ func NewBusImplRabbitMQ(selfBusId uint32, onRecvMsg MsgHandler, addr string) *Bu
 	impl.timeout = 3 * time.Second
 	impl.chanOut = make(chan outMsg, 10000)
 	impl.onRecv = onRecvMsg
+	impl.stopCh = make(chan struct{})
 	go impl.run(addr)
 	return impl
 }
@@ -34,6 +40,9 @@ func (b *BusImplRabbitMQ) SetReceiver(onRecvMsg MsgHandler) {
 }
 
 func (b *BusImplRabbitMQ) Send(dstBusId uint32, data1 []byte, data2 []byte) error {
+	if b.closed.Load() {
+		return ErrBusClosed
+	}
 	header := busPacketHeader{}
 	header.version = 0
 	header.passCode = passCode
@@ -58,6 +67,14 @@ func (b *BusImplRabbitMQ) Send(dstBusId uint32, data1 []byte, data2 []byte) erro
 		return fmt.Errorf("bus.chanOut<-msg time out")
 	} // msg所有权已转移，后面不能再使用msg
 
+	return nil
+}
+
+func (b *BusImplRabbitMQ) Close() error {
+	b.closeOnce.Do(func() {
+		b.closed.Store(true)
+		close(b.stopCh)
+	})
 	return nil
 }
 
@@ -92,6 +109,8 @@ func (b *BusImplRabbitMQ) process(rabbitmqAddr string, myQueueName string) error
 
 	for {
 		select {
+		case <-b.stopCh:
+			return nil
 		case msgOut, ok := <-b.chanOut:
 			if !ok {
 				return fmt.Errorf("chanOut of bus is closed")
@@ -147,9 +166,15 @@ func (b *BusImplRabbitMQ) run(rabbitmqAddr string) {
 
 	retryCount := 0
 	for {
+		if b.closed.Load() {
+			return
+		}
 		processStartTime := time.Now()
 
 		err := b.process(rabbitmqAddr, myQueueName)
+		if b.closed.Load() {
+			return
+		}
 
 		if time.Now().Sub(processStartTime) > time.Minute {
 			retryCount = 0 // 正常运行1分钟以上，则重置retryCount
@@ -160,7 +185,11 @@ func (b *BusImplRabbitMQ) run(rabbitmqAddr string) {
 			retryAfterSeconds = 30
 		}
 		logger.Errorf("Error occur in processing bus. Retry later {retryTimes: %v, afterSeconds:%v} | %v", retryCount, retryAfterSeconds, err)
-		time.Sleep(time.Duration(retryAfterSeconds) * time.Second)
+		select {
+		case <-b.stopCh:
+			return
+		case <-time.After(time.Duration(retryAfterSeconds) * time.Second):
+		}
 	}
 }
 

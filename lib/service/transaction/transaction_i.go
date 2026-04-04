@@ -1,6 +1,7 @@
 package transaction
 
 import (
+	"context"
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
@@ -13,4 +14,5 @@ type ITransactionMgr interface {
 	RegisterCmd(cmd g1_protocol.CMD, cmdHandler cmd_handler.CmdHandlerFunc)
 	ProcessSSPacket(packet *sharedstruct.SSPacket)
 	StatsSnapshot() TransactionMgrStats
+	Close(ctx context.Context) error
 }
