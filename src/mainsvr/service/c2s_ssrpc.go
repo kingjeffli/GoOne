@@ -16,7 +16,7 @@ import (
 	"github.com/Iori372552686/GoOne/src/mainsvr/room"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"github.com/golang/protobuf/proto"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // MainC2SServiceImpl is the IDL-driven ssrpc implementation for mainsvr client commands.

@@ -23,7 +23,7 @@ type grpcIContext struct {
 	ctx  context.Context
 	uid  uint64
 	zone uint32
-	rid  uint32
+	rid  uint64
 }
 
 var _ cmd_handler.IContext = (*grpcIContext)(nil)
@@ -33,6 +33,7 @@ var _ cmd_handler.IContext = (*grpcIContext)(nil)
 func newGRPCIContext(ctx context.Context) *grpcIContext {
 	var uid uint64
 	var zone uint32
+	var rid uint64
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		if vals := md.Get("x-uid"); len(vals) > 0 {
 			uid, _ = strconv.ParseUint(vals[0], 10, 64)
@@ -41,13 +42,16 @@ func newGRPCIContext(ctx context.Context) *grpcIContext {
 			v, _ := strconv.ParseUint(vals[0], 10, 32)
 			zone = uint32(v)
 		}
+		if vals := md.Get("x-rid"); len(vals) > 0 {
+			rid, _ = strconv.ParseUint(vals[0], 10, 64)
+		}
 	}
-	return &grpcIContext{ctx: ctx, uid: uid, zone: zone}
+	return &grpcIContext{ctx: ctx, uid: uid, zone: zone, rid: rid}
 }
 
 func (g *grpcIContext) Uid() uint64         { return g.uid }
 func (g *grpcIContext) Zone() uint32        { return g.zone }
-func (g *grpcIContext) Rid() uint32         { return g.rid }
+func (g *grpcIContext) Rid() uint64         { return g.rid }
 func (g *grpcIContext) OriSrcBusId() uint32 { return 0 }
 func (g *grpcIContext) Ip() uint32          { return 0 }
 func (g *grpcIContext) Flag() uint32        { return 0 }

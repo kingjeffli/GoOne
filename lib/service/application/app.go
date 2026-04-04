@@ -21,14 +21,18 @@ type AppInterface interface {
 type Application struct {
 	appHandler AppInterface
 
-	idleLoopCnt int
-
 	tickInterval int64
 	lastTickTime int64
 }
 
 var sig = make(chan os.Signal, 1)
 var app Application
+
+const (
+	defaultTickIntervalMs = 10
+	idleProcInterval      = 5 * time.Millisecond
+	busyProcInterval      = 1 * time.Millisecond
+)
 
 func Init(handler AppInterface) *Application {
 	app.appHandler = handler
@@ -39,7 +43,7 @@ func Init(handler AppInterface) *Application {
 		return nil
 	}
 
-	app.tickInterval = 10
+	app.tickInterval = defaultTickIntervalMs
 
 	SignalNotify()
 	return &app
@@ -70,28 +74,81 @@ func (a *Application) tick(lastMs, nowMs int64) {
 
 func Run() {
 	fmt.Println("-----------  SvrImpl  is  Runing ------------ ")
+	if app.appHandler == nil {
+		return
+	}
+
+	datetime.Tick()
+	nowMs := datetime.NowMs()
+	app.tick(app.lastTickTime, nowMs)
+	app.lastTickTime = nowMs
+
+	tickTicker := time.NewTicker(app.tickDuration())
+	defer tickTicker.Stop()
+
+	procTimer := time.NewTimer(0)
+	defer stopTimer(procTimer)
 
 	for {
-		app.checkSysSignal()
-		datetime.Tick()
-		nowMs := datetime.NowMs()
-
-		if nowMs*app.tickInterval/1000 != app.lastTickTime*app.tickInterval/1000 {
+		select {
+		case s := <-sig:
+			if isReloadSignal(s) {
+				if err := app.reload(); err != nil {
+					logger.Errorf("reload failed | %v", err)
+				}
+				continue
+			}
+			app.exit()
+			return
+		case <-tickTicker.C:
+			datetime.Tick()
+			nowMs := datetime.NowMs()
 			app.tick(app.lastTickTime, nowMs)
+			app.lastTickTime = nowMs
+		case <-procTimer.C:
+			datetime.Tick()
+			isIdle := app.loopOnce()
+			resetTimer(procTimer, nextProcInterval(isIdle))
 		}
+	}
+}
 
-		isIdle := app.loopOnce()
-		if isIdle {
-			app.idleLoopCnt += 1
-		} else {
-			app.idleLoopCnt = 0
+func (a *Application) tickDuration() time.Duration {
+	interval := a.tickInterval
+	if interval <= 0 {
+		interval = defaultTickIntervalMs
+	}
+	return time.Duration(interval) * time.Millisecond
+}
+
+func nextProcInterval(isIdle bool) time.Duration {
+	if isIdle {
+		return idleProcInterval
+	}
+	return busyProcInterval
+}
+
+func resetTimer(t *time.Timer, d time.Duration) {
+	if t == nil {
+		return
+	}
+	if !t.Stop() {
+		select {
+		case <-t.C:
+		default:
 		}
+	}
+	t.Reset(d)
+}
 
-		if app.idleLoopCnt > 1000 {
-			app.idleLoopCnt = 0
-			time.Sleep(5 * time.Millisecond)
+func stopTimer(t *time.Timer) {
+	if t == nil {
+		return
+	}
+	if !t.Stop() {
+		select {
+		case <-t.C:
+		default:
 		}
-
-		app.lastTickTime = nowMs
 	}
 }

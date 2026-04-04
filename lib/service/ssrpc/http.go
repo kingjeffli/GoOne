@@ -12,9 +12,9 @@ import (
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"github.com/gin-gonic/gin"
-	jsonpb "github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/jsonpb"
 	proto1 "github.com/golang/protobuf/proto"
-	protojson "google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/encoding/protojson"
 	proto2 "google.golang.org/protobuf/proto"
 )
 
