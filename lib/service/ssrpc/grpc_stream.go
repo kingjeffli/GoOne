@@ -62,7 +62,7 @@ func WrapGRPCServerStream(
 		ctx := WrapIContext(ic, desc.Cmd)
 		ctx.SetTransport(TransportGRPC)
 		applyDesc(ctx, &desc)
-		ctx.ApplyTimeout(desc.Timeout)
+		ctx.ApplyTimeout(effectiveMethodTimeout(desc.Timeout))
 		defer ctx.Close()
 
 		// Decode request from stream.

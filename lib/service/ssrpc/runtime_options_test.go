@@ -1,7 +1,9 @@
 package ssrpc
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
@@ -12,12 +14,12 @@ type fakeIContext struct {
 	uid uint64
 }
 
-func (f *fakeIContext) Uid() uint64        { return f.uid }
-func (f *fakeIContext) Zone() uint32       { return 0 }
-func (f *fakeIContext) Rid() uint64        { return 0 }
+func (f *fakeIContext) Uid() uint64         { return f.uid }
+func (f *fakeIContext) Zone() uint32        { return 0 }
+func (f *fakeIContext) Rid() uint64         { return 0 }
 func (f *fakeIContext) OriSrcBusId() uint32 { return 0 }
-func (f *fakeIContext) Ip() uint32         { return 0 }
-func (f *fakeIContext) Flag() uint32       { return 0 }
+func (f *fakeIContext) Ip() uint32          { return 0 }
+func (f *fakeIContext) Flag() uint32        { return 0 }
 
 func (f *fakeIContext) ParseMsg(data []byte, msg proto.Message) error { return nil }
 
@@ -150,4 +152,55 @@ func TestMCPGuardWith_BlocksCall(t *testing.T) {
 	}
 }
 
+func TestEffectiveMethodTimeout(t *testing.T) {
+	if got := effectiveMethodTimeout(250 * time.Millisecond); got != 250*time.Millisecond {
+		t.Fatalf("expected explicit timeout preserved, got %v", got)
+	}
+	if got := effectiveMethodTimeout(0); got != DefaultMethodTimeout {
+		t.Fatalf("expected zero timeout to use default %v, got %v", DefaultMethodTimeout, got)
+	}
+}
 
+func TestWrapWS_AppliesDefaultTimeoutWhenUnset(t *testing.T) {
+	var remaining time.Duration
+	h := WrapWS(MethodDesc{Cmd: 1, Name: "test.ws.default-timeout"}, nil,
+		func() any { return &fakePB{} },
+		func(ctx *Context, req any) (any, error) {
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				t.Fatal("expected deadline to be set")
+			}
+			remaining = time.Until(deadline)
+			return nil, nil
+		},
+	)
+
+	code := h(&fakeIContext{uid: 99}, nil)
+	if code != g1_protocol.ErrorCode_ERR_OK {
+		t.Fatalf("expected ERR_OK, got %v", code)
+	}
+	if remaining <= 0 || remaining > DefaultMethodTimeout || remaining < 4*time.Second {
+		t.Fatalf("expected remaining deadline near default timeout, got %v", remaining)
+	}
+}
+
+func TestWrapGRPCUnary_AppliesDefaultTimeoutWhenUnset(t *testing.T) {
+	var remaining time.Duration
+	h := WrapGRPCUnary(MethodDesc{Cmd: 2, Name: "test.grpc.default-timeout"}, nil,
+		func(ctx *Context, req any) (any, error) {
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				t.Fatal("expected deadline to be set")
+			}
+			remaining = time.Until(deadline)
+			return nil, nil
+		},
+	)
+
+	if _, err := h(context.Background(), &fakePB{}); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if remaining <= 0 || remaining > DefaultMethodTimeout || remaining < 4*time.Second {
+		t.Fatalf("expected remaining deadline near default timeout, got %v", remaining)
+	}
+}

@@ -122,7 +122,7 @@ func WrapHTTPGin(desc MethodDesc, mws []Middleware, newReq func() any, invoke fu
 		ctx.SetTransport(TransportHTTP)
 		ctx.SetHTTPRequest(c.Request, data)
 		applyDesc(ctx, &desc)
-		ctx.ApplyTimeout(desc.Timeout)
+		ctx.ApplyTimeout(effectiveMethodTimeout(desc.Timeout))
 		defer ctx.Close()
 
 		reqAny := newReq()

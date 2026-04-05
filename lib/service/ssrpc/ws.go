@@ -34,7 +34,7 @@ func WrapWS(desc MethodDesc, mws []Middleware, newReq func() any, invoke func(ct
 		ctx := WrapIContext(c, desc.Cmd)
 		ctx.SetTransport(transportForClientPacket(c))
 		applyDesc(ctx, &desc)
-		ctx.ApplyTimeout(desc.Timeout)
+		ctx.ApplyTimeout(effectiveMethodTimeout(desc.Timeout))
 		defer ctx.Close()
 
 		reqAny := newReq()

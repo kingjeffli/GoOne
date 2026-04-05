@@ -63,7 +63,20 @@ message SsRpc {
   string grpc_service = 41;
 }
 
+// SsRpcService describes service-scoped defaults inherited by methods unless a
+// method-level ssrpc option overrides them.
+message SsRpcService {
+  // timeout_ms applies a default per-method timeout for this proto service.
+  // When omitted, code generation falls back to the framework default.
+  uint32 timeout_ms = 1;
+}
+
 // NOTE: pick a high extension number to avoid conflicts with other ecosystems.
 extend google.protobuf.MethodOptions {
   SsRpc ssrpc = 61001;
 }
+
+extend google.protobuf.ServiceOptions {
+  SsRpcService ssrpc_service = 61002;
+}
+

@@ -871,6 +871,129 @@ func TestGenerate_SSRPCOption_TimeoutMs(t *testing.T) {
 	}
 }
 
+func TestGenerate_SSRPCServiceTimeoutInheritanceAndDefault(t *testing.T) {
+	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
+
+	optionsFD := &descriptorpb.FileDescriptorProto{
+		Name:    protoString(ssrpcOptFilePath),
+		Package: protoString("goone.options.v1"),
+		Dependency: []string{
+			"google/protobuf/descriptor.proto",
+		},
+		Options: &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/goone/options/v1;optionsv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{
+				Name: protoString("SsRpc"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: protoString("cmd"), Number: protoInt32(1), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+					{Name: protoString("timeout_ms"), Number: protoInt32(10), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+				},
+			},
+			{
+				Name: protoString("SsRpcService"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{Name: protoString("timeout_ms"), Number: protoInt32(1), Label: labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL), Type: typePtr(descriptorpb.FieldDescriptorProto_TYPE_UINT32)},
+				},
+			},
+		},
+		Extension: []*descriptorpb.FieldDescriptorProto{
+			{
+				Name:     protoString("ssrpc"),
+				Number:   protoInt32(61001),
+				Label:    labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
+				Type:     typePtr(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+				TypeName: protoString(".goone.options.v1.SsRpc"),
+				Extendee: protoString(".google.protobuf.MethodOptions"),
+			},
+			{
+				Name:     protoString("ssrpc_service"),
+				Number:   protoInt32(61002),
+				Label:    labelPtr(descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL),
+				Type:     typePtr(descriptorpb.FieldDescriptorProto_TYPE_MESSAGE),
+				TypeName: protoString(".goone.options.v1.SsRpcService"),
+				Extendee: protoString(".google.protobuf.ServiceOptions"),
+			},
+		},
+	}
+
+	svcFD := &descriptorpb.FileDescriptorProto{
+		Name:       protoString("test/service_timeout/v1/svc.proto"),
+		Package:    protoString("test.service_timeout.v1"),
+		Dependency: []string{ssrpcOptFilePath},
+		Options:    &descriptorpb.FileOptions{GoPackage: protoString("github.com/Iori372552686/GoOne/api/gen/test/service_timeout/v1;servicetimeoutv1")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{Name: protoString("Req")},
+			{Name: protoString("Rsp")},
+		},
+		Service: []*descriptorpb.ServiceDescriptorProto{
+			{
+				Name:    protoString("SvcInherited"),
+				Options: &descriptorpb.ServiceOptions{},
+				Method: []*descriptorpb.MethodDescriptorProto{
+					{Name: protoString("Inherit"), InputType: protoString(".test.service_timeout.v1.Req"), OutputType: protoString(".test.service_timeout.v1.Rsp"), Options: &descriptorpb.MethodOptions{}},
+					{Name: protoString("Override"), InputType: protoString(".test.service_timeout.v1.Req"), OutputType: protoString(".test.service_timeout.v1.Rsp"), Options: &descriptorpb.MethodOptions{}},
+				},
+			},
+			{
+				Name: protoString("SvcDefault"),
+				Method: []*descriptorpb.MethodDescriptorProto{
+					{Name: protoString("Default"), InputType: protoString(".test.service_timeout.v1.Req"), OutputType: protoString(".test.service_timeout.v1.Rsp"), Options: &descriptorpb.MethodOptions{}},
+				},
+			},
+		},
+	}
+
+	methodExtType, methodExtMsgDesc, _, err := buildSsRpcExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD})
+	if err != nil {
+		t.Fatalf("buildSsRpcExtension err: %v", err)
+	}
+	serviceExtType, serviceExtMsgDesc, _, err := buildSsRpcServiceExtension([]*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD})
+	if err != nil {
+		t.Fatalf("buildSsRpcServiceExtension err: %v", err)
+	}
+
+	serviceOpt := dynamicpb.NewMessage(serviceExtMsgDesc)
+	serviceOpt.Set(serviceExtMsgDesc.Fields().ByName("timeout_ms"), protoreflect.ValueOfUint32(5000))
+	svcFD.Service[0].Options = mustServiceOptionsUnknown(t, serviceExtType, serviceOpt)
+
+	inheritOpt := dynamicpb.NewMessage(methodExtMsgDesc)
+	inheritOpt.Set(methodExtMsgDesc.Fields().ByName("cmd"), protoreflect.ValueOfUint32(0x01020011))
+	svcFD.Service[0].Method[0].Options = mustMethodOptionsUnknown(t, methodExtType, inheritOpt)
+
+	overrideOpt := dynamicpb.NewMessage(methodExtMsgDesc)
+	overrideOpt.Set(methodExtMsgDesc.Fields().ByName("cmd"), protoreflect.ValueOfUint32(0x01020013))
+	overrideOpt.Set(methodExtMsgDesc.Fields().ByName("timeout_ms"), protoreflect.ValueOfUint32(1500))
+	svcFD.Service[0].Method[1].Options = mustMethodOptionsUnknown(t, methodExtType, overrideOpt)
+
+	defaultOpt := dynamicpb.NewMessage(methodExtMsgDesc)
+	defaultOpt.Set(methodExtMsgDesc.Fields().ByName("cmd"), protoreflect.ValueOfUint32(0x01020015))
+	svcFD.Service[1].Method[0].Options = mustMethodOptionsUnknown(t, methodExtType, defaultOpt)
+
+	req := &pluginpb.CodeGeneratorRequest{
+		FileToGenerate: []string{svcFD.GetName()},
+		ProtoFile:      []*descriptorpb.FileDescriptorProto{descFD, optionsFD, svcFD},
+		Parameter:      protoString("paths=import,module=github.com/Iori372552686/GoOne"),
+	}
+
+	resp, err := Generate(req)
+	if err != nil {
+		t.Fatalf("Generate err: %v", err)
+	}
+	out := resp.File[0].GetContent()
+	if !contains(out, "\"time\"") {
+		t.Fatalf("expected time import when effective timeout is emitted, got:\n%s", out)
+	}
+	if !contains(out, "Timeout: 5000 * time.Millisecond,\n\t\t\tName: \"SvcInherited.Inherit\"") {
+		t.Fatalf("expected method without timeout_ms to inherit service timeout, got:\n%s", out)
+	}
+	if !contains(out, "Timeout: 1500 * time.Millisecond,\n\t\t\tName: \"SvcInherited.Override\"") {
+		t.Fatalf("expected method timeout_ms to override service timeout, got:\n%s", out)
+	}
+	if !contains(out, "Timeout: 5000 * time.Millisecond,\n\t\t\tName: \"SvcDefault.Default\"") {
+		t.Fatalf("expected built-in 5s timeout fallback when service/method timeout is absent, got:\n%s", out)
+	}
+}
+
 func TestGenerate_ClientStub_ByRouterVariants(t *testing.T) {
 	descFD := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
 
@@ -1613,6 +1736,22 @@ func mustMethodOptionsUnknown(t *testing.T, extType protoreflect.ExtensionType, 
 	optsUnknown := &descriptorpb.MethodOptions{}
 	if err := proto.Unmarshal(wire, optsUnknown); err != nil {
 		t.Fatalf("unmarshal method options err: %v", err)
+	}
+	return optsUnknown
+}
+
+func mustServiceOptionsUnknown(t *testing.T, extType protoreflect.ExtensionType, optMsg proto.Message) *descriptorpb.ServiceOptions {
+	t.Helper()
+	optsWithExt := &descriptorpb.ServiceOptions{}
+	proto.SetExtension(optsWithExt, extType, optMsg)
+
+	wire, err := proto.Marshal(optsWithExt)
+	if err != nil {
+		t.Fatalf("marshal service options err: %v", err)
+	}
+	optsUnknown := &descriptorpb.ServiceOptions{}
+	if err := proto.Unmarshal(wire, optsUnknown); err != nil {
+		t.Fatalf("unmarshal service options err: %v", err)
 	}
 	return optsUnknown
 }

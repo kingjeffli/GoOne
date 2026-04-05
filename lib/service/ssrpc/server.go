@@ -1,11 +1,14 @@
 package ssrpc
 
 import (
+	"time"
+
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"github.com/golang/protobuf/proto"
-	"time"
 )
+
+const DefaultMethodTimeout = 5 * time.Second
 
 // MethodDesc describes one RPC method exposed via any transport.
 //
@@ -54,6 +57,13 @@ func applyDesc(ctx *Context, desc *MethodDesc) {
 	}
 }
 
+func effectiveMethodTimeout(timeout time.Duration) time.Duration {
+	if timeout > 0 {
+		return timeout
+	}
+	return DefaultMethodTimeout
+}
+
 // buildHandler wraps an invoke function into a Handler and chains middleware.
 func buildHandler(mws []Middleware, invoke func(ctx *Context, req any) (any, error)) Handler {
 	h := Handler(func(ctx *Context, in proto.Message) (proto.Message, error) {
@@ -93,7 +103,7 @@ func WrapUnary(desc MethodDesc, mws []Middleware, newReq func() any, invoke func
 		ctx := WrapIContext(c, desc.Cmd)
 		ctx.SetTransport(TransportSS)
 		applyDesc(ctx, &desc)
-		ctx.ApplyTimeout(desc.Timeout)
+		ctx.ApplyTimeout(effectiveMethodTimeout(desc.Timeout))
 		defer ctx.Close()
 
 		reqAny := newReq()
