@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/Iori372552686/GoOne/common/gamedata"
 	"github.com/Iori372552686/GoOne/common/gconf"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/lib/service/bootstrap"
+	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/util/sensitive_words"
 	"github.com/Iori372552686/GoOne/lib/web/web_gin"
 	"github.com/Iori372552686/GoOne/module/misc"
@@ -24,6 +26,7 @@ import (
 )
 
 type webRuntime struct {
+	mu      sync.RWMutex
 	httpSrv *http.Server
 	grpcSrv *grpc.Server
 }
@@ -62,7 +65,13 @@ func newApp() *bootstrap.ServiceApp {
 				gconf.WebSvrCfg.CommonRuntime.AdminServer.Port,
 			)
 		},
+		ComponentStatuses: func() []bootstrap.ComponentStatus {
+			return runtime.componentStatuses()
+		},
 		InitDeps: func() error {
+			if err := ssrpc.InitTracing("websvr", gconf.WebSvrCfg.CommonRuntime.Tracing); err != nil {
+				return err
+			}
 			if err := globals.RedisMgr.InitAndRun(gconf.WebSvrCfg.Dependencies.DbInstances); err != nil {
 				return err
 			}
@@ -76,7 +85,7 @@ func newApp() *bootstrap.ServiceApp {
 			if err != nil {
 				return err
 			}
-			runtime.httpSrv = httpSrv
+			runtime.setHTTPServer(httpSrv)
 			if err := runtime.startGRPCServer(); err != nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
@@ -89,7 +98,11 @@ func newApp() *bootstrap.ServiceApp {
 			return true
 		},
 		OnShutdown: func(ctx context.Context) error {
-			return runtime.shutdown(ctx)
+			shutdownErr := runtime.shutdown(ctx)
+			if err := ssrpc.ShutdownTracing(ctx); err != nil {
+				shutdownErr = errors.Join(shutdownErr, err)
+			}
+			return shutdownErr
 		},
 		OnExit: func() {
 			logger.Infof("================== websvr Stop =========================")
@@ -121,7 +134,7 @@ func (r *webRuntime) startGRPCServer() error {
 	healthSrv.SetServingStatus("web.websvr.v1.WebApiService", grpc_health_v1.HealthCheckResponse_SERVING)
 	grpc_health_v1.RegisterHealthServer(srv, healthSrv)
 	reflection.Register(srv)
-	r.grpcSrv = srv
+	r.setGRPCServer(srv)
 
 	go func() {
 		logger.Infof("------ gRPC Server Running by %v ------", addr)
@@ -134,9 +147,9 @@ func (r *webRuntime) startGRPCServer() error {
 
 func (r *webRuntime) shutdown(ctx context.Context) error {
 	var shutdownErr error
-	if r.grpcSrv != nil {
+	grpcSrv := r.getGRPCServer()
+	if grpcSrv != nil {
 		done := make(chan struct{})
-		grpcSrv := r.grpcSrv
 		go func() {
 			grpcSrv.GracefulStop()
 			close(done)
@@ -149,16 +162,128 @@ func (r *webRuntime) shutdown(ctx context.Context) error {
 				shutdownErr = ctx.Err()
 			}
 		}
-		r.grpcSrv = nil
+		r.setGRPCServer(nil)
 	}
-	if r.httpSrv != nil {
-		if err := r.httpSrv.Shutdown(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	httpSrv := r.getHTTPServer()
+	if httpSrv != nil {
+		if err := httpSrv.Shutdown(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Errorf("http shutdown error | %v", err)
 			if shutdownErr == nil {
 				shutdownErr = err
 			}
 		}
-		r.httpSrv = nil
+		r.setHTTPServer(nil)
 	}
 	return shutdownErr
+}
+
+func (r *webRuntime) setHTTPServer(srv *http.Server) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.httpSrv = srv
+}
+
+func (r *webRuntime) getHTTPServer() *http.Server {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.httpSrv
+}
+
+func (r *webRuntime) setGRPCServer(srv *grpc.Server) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.grpcSrv = srv
+}
+
+func (r *webRuntime) getGRPCServer() *grpc.Server {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.grpcSrv
+}
+
+func (r *webRuntime) componentStatuses() []bootstrap.ComponentStatus {
+	return buildWebComponentStatuses(
+		globals.RedisMgr.InstanceCount(),
+		globals.SignMgr.Count(),
+		globals.RestMgr.Count(),
+		r.getHTTPServer(),
+		gconf.WebSvrCfg.Runtime.HttpServer,
+		r.getGRPCServer(),
+		gconf.WebSvrCfg.Runtime.GRPCServer,
+	)
+}
+
+func buildWebComponentStatuses(redisInstances, signInstances, restInstances int, httpSrv *http.Server, httpCfg web_gin.Config, grpcSrv *grpc.Server, grpcCfg gconf.GRPCServerConfig) []bootstrap.ComponentStatus {
+	httpStatus := bootstrap.ComponentStatus{
+		Name:    "websvr.http_server",
+		State:   "pending",
+		Ready:   false,
+		Message: fmt.Sprintf("configured addr=%s:%d", httpCfg.IP, httpCfg.Port),
+	}
+	if httpSrv != nil {
+		httpStatus.State = "ready"
+		httpStatus.Ready = true
+		httpStatus.Message = fmt.Sprintf("listening on %s", httpSrv.Addr)
+	}
+
+	grpcStatus := bootstrap.ComponentStatus{
+		Name:    "websvr.grpc_server",
+		State:   "skipped",
+		Ready:   true,
+		Message: "grpc disabled",
+	}
+	if grpcCfg.Enabled {
+		grpcStatus.State = "pending"
+		grpcStatus.Ready = false
+		grpcStatus.Message = fmt.Sprintf("configured addr=%s:%d", grpcCfg.IP, grpcCfg.Port)
+		if grpcSrv != nil {
+			grpcStatus.State = "ready"
+			grpcStatus.Ready = true
+			grpcStatus.Message = fmt.Sprintf("listening on %s:%d", grpcCfg.IP, grpcCfg.Port)
+		}
+	}
+
+	redisStatus := bootstrap.ComponentStatus{
+		Name:    "websvr.redis",
+		State:   "pending",
+		Ready:   false,
+		Message: "waiting for redis initialization",
+	}
+	if redisInstances > 0 {
+		redisStatus.State = "ready"
+		redisStatus.Ready = true
+		redisStatus.Message = fmt.Sprintf("redis instances=%d", redisInstances)
+	}
+
+	signStatus := bootstrap.ComponentStatus{
+		Name:    "websvr.http_sign",
+		State:   "pending",
+		Ready:   false,
+		Message: "waiting for sign initialization",
+	}
+	if signInstances > 0 {
+		signStatus.State = "ready"
+		signStatus.Ready = true
+		signStatus.Message = fmt.Sprintf("sign instances=%d", signInstances)
+	}
+
+	restStatus := bootstrap.ComponentStatus{
+		Name:    "websvr.rest_api",
+		State:   "pending",
+		Ready:   false,
+		Message: "waiting for rest api initialization",
+	}
+	if restInstances > 0 {
+		restStatus.State = "ready"
+		restStatus.Ready = true
+		restStatus.Message = fmt.Sprintf("rest api instances=%d", restInstances)
+	}
+
+	return []bootstrap.ComponentStatus{
+		redisStatus,
+		signStatus,
+		restStatus,
+		httpStatus,
+		grpcStatus,
+	}
 }

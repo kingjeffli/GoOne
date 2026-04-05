@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/web/web_gin"
 
 	"github.com/Iori372552686/GoOne/lib/api/http_sign"
@@ -29,6 +30,7 @@ type BaseRuntimeConfig struct {
 	RegisterAddr string            `json:"register_addr" yaml:"register_addr"` // registry/register 地址
 	BusMQAddr    string            `json:"bus_mq_addr" yaml:"bus_mq_addr"`     // bus mq 地址
 	AdminServer  AdminServerConfig `json:"admin_server" yaml:"admin_server"`   // admin server 配置
+	Tracing      ssrpc.TracingConfig `json:"tracing" yaml:"tracing"`
 }
 
 type BaseDependenciesConfig struct {
@@ -62,6 +64,7 @@ type BaseCfg struct {
 	DbInstances        []redis.Config     `json:"db_instances" yaml:"db_instances"`
 	Pprof              bool               `json:"pprof" yaml:"pprof"`
 	AdminServer        AdminServerConfig  `json:"admin_server" yaml:"admin_server"`
+	Tracing            ssrpc.TracingConfig `json:"tracing" yaml:"tracing"`
 }
 
 type AdminServerConfig struct {
@@ -262,6 +265,7 @@ func (c *BaseCfg) normalize() {
 	c.CommonRuntime.RegisterAddr = coalesceString(c.CommonRuntime.RegisterAddr, c.RegisterAddr)
 	c.CommonRuntime.BusMQAddr = coalesceString(c.CommonRuntime.BusMQAddr, c.BusMQAddr)
 	c.CommonRuntime.AdminServer = mergeAdminServer(c.CommonRuntime.AdminServer, c.AdminServer)
+	c.CommonRuntime.Tracing = coalesceStruct(c.CommonRuntime.Tracing, c.Tracing)
 
 	c.Dependencies.GameDataDir = coalesceString(c.Dependencies.GameDataDir, c.GameDataDir)
 	c.Dependencies.SensitiveWordsFile = coalesceString(c.Dependencies.SensitiveWordsFile, c.SensitiveWordsFile)
@@ -276,6 +280,7 @@ func (c *BaseCfg) normalize() {
 	c.RegisterAddr = c.CommonRuntime.RegisterAddr
 	c.BusMQAddr = c.CommonRuntime.BusMQAddr
 	c.AdminServer = c.CommonRuntime.AdminServer
+	c.Tracing = c.CommonRuntime.Tracing
 
 	c.GameDataDir = c.Dependencies.GameDataDir
 	c.SensitiveWordsFile = c.Dependencies.SensitiveWordsFile
@@ -290,6 +295,9 @@ func (c *BaseCfg) normalize() {
 func (c *BaseCfg) validate() error {
 	if c.CommonRuntime.AdminServer.Port < 0 {
 		return fmt.Errorf("base_cfg.runtime.admin_server.port must be >= 0")
+	}
+	if c.CommonRuntime.Tracing.SamplerRatio < 0 || c.CommonRuntime.Tracing.SamplerRatio > 1 {
+		return fmt.Errorf("base_cfg.runtime.tracing.sampler_ratio must be between 0 and 1")
 	}
 	return nil
 }

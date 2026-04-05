@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
+
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 
 	"github.com/Iori372552686/GoOne/lib/api/logger"
@@ -40,6 +42,7 @@ func InitAndRun(selfBusId string, cb CbOnRecvSSPacket, rabbitmqAddr string,
 	routeRules map[uint32]uint32, zookeeperAddr string) error {
 	router.beginShutdownOnce = sync.Once{}
 	router.closeOnce = sync.Once{}
+	router.shuttingDown.Store(false)
 	err := severInstanceMgr.InitAndRun(selfBusId, routeRules, zookeeperAddr)
 	if err != nil {
 		return err
@@ -55,6 +58,7 @@ func InitAndRun(selfBusId string, cb CbOnRecvSSPacket, rabbitmqAddr string,
 
 func BeginShutdown() {
 	router.beginShutdownOnce.Do(func() {
+		router.shuttingDown.Store(true)
 		severInstanceMgr.Close()
 	})
 }
@@ -73,6 +77,20 @@ func Close() error {
 		router.cbOnRecvSSPacket = nil
 	})
 	return closeErr
+}
+
+type AdminSnapshot struct {
+	Initialized  bool
+	SelfBusID    uint32
+	ShuttingDown bool
+}
+
+func Snapshot() AdminSnapshot {
+	return AdminSnapshot{
+		Initialized:  router.busImpl != nil,
+		SelfBusID:    SelfBusId(),
+		ShuttingDown: router.shuttingDown.Load(),
+	}
 }
 
 // 最终通过bus发消息的地方（其他都是易用性封装）
@@ -262,10 +280,11 @@ func SendMsgBackWithCmd(originalHeader sharedstruct.SSPacketHeader, srcTransId u
 var severInstanceMgr svrinstmgr.ServerInstanceMgr
 
 var router struct {
-	busImpl          bus.IBus
-	cbOnRecvSSPacket CbOnRecvSSPacket
+	busImpl           bus.IBus
+	cbOnRecvSSPacket  CbOnRecvSSPacket
 	beginShutdownOnce sync.Once
 	closeOnce         sync.Once
+	shuttingDown      atomic.Bool
 }
 
 func protoMessageType(msg proto.Message) string {

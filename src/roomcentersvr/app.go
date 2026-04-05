@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	roomcenterv1 "github.com/Iori372552686/GoOne/api/gen/game/roomcenter/v1"
 	"github.com/Iori372552686/GoOne/common/gamedata"
 	"github.com/Iori372552686/GoOne/common/gconf"
@@ -60,6 +61,9 @@ func newApp() *bootstrap.ServiceApp {
 			)
 		},
 		InitDeps: func() error {
+			if err := ssrpc.InitTracing("roomcentersvr", gconf.RoomCenterSvrCfg.CommonRuntime.Tracing); err != nil {
+				return err
+			}
 			idGen, err := idgen.NewIDGen()
 			if err != nil {
 				return err
@@ -122,6 +126,9 @@ func newApp() *bootstrap.ServiceApp {
 			shutdownErr := globals.TransMgr.Close(ctx)
 			if err := service_router.Close(); err != nil && shutdownErr == nil {
 				shutdownErr = err
+			}
+			if err := ssrpc.ShutdownTracing(ctx); err != nil {
+				shutdownErr = errors.Join(shutdownErr, err)
 			}
 			return shutdownErr
 		},

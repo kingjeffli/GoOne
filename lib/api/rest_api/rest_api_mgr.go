@@ -4,6 +4,7 @@ import (
 	"github.com/Iori372552686/GoOne/lib/api/http_sign"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/module/gfunc"
+	"sync"
 )
 
 /**
@@ -11,6 +12,7 @@ import (
  * @Description:
 **/
 type RestApiMgr struct {
+	mu        sync.RWMutex
 	Instances map[string]*RestApi
 
 	//private
@@ -42,6 +44,8 @@ func (self *RestApiMgr) SetRestIns(key string, impl *RestApi) {
 		return
 	}
 
+	self.mu.Lock()
+	defer self.mu.Unlock()
 	self.Instances[key] = impl
 }
 
@@ -54,11 +58,29 @@ func (self *RestApiMgr) SetRestIns(key string, impl *RestApi) {
 * @Date: 2022-02-14 11:29:20
 **/
 func (self *RestApiMgr) GetRestIns(keys ...string) *RestApi {
+	self.mu.RLock()
+	defer self.mu.RUnlock()
 	if len(keys) == 0 {
 		return self.Instances["default"]
 	} else {
 		return self.Instances[keys[0]]
 	}
+}
+
+/**
+* @Description: 计数
+* @receiver: self
+* @return: int
+* @Author: Iori
+* @Date: 2022-02-14 11:29:45
+**/
+func (self *RestApiMgr) Count() int {
+	if self == nil {
+		return 0
+	}
+	self.mu.RLock()
+	defer self.mu.RUnlock()
+	return len(self.Instances)
 }
 
 /**

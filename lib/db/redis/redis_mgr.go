@@ -2,9 +2,10 @@ package redis
 
 import (
 	"fmt"
-	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"sync"
 	"time"
+
+	"github.com/Iori372552686/GoOne/lib/api/logger"
 
 	"github.com/mediocregopher/radix/v3"
 )
@@ -129,6 +130,18 @@ func (m *RedisMgr) GetClient(instID uint32) radix.Client {
 		return nil
 	}
 	return client
+}
+
+func (m *RedisMgr) InstanceCount() int {
+	if m == nil {
+		return 0
+	}
+	count := 0
+	m.clients.Range(func(_, _ any) bool {
+		count++
+		return true
+	})
+	return count
 }
 
 /**

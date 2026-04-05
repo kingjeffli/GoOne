@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	infosvrv1 "github.com/Iori372552686/GoOne/api/gen/game/infosvr/v1"
 	"github.com/Iori372552686/GoOne/common/gconf"
@@ -10,6 +12,7 @@ import (
 	"github.com/Iori372552686/GoOne/lib/service/bootstrap"
 	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
+	"github.com/Iori372552686/GoOne/lib/service/transaction"
 	"github.com/Iori372552686/GoOne/module/misc"
 	"github.com/Iori372552686/GoOne/src/infosvr/globals"
 	"github.com/Iori372552686/GoOne/src/infosvr/service"
@@ -43,7 +46,17 @@ func newApp() *bootstrap.ServiceApp {
 				gconf.InfoSvrCfg.CommonRuntime.AdminServer.Port,
 			)
 		},
+		ComponentStatuses: func() []bootstrap.ComponentStatus {
+			return buildInfoSvrComponentStatuses(
+				globals.InfoMgr.RedisMgr.InstanceCount(),
+				globals.TransMgr.StatsSnapshot(),
+				router.Snapshot(),
+			)
+		},
 		InitDeps: func() error {
+			if err := ssrpc.InitTracing("infosvr", gconf.InfoSvrCfg.CommonRuntime.Tracing); err != nil {
+				return err
+			}
 			return globals.InfoMgr.RedisMgr.InitAndRun(gconf.InfoSvrCfg.Dependencies.DbInstances)
 		},
 		RegisterHandlers: func() error {
@@ -72,10 +85,56 @@ func newApp() *bootstrap.ServiceApp {
 			if err := router.Close(); err != nil && shutdownErr == nil {
 				shutdownErr = err
 			}
+			if err := ssrpc.ShutdownTracing(ctx); err != nil {
+				shutdownErr = errors.Join(shutdownErr, err)
+			}
 			return shutdownErr
 		},
 		OnExit: func() {
 			logger.Infof("================== infosvr Stop =========================")
 		},
 	})
+}
+
+func buildInfoSvrComponentStatuses(redisInstances int, txStats transaction.TransactionMgrStats, routerSnapshot router.AdminSnapshot) []bootstrap.ComponentStatus {
+	redisStatus := bootstrap.ComponentStatus{
+		Name:    "infosvr.redis",
+		State:   "pending",
+		Ready:   false,
+		Message: "waiting for redis initialization",
+	}
+	if redisInstances > 0 {
+		redisStatus.State = "ready"
+		redisStatus.Ready = true
+		redisStatus.Message = fmt.Sprintf("redis instances=%d", redisInstances)
+	}
+
+	transactionStatus := bootstrap.ComponentStatus{
+		Name:    "infosvr.transaction_mgr",
+		State:   "pending",
+		Ready:   false,
+		Message: fmt.Sprintf("shards=%d active=%d pending=%d dropped=%d", txStats.ShardCount, txStats.ActiveTransactions, txStats.PendingPackets, txStats.DroppedPackets),
+	}
+	if txStats.ShardCount > 0 {
+		transactionStatus.State = "ready"
+		transactionStatus.Ready = true
+	}
+
+	routerStatus := bootstrap.ComponentStatus{
+		Name:    "infosvr.router",
+		State:   "pending",
+		Ready:   false,
+		Message: "router not initialized",
+	}
+	if routerSnapshot.Initialized && routerSnapshot.SelfBusID != 0 {
+		routerStatus.State = "ready"
+		routerStatus.Ready = !routerSnapshot.ShuttingDown
+		routerStatus.Message = fmt.Sprintf("bus_id=%d shutting_down=%t", routerSnapshot.SelfBusID, routerSnapshot.ShuttingDown)
+	}
+
+	return []bootstrap.ComponentStatus{
+		redisStatus,
+		transactionStatus,
+		routerStatus,
+	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 
 	mainsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/mainsvr/v1"
 	"github.com/Iori372552686/GoOne/common/gamedata"
@@ -62,6 +63,9 @@ func newApp() *bootstrap.ServiceApp {
 			)
 		},
 		InitDeps: func() error {
+			if err := ssrpc.InitTracing("mainsvr", gconf.MainSvrCfg.CommonRuntime.Tracing); err != nil {
+				return err
+			}
 			sensitive_words.Init(gconf.MainSvrCfg.Dependencies.SensitiveWordsFile)
 			if err := rds.RedisMgr.InitAndRun(gconf.MainSvrCfg.Dependencies.DbInstances); err != nil {
 				return err
@@ -118,6 +122,9 @@ func newApp() *bootstrap.ServiceApp {
 			shutdownErr := globals.TransMgr.Close(ctx)
 			if err := router.Close(); err != nil && shutdownErr == nil {
 				shutdownErr = err
+			}
+			if err := ssrpc.ShutdownTracing(ctx); err != nil {
+				shutdownErr = errors.Join(shutdownErr, err)
 			}
 			return shutdownErr
 		},

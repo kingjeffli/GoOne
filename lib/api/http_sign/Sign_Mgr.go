@@ -4,6 +4,7 @@ package http_sign
 import (
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/module/gfunc"
+	"sync"
 )
 
 /*
@@ -11,6 +12,7 @@ import (
 *  @Description:
  */
 type SignMgr struct {
+	mu        sync.RWMutex
 	Instances map[string]*HttpSign
 
 	//private
@@ -38,6 +40,8 @@ func NewSignMgr() *SignMgr {
 * @Date: 2022-02-14 16:13:53
 **/
 func (self *SignMgr) SetSignIns(key string, impl *HttpSign) {
+	self.mu.Lock()
+	defer self.mu.Unlock()
 	self.Instances[key] = impl
 }
 
@@ -50,11 +54,22 @@ func (self *SignMgr) SetSignIns(key string, impl *HttpSign) {
 * @Date: 2022-02-14 11:29:20
 **/
 func (self *SignMgr) GetSignIns(keys ...string) *HttpSign {
+	self.mu.RLock()
+	defer self.mu.RUnlock()
 	if len(keys) == 0 {
 		return self.Instances["default"]
 	} else {
 		return self.Instances[keys[0]]
 	}
+}
+
+func (self *SignMgr) Count() int {
+	if self == nil {
+		return 0
+	}
+	self.mu.RLock()
+	defer self.mu.RUnlock()
+	return len(self.Instances)
 }
 
 /**

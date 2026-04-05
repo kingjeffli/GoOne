@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 
 	mysqlsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/mysqlsvr/v1"
 	"github.com/Iori372552686/GoOne/common/gconf"
@@ -45,6 +46,9 @@ func newApp() *bootstrap.ServiceApp {
 			)
 		},
 		InitDeps: func() error {
+			if err := ssrpc.InitTracing("mysqlsvr", gconf.MySqlSvrCfg.CommonRuntime.Tracing); err != nil {
+				return err
+			}
 			return globals.OrmMgr.InitAndRun(gconf.MySqlSvrCfg.Dependencies.OrmConf, manager.GetTables()...)
 		},
 		RegisterHandlers: func() error {
@@ -72,6 +76,9 @@ func newApp() *bootstrap.ServiceApp {
 			shutdownErr := globals.TransMgr.Close(ctx)
 			if err := router.Close(); err != nil && shutdownErr == nil {
 				shutdownErr = err
+			}
+			if err := ssrpc.ShutdownTracing(ctx); err != nil {
+				shutdownErr = errors.Join(shutdownErr, err)
 			}
 			return shutdownErr
 		},

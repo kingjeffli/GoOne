@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
+	"github.com/Iori372552686/GoOne/lib/api/logger"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 )
 
@@ -134,6 +135,64 @@ func (c *Context) Close() {
 	}
 	c.cancel()
 	c.cancel = nil
+}
+
+func (c *Context) TraceID() string {
+	if c == nil {
+		return ""
+	}
+	return traceIDFromContext(c.Context)
+}
+
+func (c *Context) SpanID() string {
+	if c == nil {
+		return ""
+	}
+	return spanIDFromContext(c.Context)
+}
+
+func (c *Context) traceLogPrefix() string {
+	traceID := c.TraceID()
+	if traceID == "" {
+		return ""
+	}
+	spanID := c.SpanID()
+	if spanID == "" {
+		return "[trace_id:" + traceID + "] "
+	}
+	return "[trace_id:" + traceID + " span_id:" + spanID + "] "
+}
+
+func (c *Context) Errorf(format string, args ...interface{}) {
+	if c != nil && c.IContext != nil {
+		c.IContext.Errorf(c.traceLogPrefix()+format, args...)
+		return
+	}
+	logger.Errorf(c.traceLogPrefix()+format, args...)
+}
+
+func (c *Context) Warningf(format string, args ...interface{}) {
+	if c != nil && c.IContext != nil {
+		c.IContext.Warningf(c.traceLogPrefix()+format, args...)
+		return
+	}
+	logger.Warningf(c.traceLogPrefix()+format, args...)
+}
+
+func (c *Context) Infof(format string, args ...interface{}) {
+	if c != nil && c.IContext != nil {
+		c.IContext.Infof(c.traceLogPrefix()+format, args...)
+		return
+	}
+	logger.Infof(c.traceLogPrefix()+format, args...)
+}
+
+func (c *Context) Debugf(format string, args ...interface{}) {
+	if c != nil && c.IContext != nil {
+		c.IContext.Debugf(c.traceLogPrefix()+format, args...)
+		return
+	}
+	logger.Debugf(c.traceLogPrefix()+format, args...)
 }
 
 func baseContextFromIContext(ic cmd_handler.IContext) context.Context {

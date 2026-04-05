@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	connsvrv1 "github.com/Iori372552686/GoOne/api/gen/game/connsvr/v1"
 	"github.com/Iori372552686/GoOne/common/gconf"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
@@ -41,6 +42,7 @@ func newApp() *bootstrap.ServiceApp {
 			)
 		},
 		InitDeps: func() error {
+			}
 			globals.SignMgr.InitAndRun(gconf.ConnSvrCfg.Dependencies.HTTPSigns)
 			globals.RestMgr.Init(gconf.ConnSvrCfg.Dependencies.RestApiConf, globals.SignMgr)
 			return nil
@@ -76,6 +78,9 @@ func newApp() *bootstrap.ServiceApp {
 			shutdownErr := globals.TransMgr.Close(ctx)
 			if err := router.Close(); err != nil && shutdownErr == nil {
 				shutdownErr = err
+			}
+			if err := ssrpc.ShutdownTracing(ctx); err != nil {
+				shutdownErr = errors.Join(shutdownErr, err)
 			}
 			return shutdownErr
 		},

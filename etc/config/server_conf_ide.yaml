@@ -7,6 +7,12 @@ base_cfg:
       enabled: true
       ip: ""
       port: 0
+    tracing:
+      enabled: false
+      exporter: stdout
+      endpoint: ""
+      insecure: false
+      sampler_ratio: 1
 
   dependencies:
     game_data_dir: ../common/gamedata/data

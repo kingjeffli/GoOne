@@ -2,6 +2,8 @@ package ssrpc
 
 import (
 	"context"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -87,6 +89,72 @@ func TestTraceWith_MergesTagsAndFinishes(t *testing.T) {
 	}
 	if tp.gotTags["method"] != "S.M" || tp.gotTags["a"] != "1" || tp.gotTags["cmd"] == "" {
 		t.Fatalf("unexpected tags: %#v", tp.gotTags)
+	}
+}
+
+func TestTraceWith_UsesGlobalProviderWhenNil(t *testing.T) {
+	tp := &fakeTraceProvider{}
+	SetGlobalTraceProvider(tp)
+	defer SetGlobalTraceProvider(nil)
+
+	h := TraceWith(nil)(func(ctx *Context, req proto.Message) (proto.Message, error) {
+		return nil, nil
+	})
+
+	_, err := h(&Context{Cmd: 9, Method: "S.Global", Session: Session{Transport: TransportHTTP}}, nil)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if tp.finish != 1 {
+		t.Fatalf("expected finish called once, got %d", tp.finish)
+	}
+	if tp.gotTags["method"] != "S.Global" || tp.gotTags["transport"] != string(TransportHTTP) {
+		t.Fatalf("unexpected tags: %#v", tp.gotTags)
+	}
+}
+
+type captureLogIContext struct {
+	fakeIContext
+	lastInfo string
+}
+
+func (c *captureLogIContext) Infof(format string, args ...interface{}) {
+	c.lastInfo = format
+}
+
+func TestContextInfof_IncludesTraceIDPrefix(t *testing.T) {
+	baseCtx := contextWithTraceValues(context.Background(), strings.Repeat("a", 32), strings.Repeat("b", 16), "")
+	ic := &captureLogIContext{}
+	ctx := WrapIContextWithContext(baseCtx, ic, 1)
+
+	ctx.Infof("hello")
+	if !strings.Contains(ic.lastInfo, "trace_id:") {
+		t.Fatalf("expected trace prefix in log format, got %q", ic.lastInfo)
+	}
+	if !strings.Contains(ic.lastInfo, strings.Repeat("a", 32)) {
+		t.Fatalf("expected trace id in log format, got %q", ic.lastInfo)
+	}
+}
+
+func TestHTTPTraceHelpers_RoundTripTraceparent(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "/trace", nil)
+	if err != nil {
+		t.Fatalf("http.NewRequest err = %v", err)
+	}
+	req.Header.Set("Traceparent", "00-11111111111111111111111111111111-2222222222222222-01")
+	base := ExtractHTTPTraceContext(req)
+	ctx := WrapIContextWithContext(base, &fakeIContext{}, 1)
+	finish := StartTrace(ctx, &minimalTraceProvider{serviceName: "test", exporter: "stdout", samplerRatio: 1}, map[string]string{"span.name": "test.http"})
+	if finish != nil {
+		finish(nil)
+	}
+	headers := http.Header{}
+	WriteHTTPTraceResponse(ctx, headers)
+	if headers.Get("X-Trace-Id") != "11111111111111111111111111111111" {
+		t.Fatalf("unexpected trace id header: %q", headers.Get("X-Trace-Id"))
+	}
+	if headers.Get("Traceparent") == "" {
+		t.Fatalf("expected traceparent header to be written")
 	}
 }
 

@@ -58,20 +58,35 @@ func WrapGRPCServerStream(
 ) GRPCStreamHandler {
 	mws = prepareMW(mws, desc.UIDLock)
 	return func(_ any, stream grpc.ServerStream) error {
-		ic := newGRPCIContext(stream.Context())
-		ctx := WrapIContext(ic, desc.Cmd)
+		baseCtx := ExtractGRPCTraceContext(stream.Context())
+		ic := newGRPCIContext(baseCtx)
+		ctx := WrapIContextWithContext(baseCtx, ic, desc.Cmd)
 		ctx.SetTransport(TransportGRPC)
 		applyDesc(ctx, &desc)
 		ctx.ApplyTimeout(effectiveMethodTimeout(desc.Timeout))
-		defer ctx.Close()
+		var traceErr error
+		finish := StartTrace(ctx, nil, map[string]string{
+			"span.name":  "ssrpc.transport.grpc.stream",
+			"span.phase": "transport",
+			"span.kind":  "server",
+		})
+		WriteGRPCStreamTraceResponse(stream, ctx)
+		defer func() {
+			if finish != nil {
+				finish(traceErr)
+			}
+			ctx.Close()
+		}()
 
 		// Decode request from stream.
 		reqAny := newReq()
 		req, ok := reqAny.(proto.Message)
 		if !ok || req == nil {
+			traceErr = E(g1_protocol.ErrorCode_ERR_INTERNAL, "invalid req type")
 			return ToGRPCError(g1_protocol.ErrorCode_ERR_INTERNAL)
 		}
 		if err := stream.RecvMsg(req); err != nil {
+			traceErr = err
 			return err
 		}
 
@@ -85,8 +100,10 @@ func WrapGRPCServerStream(
 
 		_, mwErr := h(ctx, req)
 		if mwErr != nil {
+			traceErr = mwErr
 			return ToGRPCError(ToErrorCode(mwErr))
 		}
+		traceErr = streamErr
 		return streamErr
 	}
 }
