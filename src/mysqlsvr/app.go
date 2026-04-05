@@ -46,7 +46,14 @@ func newApp() *bootstrap.ServiceApp {
 			)
 		},
 		InitDeps: func() error {
-			if err := ssrpc.InitTracing("mysqlsvr", gconf.MySqlSvrCfg.CommonRuntime.Tracing); err != nil {
+			if err := ssrpc.InitTracing("mysqlsvr", ssrpc.TracingConfig{
+				Enabled:      gconf.MySqlSvrCfg.CommonRuntime.Tracing.Enabled,
+				Exporter:     gconf.MySqlSvrCfg.CommonRuntime.Tracing.Exporter,
+				Endpoint:     gconf.MySqlSvrCfg.CommonRuntime.Tracing.Endpoint,
+				Insecure:     gconf.MySqlSvrCfg.CommonRuntime.Tracing.Insecure,
+				SamplerRatio: gconf.MySqlSvrCfg.CommonRuntime.Tracing.SamplerRatio,
+				Headers:      gconf.MySqlSvrCfg.CommonRuntime.Tracing.Headers,
+			}); err != nil {
 				return err
 			}
 			return globals.OrmMgr.InitAndRun(gconf.MySqlSvrCfg.Dependencies.OrmConf, manager.GetTables()...)

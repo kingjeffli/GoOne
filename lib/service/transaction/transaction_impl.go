@@ -4,9 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"time"
 
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
@@ -14,20 +14,17 @@ import (
 	"github.com/Iori372552686/GoOne/lib/api/sharedstruct"
 	"github.com/Iori372552686/GoOne/lib/service/router"
 	"github.com/Iori372552686/GoOne/lib/util/safego"
+	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"github.com/golang/protobuf/proto"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	apiTrace "go.opentelemetry.io/otel/trace"
 )
 
 type Transaction struct {
 	OriPacketHeader sharedstruct.SSPacketHeader
 	// CurFrameHeader sharedstruct.SSPacketHeader
 
-	transID uint32
-	sendSeq uint16
-	chanIn  chan *sharedstruct.SSPacket
+	transID  uint32
+	sendSeq  uint16
+	chanIn   chan *sharedstruct.SSPacket
 	traceCtx context.Context
 }
 
@@ -67,6 +64,7 @@ func (t *Transaction) Infof(format string, args ...interface{}) {
 func (t *Transaction) Debugf(format string, args ...interface{}) {
 	t.DebugDepthf(1, format, args...)
 }
+
 func (t *Transaction) DebugDepthf(depth int, format string, args ...interface{}) {
 	f := fmt.Sprintf("[%v|%v|%v] %v", t.Uid(), t.Rid(), t.TransID(), format)
 	logger.CmdDebugDepthf(t.Cmd(), 1+depth, f, args...)
@@ -150,37 +148,21 @@ func (t *Transaction) CallOtherMsgBySvrType(svrType uint32, routerId, uid uint64
 	t.Debugf("CallMsgBySvrType {dstSvrType:%v, routerId:%v, uid:%v, zone:%v, cmd:%v, reqType:%s}",
 		svrType, routerId, uid, zone, uint32(cmd), protoMessageType(req))
 	t.sendSeq += 1
-	callErr := error(nil)
-	_, span := startOutgoingTraceSpan(t, apiTrace.SpanKindClient, "ssrpc.client.call", t.sendSeq, cmd,
-		attribute.Int64("ssrpc.svr_type", int64(svrType)),
-		attribute.Int64("ssrpc.router_id", int64(routerId)),
-		attribute.Int64("ssrpc.uid", int64(uid)),
-		attribute.Int64("ssrpc.zone", int64(zone)),
-	)
-	defer finishTraceSpan(span, &callErr)
 	err := router.SendPbMsgBySvrType(svrType, routerId, uid, zone, cmd, t.sendSeq, t.TransID(), req)
 	if err != nil {
 		logger.Error(err)
-		callErr = err
 		return err
 	}
 
-	callErr = t.waitRsp(svrType, 0, cmd, time.Second*3, req, rsp)
-	return callErr
+	return t.waitRsp(svrType, 0, cmd, time.Second*3, req, rsp)
 }
 
 func (t *Transaction) SendMsgByServerType(svrType uint32, cmd g1_protocol.CMD, req proto.Message) error {
 	t.Debugf("SendMsgByServerType {dstSvrType:%v, cmd:%v, reqType:%s}", svrType, uint32(cmd), protoMessageType(req))
 	t.sendSeq += 1
-	sendErr := error(nil)
-	_, span := startOutgoingTraceSpan(t, apiTrace.SpanKindProducer, "ssrpc.client.send", t.sendSeq, cmd,
-		attribute.Int64("ssrpc.svr_type", int64(svrType)),
-	)
-	defer finishTraceSpan(span, &sendErr)
 	err := router.SendPbMsgBySvrTypeSimple(svrType, t.Uid(), t.Zone(), cmd, req)
 	if err != nil {
 		logger.Error(err)
-		sendErr = err
 	}
 	return err
 }
@@ -188,16 +170,9 @@ func (t *Transaction) SendMsgByServerType(svrType uint32, cmd g1_protocol.CMD, r
 func (t *Transaction) SendMsgByRouter(svrType uint32, rid uint64, cmd g1_protocol.CMD, req proto.Message) error {
 	t.Debugf("SendMsgByRouter {dstSvrType:%v, rid:%v, cmd:%v, reqType:%s}", svrType, rid, uint32(cmd), protoMessageType(req))
 	t.sendSeq += 1
-	sendErr := error(nil)
-	_, span := startOutgoingTraceSpan(t, apiTrace.SpanKindProducer, "ssrpc.client.send_router", t.sendSeq, cmd,
-		attribute.Int64("ssrpc.svr_type", int64(svrType)),
-		attribute.Int64("ssrpc.router_id", int64(rid)),
-	)
-	defer finishTraceSpan(span, &sendErr)
 	err := router.SendPbMsgByRouter(svrType, rid, t.Uid(), t.Zone(), cmd, req)
 	if err != nil {
 		logger.Error(err)
-		sendErr = err
 	}
 	return err
 }
@@ -205,15 +180,9 @@ func (t *Transaction) SendMsgByRouter(svrType uint32, rid uint64, cmd g1_protoco
 func (t *Transaction) BroadcastByServerType(svrType uint32, cmd g1_protocol.CMD, req proto.Message) error {
 	t.Debugf("BroadcastByServerType {dstSvrType:%v, cmd:%v, reqType:%s}", svrType, uint32(cmd), protoMessageType(req))
 	t.sendSeq += 1
-	sendErr := error(nil)
-	_, span := startOutgoingTraceSpan(t, apiTrace.SpanKindProducer, "ssrpc.client.broadcast", t.sendSeq, cmd,
-		attribute.Int64("ssrpc.svr_type", int64(svrType)),
-	)
-	defer finishTraceSpan(span, &sendErr)
 	err := router.BroadcastPbMsgByServerType(svrType, t.Uid(), cmd, t.sendSeq, req)
 	if err != nil {
 		logger.Error(err)
-		sendErr = err
 	}
 	return err
 }
@@ -221,20 +190,13 @@ func (t *Transaction) BroadcastByServerType(svrType uint32, cmd g1_protocol.CMD,
 func (t *Transaction) CallMsgByBusId(busId uint32, cmd g1_protocol.CMD, req proto.Message, rsp proto.Message) error {
 	t.Debugf("CallMsgByBusId {dstBusId:%v, cmd:%v, reqType:%s}", busId, uint32(cmd), protoMessageType(req))
 	t.sendSeq += 1
-	callErr := error(nil)
-	_, span := startOutgoingTraceSpan(t, apiTrace.SpanKindClient, "ssrpc.client.call_bus", t.sendSeq, cmd,
-		attribute.Int64("ssrpc.bus_id", int64(busId)),
-	)
-	defer finishTraceSpan(span, &callErr)
 	err := router.SendPbMsgByBusId(busId, t.Uid(), t.Zone(), cmd, t.sendSeq, t.TransID(), req)
 	if err != nil {
 		logger.Error(err)
-		callErr = err
 		return err
 	}
 
-	callErr = t.waitRsp(0, busId, cmd, time.Second*3, req, rsp)
-	return callErr
+	return t.waitRsp(0, busId, cmd, time.Second*3, req, rsp)
 }
 
 func contextForSSPacketTrace(srcBusID uint32, srcTransID uint32, cmdSeq uint16, cmd uint32) context.Context {
@@ -250,49 +212,10 @@ func contextForSSPacketTrace(srcBusID uint32, srcTransID uint32, cmdSeq uint16, 
 	spanSeed := append([]byte("span:"), seed...)
 	spanHash := sha256.Sum256(spanSeed)
 
-	var traceID apiTrace.TraceID
-	copy(traceID[:], traceHash[:16])
-	var spanID apiTrace.SpanID
-	copy(spanID[:], spanHash[:8])
-	if !traceID.IsValid() || !spanID.IsValid() {
-		return context.Background()
-	}
-	sc := apiTrace.NewSpanContext(apiTrace.SpanContextConfig{
-		TraceID:    traceID,
-		SpanID:     spanID,
-		TraceFlags: apiTrace.FlagsSampled,
-		Remote:     true,
-	})
-	return apiTrace.ContextWithRemoteSpanContext(context.Background(), sc)
-}
-
-func startOutgoingTraceSpan(t *Transaction, kind apiTrace.SpanKind, name string, sendSeq uint16, cmd g1_protocol.CMD, attrs ...attribute.KeyValue) (context.Context, apiTrace.Span) {
-	base := contextForSSPacketTrace(router.SelfBusId(), t.TransID(), sendSeq, uint32(cmd))
-	attrs = append(attrs,
-		attribute.String("transport", "sspack"),
-		attribute.String("method", name),
-		attribute.Int64("cmd", int64(uint32(cmd))),
-		attribute.Int64("uid", int64(t.Uid())),
-		attribute.Int64("rid", int64(t.Rid())),
-		attribute.Int64("trans_id", int64(t.TransID())),
-	)
-	return otel.Tracer("github.com/Iori372552686/GoOne/lib/service/transaction").Start(
-		base,
-		name,
-		apiTrace.WithSpanKind(kind),
-		apiTrace.WithAttributes(attrs...),
-	)
-}
-
-func finishTraceSpan(span apiTrace.Span, errRef *error) {
-	if span == nil {
-		return
-	}
-	if errRef != nil && *errRef != nil {
-		span.RecordError(*errRef)
-		span.SetStatus(codes.Error, (*errRef).Error())
-	}
-	span.End()
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, "goone.ssrpc.trace_id", hex.EncodeToString(traceHash[:16]))
+	ctx = context.WithValue(ctx, "goone.ssrpc.span_id", hex.EncodeToString(spanHash[:8]))
+	return ctx
 }
 
 func (t *Transaction) waitRsp(dstSvrType uint32, dstSvrIns uint32, cmd g1_protocol.CMD,

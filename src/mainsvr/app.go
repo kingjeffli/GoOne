@@ -63,7 +63,14 @@ func newApp() *bootstrap.ServiceApp {
 			)
 		},
 		InitDeps: func() error {
-			if err := ssrpc.InitTracing("mainsvr", gconf.MainSvrCfg.CommonRuntime.Tracing); err != nil {
+			if err := ssrpc.InitTracing("mainsvr", ssrpc.TracingConfig{
+				Enabled:      gconf.MainSvrCfg.CommonRuntime.Tracing.Enabled,
+				Exporter:     gconf.MainSvrCfg.CommonRuntime.Tracing.Exporter,
+				Endpoint:     gconf.MainSvrCfg.CommonRuntime.Tracing.Endpoint,
+				Insecure:     gconf.MainSvrCfg.CommonRuntime.Tracing.Insecure,
+				SamplerRatio: gconf.MainSvrCfg.CommonRuntime.Tracing.SamplerRatio,
+				Headers:      gconf.MainSvrCfg.CommonRuntime.Tracing.Headers,
+			}); err != nil {
 				return err
 			}
 			sensitive_words.Init(gconf.MainSvrCfg.Dependencies.SensitiveWordsFile)
@@ -122,11 +129,10 @@ func newApp() *bootstrap.ServiceApp {
 			shutdownErr := globals.TransMgr.Close(ctx)
 			if err := router.Close(); err != nil && shutdownErr == nil {
 				shutdownErr = err
-			}
+			return shutdownErr
 			if err := ssrpc.ShutdownTracing(ctx); err != nil {
 				shutdownErr = errors.Join(shutdownErr, err)
 			}
-			return shutdownErr
 		},
 		OnExit: func() {
 			logger.Infof("================== mainsvr Stop =========================")

@@ -4,12 +4,13 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"testing"
+ 	"testing"
 	"time"
 
 	"github.com/Iori372552686/GoOne/lib/api/cmd_handler"
 	g1_protocol "github.com/Iori372552686/game_protocol/protocol"
 	"github.com/golang/protobuf/proto"
+	"google.golang.org/grpc/metadata"
 )
 
 type fakeIContext struct {
@@ -22,29 +23,29 @@ func (f *fakeIContext) Rid() uint64         { return 0 }
 func (f *fakeIContext) OriSrcBusId() uint32 { return 0 }
 func (f *fakeIContext) Ip() uint32          { return 0 }
 func (f *fakeIContext) Flag() uint32        { return 0 }
-
-func (f *fakeIContext) ParseMsg(data []byte, msg proto.Message) error { return nil }
-
-func (f *fakeIContext) CallMsgBySvrType(svrType uint32, cmd g1_protocol.CMD, req proto.Message, rsp proto.Message) error {
+func (f *fakeIContext) ParseMsg(_ []byte, _ proto.Message) error {
+	return nil
+}
+func (f *fakeIContext) CallMsgBySvrType(_ uint32, _ g1_protocol.CMD, _ proto.Message, _ proto.Message) error {
 	panic("not used")
 }
-func (f *fakeIContext) CallMsgByRouter(svrType uint32, routerId uint64, cmd g1_protocol.CMD, req proto.Message, rsp proto.Message) error {
+func (f *fakeIContext) CallMsgByRouter(_ uint32, _ uint64, _ g1_protocol.CMD, _ proto.Message, _ proto.Message) error {
 	panic("not used")
 }
-func (f *fakeIContext) CallOtherMsgBySvrType(svrType uint32, routerId, uid uint64, zone uint32, cmd g1_protocol.CMD, req proto.Message, rsp proto.Message) error {
+func (f *fakeIContext) CallOtherMsgBySvrType(_ uint32, _ uint64, _ uint64, _ uint32, _ g1_protocol.CMD, _ proto.Message, _ proto.Message) error {
 	panic("not used")
 }
-func (f *fakeIContext) SendMsgBack(pbMsg proto.Message) { /* no-op */ }
-func (f *fakeIContext) SendMsgByServerType(svrType uint32, cmd g1_protocol.CMD, req proto.Message) error {
+func (f *fakeIContext) SendMsgBack(_ proto.Message) {}
+func (f *fakeIContext) SendMsgByServerType(_ uint32, _ g1_protocol.CMD, _ proto.Message) error {
 	panic("not used")
 }
-func (f *fakeIContext) SendMsgByRouter(svrType uint32, routerId uint64, cmd g1_protocol.CMD, req proto.Message) error {
+func (f *fakeIContext) SendMsgByRouter(_ uint32, _ uint64, _ g1_protocol.CMD, _ proto.Message) error {
 	panic("not used")
 }
-func (f *fakeIContext) Errorf(format string, args ...interface{})   {}
-func (f *fakeIContext) Warningf(format string, args ...interface{}) {}
-func (f *fakeIContext) Infof(format string, args ...interface{})    {}
-func (f *fakeIContext) Debugf(format string, args ...interface{})   {}
+func (f *fakeIContext) Errorf(_ string, _ ...interface{})   {}
+func (f *fakeIContext) Warningf(_ string, _ ...interface{}) {}
+func (f *fakeIContext) Infof(_ string, _ ...interface{})    {}
+func (f *fakeIContext) Debugf(_ string, _ ...interface{})   {}
 
 var _ cmd_handler.IContext = (*fakeIContext)(nil)
 
@@ -53,7 +54,7 @@ type fakeTraceProvider struct {
 	finish  int
 }
 
-func (f *fakeTraceProvider) Start(ctx *Context, tags map[string]string) func(err error) {
+func (f *fakeTraceProvider) Start(_ *Context, tags map[string]string) func(err error) {
 	f.gotTags = tags
 	return func(err error) { f.finish++ }
 }
@@ -63,9 +64,27 @@ type fakeLocker struct {
 	unlockCnt int
 }
 
-func (l *fakeLocker) Lock(uid uint64) func() {
+func (l *fakeLocker) Lock(_ uint64) func() {
 	l.lockCnt++
 	return func() { l.unlockCnt++ }
+}
+
+type fakeMCP struct {
+	called int
+}
+
+func (m *fakeMCP) CallTool(_ string, _ any) (any, error) {
+	m.called++
+	return "ok", nil
+}
+
+type captureLogIContext struct {
+	fakeIContext
+	lastInfo string
+}
+
+func (c *captureLogIContext) Infof(format string, _ ...interface{}) {
+	c.lastInfo = format
 }
 
 func TestTraceWith_MergesTagsAndFinishes(t *testing.T) {
@@ -80,6 +99,7 @@ func TestTraceWith_MergesTagsAndFinishes(t *testing.T) {
 		TraceTags: map[string]string{
 			"a": "1",
 		},
+		Session: Session{Transport: TransportHTTP},
 	}, nil)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
@@ -111,15 +131,6 @@ func TestTraceWith_UsesGlobalProviderWhenNil(t *testing.T) {
 	if tp.gotTags["method"] != "S.Global" || tp.gotTags["transport"] != string(TransportHTTP) {
 		t.Fatalf("unexpected tags: %#v", tp.gotTags)
 	}
-}
-
-type captureLogIContext struct {
-	fakeIContext
-	lastInfo string
-}
-
-func (c *captureLogIContext) Infof(format string, args ...interface{}) {
-	c.lastInfo = format
 }
 
 func TestContextInfof_IncludesTraceIDPrefix(t *testing.T) {
@@ -158,6 +169,19 @@ func TestHTTPTraceHelpers_RoundTripTraceparent(t *testing.T) {
 	}
 }
 
+func TestExtractGRPCTraceContext_FromMetadata(t *testing.T) {
+	md := metadata.New(map[string]string{
+		"traceparent": "00-33333333333333333333333333333333-4444444444444444-01",
+	})
+	base := ExtractGRPCTraceContext(metadata.NewIncomingContext(context.Background(), md))
+	if got := traceIDFromContext(base); got != "33333333333333333333333333333333" {
+		t.Fatalf("unexpected trace id from grpc metadata: %q", got)
+	}
+	if got := spanIDFromContext(base); got != "4444444444444444" {
+		t.Fatalf("unexpected span id from grpc metadata: %q", got)
+	}
+}
+
 func TestAuthWith_RequiredButMissingAuthenticator(t *testing.T) {
 	h := AuthWith(nil)(func(ctx *Context, req proto.Message) (proto.Message, error) {
 		return nil, nil
@@ -189,15 +213,6 @@ func TestUIDLock_UsesContextLocker(t *testing.T) {
 	if locker.lockCnt != 1 || locker.unlockCnt != 1 {
 		t.Fatalf("expected lock/unlock once, got lock=%d unlock=%d", locker.lockCnt, locker.unlockCnt)
 	}
-}
-
-type fakeMCP struct {
-	called int
-}
-
-func (m *fakeMCP) CallTool(name string, input any) (any, error) {
-	m.called++
-	return "ok", nil
 }
 
 func TestMCPGuardWith_BlocksCall(t *testing.T) {

@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Iori372552686/GoOne/lib/service/ssrpc"
 	"github.com/Iori372552686/GoOne/lib/web/web_gin"
 
 	"github.com/Iori372552686/GoOne/lib/api/http_sign"
@@ -19,6 +18,15 @@ import (
 
 var SvrConfFile = flag.String("svr_conf", "../commconf/server_conf.yaml", "app config yaml file")
 
+type RuntimeTracingConfig struct {
+	Enabled      bool              `json:"enabled" yaml:"enabled"`
+	Exporter     string            `json:"exporter" yaml:"exporter"`
+	Endpoint     string            `json:"endpoint" yaml:"endpoint"`
+	Insecure     bool              `json:"insecure" yaml:"insecure"`
+	SamplerRatio float64           `json:"sampler_ratio" yaml:"sampler_ratio"`
+	Headers      map[string]string `json:"headers" yaml:"headers"`
+}
+
 type BaseRuntimeConfig struct {
 	// ParseConfig parses registry address strings like:
 	//   - "127.0.0.1:2181"                       (defaults to zk)
@@ -30,7 +38,7 @@ type BaseRuntimeConfig struct {
 	RegisterAddr string            `json:"register_addr" yaml:"register_addr"` // registry/register 地址
 	BusMQAddr    string            `json:"bus_mq_addr" yaml:"bus_mq_addr"`     // bus mq 地址
 	AdminServer  AdminServerConfig `json:"admin_server" yaml:"admin_server"`   // admin server 配置
-	Tracing      ssrpc.TracingConfig `json:"tracing" yaml:"tracing"`
+	Tracing      RuntimeTracingConfig `json:"tracing" yaml:"tracing"`
 }
 
 type BaseDependenciesConfig struct {
@@ -64,7 +72,7 @@ type BaseCfg struct {
 	DbInstances        []redis.Config     `json:"db_instances" yaml:"db_instances"`
 	Pprof              bool               `json:"pprof" yaml:"pprof"`
 	AdminServer        AdminServerConfig  `json:"admin_server" yaml:"admin_server"`
-	Tracing            ssrpc.TracingConfig `json:"tracing" yaml:"tracing"`
+	Tracing            RuntimeTracingConfig `json:"tracing" yaml:"tracing"`
 }
 
 type AdminServerConfig struct {

@@ -54,7 +54,14 @@ func newApp() *bootstrap.ServiceApp {
 			)
 		},
 		InitDeps: func() error {
-			if err := ssrpc.InitTracing("infosvr", gconf.InfoSvrCfg.CommonRuntime.Tracing); err != nil {
+			if err := ssrpc.InitTracing("infosvr", ssrpc.TracingConfig{
+				Enabled:      gconf.InfoSvrCfg.CommonRuntime.Tracing.Enabled,
+				Exporter:     gconf.InfoSvrCfg.CommonRuntime.Tracing.Exporter,
+				Endpoint:     gconf.InfoSvrCfg.CommonRuntime.Tracing.Endpoint,
+				Insecure:     gconf.InfoSvrCfg.CommonRuntime.Tracing.Insecure,
+				SamplerRatio: gconf.InfoSvrCfg.CommonRuntime.Tracing.SamplerRatio,
+				Headers:      gconf.InfoSvrCfg.CommonRuntime.Tracing.Headers,
+			}); err != nil {
 				return err
 			}
 			return globals.InfoMgr.RedisMgr.InitAndRun(gconf.InfoSvrCfg.Dependencies.DbInstances)
