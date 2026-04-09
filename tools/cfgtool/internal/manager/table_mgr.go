@@ -22,6 +22,15 @@ func AddTable(file, sheet string, typeOf int, t string, rows [][]string, rules [
 		Rules:    rules,
 		Rows:     rows,
 	}
+
+	for i, rule := range rules {
+		//根据：分割，判断前面的字符串，是否等于"lua"
+		pos := strings.Index(rule, ":")
+		if pos > 0 && strings.ToLower(rule[:pos]) == "lua" {
+			val.LuaRules = rules[i]
+		}
+	}
+
 	tableMgr[key] = val
 	groupMgr[val.TypeOf] = append(groupMgr[val.TypeOf], val)
 }
@@ -45,8 +54,18 @@ func GetTypeOf(name string) int {
 	return domain.TypeOfBase
 }
 
+func SplitArrayType(name string) (string, int) {
+	depth := 0
+	for strings.HasPrefix(name, "[]") {
+		depth++
+		name = strings.TrimPrefix(name, "[]")
+	}
+	return name, depth
+}
+
 func GetValueOf(name string) int {
-	if strings.HasPrefix(name, "[]") {
+	_, depth := SplitArrayType(name)
+	if depth > 0 {
 		return domain.ValueOfList
 	}
 	return domain.ValueOfBase

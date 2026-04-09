@@ -1,7 +1,6 @@
 package test
 
 import (
-	"bytes"
 	"testing"
 
 	"path/filepath"
@@ -14,10 +13,11 @@ import (
 )
 
 func TestConfig(t *testing.T) {
-	domain.XlsxPath = "../../../../poker_gameconf"
-	domain.TextPath = "../gen/data"
+	domain.XlsxPath = "../xls"
+	domain.JsonPath = "../gen/json"
 	domain.ProtoPath = "../gen/proto"
 	domain.CodePath = "../gen/code"
+	domain.LuaPath = "../gen/lua"
 	domain.Module = "github.com/Iori372552686/GoOne"
 	domain.PbPath = "github.com/Iori372552686/game_protocol/protocol"
 	domain.PkgName = filepath.Base(domain.PbPath)
@@ -32,8 +32,7 @@ func TestConfig(t *testing.T) {
 		panic(err)
 	}
 	// 生成proto文件数据
-	buf := bytes.NewBuffer(nil)
-	if err := service.GenProto(buf); err != nil {
+	if err := service.GenProto(); err != nil {
 		panic(err)
 	}
 	if err := service.SaveProto(); err != nil {
@@ -46,7 +45,7 @@ func TestConfig(t *testing.T) {
 	if err := service.GenData(); err != nil {
 		panic(err)
 	}
-	if err := service.GenCode(buf); err != nil {
+	if err := service.GenCode(); err != nil {
 		panic(err)
 	}
 }

@@ -2,23 +2,72 @@ package service
 
 import (
 	"bytes"
-	"github.com/Iori372552686/GoOne/lib/api/uerror"
 	"sort"
 
 	"github.com/Iori372552686/GoOne/tools/cfgtool/domain"
 	"github.com/Iori372552686/GoOne/tools/cfgtool/internal/base"
+	"github.com/Iori372552686/GoOne/tools/cfgtool/internal/errs"
 	"github.com/Iori372552686/GoOne/tools/cfgtool/internal/manager"
 	"github.com/Iori372552686/GoOne/tools/cfgtool/internal/templ"
 )
 
 type ProtoInfo struct {
-	RefList    []string
-	EnumList   []*base.Enum
-	StructList []*base.Struct
-	ConfigList []*base.Config
+	RefList       []string
+	EnumList      []*base.Enum
+	StructList    []*base.Struct
+	ConfigList    []*base.Config
+	ArrayWrappers []*ProtoArrayWrapper
 }
 
-func GenProto(buf *bytes.Buffer) error {
+type ProtoArrayWrapper struct {
+	Name      string
+	ValueType string
+	Level     int
+}
+
+func collectArrayWrappers(fileName string, data *ProtoInfo) []*ProtoArrayWrapper {
+	items := map[string]*ProtoArrayWrapper{}
+	collect := func(fields []*base.Field) {
+		for _, field := range fields {
+			if field.Type.ArrayDepth <= 1 {
+				continue
+			}
+			for level := 1; level < field.Type.ArrayDepth; level++ {
+				name := base.ArrayWrapperName(fileName, field.Type.Name, level)
+				valueType := field.Type.Name
+				if level > 1 {
+					valueType = base.ArrayWrapperName(fileName, field.Type.Name, level-1)
+				}
+				items[name] = &ProtoArrayWrapper{
+					Name:      name,
+					ValueType: valueType,
+					Level:     level,
+				}
+			}
+		}
+	}
+
+	for _, item := range data.StructList {
+		collect(item.FieldList)
+	}
+	for _, item := range data.ConfigList {
+		collect(item.FieldList)
+	}
+
+	wrappers := make([]*ProtoArrayWrapper, 0, len(items))
+	for _, item := range items {
+		wrappers = append(wrappers, item)
+	}
+	sort.Slice(wrappers, func(i, j int) bool {
+		if wrappers[i].Level != wrappers[j].Level {
+			return wrappers[i].Level < wrappers[j].Level
+		}
+		return wrappers[i].Name < wrappers[j].Name
+	})
+	return wrappers
+}
+
+func GenProto() error {
 	// 根据文件分类
 	tmps := map[string]*ProtoInfo{}
 	for _, val := range manager.GetEnumList() {
@@ -46,11 +95,13 @@ func GenProto(buf *bytes.Buffer) error {
 	}
 
 	// 生成proto文件
+	buf := bytes.NewBuffer(nil)
 	for fileName, data := range tmps {
 		buf.Reset()
 		data.RefList = manager.GetRefList(fileName)
+		data.ArrayWrappers = collectArrayWrappers(fileName, data)
 		if err := templ.ProtoTpl.Execute(buf, data); err != nil {
-			return uerror.New(1, -1, "gen proto file error: %s", err.Error())
+			return errs.Wrap(err, fileName, "", "", 0, "生成错误", "生成proto文件内容失败")
 		}
 		manager.AddProto(fileName, buf)
 	}
@@ -64,7 +115,7 @@ func SaveProto() error {
 
 	for fileName, data := range manager.GetProtoMap() {
 		if err := base.Save(domain.ProtoPath, fileName, []byte(data)); err != nil {
-			return err
+			return errs.Wrap(err, fileName, "", "", 0, "保存错误", "保存proto失败")
 		}
 	}
 	return nil

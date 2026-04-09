@@ -3,8 +3,27 @@ package templ
 import (
 	"text/template"
 
+	"github.com/Iori372552686/GoOne/tools/cfgtool/domain"
 	"github.com/Iori372552686/GoOne/tools/cfgtool/internal/base"
 )
+
+func protoFieldModifier(t *base.Type) string {
+	if t.ArrayDepth > 0 || t.ValueOf == domain.ValueOfList {
+		return "repeated "
+	}
+	return ""
+}
+
+func protoFieldType(fileName string, t *base.Type) string {
+	depth := t.ArrayDepth
+	if depth == 0 && t.ValueOf == domain.ValueOfList {
+		depth = 1
+	}
+	if depth <= 1 {
+		return t.Name
+	}
+	return base.ArrayWrapperName(fileName, t.Name, depth-1)
+}
 
 const protoTpl = `
 /*
@@ -29,30 +48,32 @@ enum {{$item.Name}} {
 }
 {{end}}
 
+{{- range $item := .ArrayWrappers}}
+message {{$item.Name}} {
+	repeated {{$item.ValueType}} Values = 1;
+}
+{{end}}
+
 {{- range $item := .StructList}}
 message {{$item.Name}} {
+	{{- $fileName := $item.FileName}}
 	{{- range $pos, $field := $item.FieldList}}
-		{{- if eq $field.Type.ValueOf 1}}
-	{{$field.Type.Name}} {{$field.Name}} = {{add $pos 1}}; // {{$field.Desc}}
-		{{- else if eq $field.Type.ValueOf 2}} 
-	repeated {{$field.Type.Name}} {{$field.Name}} = {{add $pos 1}}; // {{$field.Desc}}
-		{{- end}} 
+	{{protofieldmodifier $field.Type}}{{protofieldtype $fileName $field.Type}} {{$field.Name}} = {{add $pos 1}}; // {{$field.Desc}}
 {{- end}}
 }
 {{end}}
 
 {{- range $item := .ConfigList}}
 message {{$item.Name}} {
+	{{- $fileName := $item.FileName}}
 	{{- range $pos, $field := $item.FieldList}}
-		{{- if eq $field.Type.ValueOf 1}}
-	{{$field.Type.Name}} {{$field.Name}} = {{add $pos 1}}; // {{$field.Desc}}
-		{{- else if eq $field.Type.ValueOf 2}} 
-	repeated {{$field.Type.Name}} {{$field.Name}} = {{add $pos 1}}; // {{$field.Desc}}
-		{{- end}} 
+	{{protofieldmodifier $field.Type}}{{protofieldtype $fileName $field.Type}} {{$field.Name}} = {{add $pos 1}}; // {{$field.Desc}}
 {{- end}}
 }
 
-message {{$item.Name}}Ary { repeated {{$item.Name}} Ary = 1; }
+message {{$item.Name}}Ary { 
+	repeated {{$item.Name}} Ary = 1;
+}
 {{end}}
 `
 
@@ -64,8 +85,10 @@ var (
 
 func init() {
 	funcs := template.FuncMap{
-		"sub": base.Sub,
-		"add": base.Add,
+		"sub":                base.Sub,
+		"add":                base.Add,
+		"protofieldmodifier": protoFieldModifier,
+		"protofieldtype":     protoFieldType,
 	}
 	ProtoTpl = template.Must(template.New("ProtoTpl").Funcs(funcs).Parse(protoTpl))
 	IndexTpl = template.Must(template.New("IndexTpl").Funcs(funcs).Parse(indexTpl))
