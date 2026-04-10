@@ -3,13 +3,12 @@ package service
 import (
 	"bytes"
 	"github.com/Iori372552686/GoOne/lib/api/uerror"
-
-	"sort"
-
 	"github.com/Iori372552686/GoOne/tools/cfgtool/domain"
 	"github.com/Iori372552686/GoOne/tools/cfgtool/internal/base"
 	"github.com/Iori372552686/GoOne/tools/cfgtool/internal/manager"
 	"github.com/Iori372552686/GoOne/tools/cfgtool/internal/templ"
+
+	"sort"
 )
 
 func genIndex(buf *bytes.Buffer) error {

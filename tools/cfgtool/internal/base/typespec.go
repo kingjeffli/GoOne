@@ -4,6 +4,8 @@ type Type struct {
 	Name    string
 	TypeOf  int
 	ValueOf int
+	// ArrayDepth 表示数组维度：0=标量，1=一维，2=二维，3=三维。
+	ArrayDepth int
 }
 
 type Convert struct {
@@ -65,4 +67,6 @@ type Table struct {
 	FileName string
 	Rules    []string
 	Rows     [][]string
+	LuaRules string // lua规则
+	MapRules string // map 索引规则
 }

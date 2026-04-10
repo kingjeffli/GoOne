@@ -3,10 +3,10 @@ package base
 import (
 	"github.com/Iori372552686/GoOne/lib/api/uerror"
 	"go/format"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
+	"unicode"
 )
 
 func Sub(a, b int) int {
@@ -50,7 +50,7 @@ func Save(path, filename string, buf []byte) error {
 	}
 
 	// 写入文件
-	if err := ioutil.WriteFile(fileName, buf, os.FileMode(0666)); err != nil {
+	if err := os.WriteFile(fileName, buf, os.FileMode(0666)); err != nil {
 		return uerror.New(1, -1, "filename: %s, error: %v", fileName, err)
 	}
 	return nil
@@ -60,6 +60,7 @@ func SaveGo(path, filename string, buf []byte) error {
 	result, err := format.Source(buf)
 	if err != nil {
 		Save("./", "gen_error.gen.go", buf)
+
 		return uerror.New(1, -1, "格式化失败: %v", err)
 	}
 	return Save(path, filename, result)
@@ -87,4 +88,14 @@ func Glob(dir, pattern string, recursive bool) (rets []string, err error) {
 		return nil
 	})
 	return
+}
+
+func ToCamelCase(s string) string {
+	if s == "" {
+		return s
+	}
+
+	runes := []rune(s)
+	runes[0] = unicode.ToLower(runes[0])
+	return string(runes)
 }

@@ -3,9 +3,9 @@ package manager
 import (
 	"bytes"
 	"github.com/Iori372552686/GoOne/lib/api/uerror"
-
 	"github.com/Iori372552686/GoOne/tools/cfgtool/domain"
 	"github.com/Iori372552686/GoOne/tools/cfgtool/internal/base"
+
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
@@ -32,7 +32,17 @@ func AddRef(filename string, reference map[string]struct{}) {
 }
 
 func GetRefList(file string) []string {
-	return referenceMgr[file]
+	refs := referenceMgr[file]
+	unique := make(map[string]struct{}, len(refs))
+	var res []string
+	for _, v := range refs {
+		if _, ok := unique[v]; !ok {
+			unique[v] = struct{}{}
+			res = append(res, v)
+		}
+	}
+
+	return res
 }
 
 func AddProto(file string, buf *bytes.Buffer) {
