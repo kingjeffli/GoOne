@@ -6,7 +6,6 @@ build/*
 /deploy/hosts/host_dev.txt
 /.cursor/
 /.bin/*
-/docs/
 deploy/hosts/host_dev.txt
 /.gocache
 /tools/cfgtool/gen
