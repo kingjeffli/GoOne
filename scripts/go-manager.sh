@@ -1230,7 +1230,11 @@ install_go_version_fixed() {
         if [[ -x "${install_path}/bin/go" ]]; then
             local installed_version
             installed_version="$("${install_path}/bin/go" version 2>/dev/null | awk '{print $3}' | sed 's/go//')"
-            
+            if [[ -z "$installed_version" ]]; then
+                installed_version="$version"
+                log_warn "无法读取 go version 输出，回退显示为请求版本: $version"
+            fi
+
             log_success "Go 安装成功: $installed_version"
             [[ -n "$final_download_url" ]] && log_info "下载来源: $final_download_url"
             
