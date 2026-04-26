@@ -254,7 +254,7 @@ func HttpPostRequest(urlstr string, msgbody string) ([]byte, error) {
 }
 
 /**
-* @Description: 自定义head的post请求
+* @Description: 自定义head的请求
 * @param: urlstr
 * @param: msgbody
 * @param: headers
@@ -263,11 +263,11 @@ func HttpPostRequest(urlstr string, msgbody string) ([]byte, error) {
 * @Author: Iori
 * @Date: 2022-02-15 17:17:05
 **/
-func HeaderHttpPostRequest(urlstr string, msgbody string, headers *map[string]string) ([]byte, error) {
+func HeaderHttpPostRequest(urlstr string, method string, msgbody string, headers *map[string]string) ([]byte, error) {
 	client := &http.Client{
 		Transport: HttpConnectPool,
 	}
-	request, e := http.NewRequest("POST", urlstr, strings.NewReader(msgbody))
+	request, e := http.NewRequest(method, urlstr, strings.NewReader(msgbody))
 	for k, v := range *headers {
 		request.Header.Set(k, v)
 	}

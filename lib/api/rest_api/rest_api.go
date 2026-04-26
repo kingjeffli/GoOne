@@ -2,11 +2,12 @@ package rest_api
 
 import (
 	"errors"
+	"math/rand"
+
 	"github.com/Iori372552686/GoOne/lib/api/http_sign"
+	http_client "github.com/Iori372552686/GoOne/lib/api/httpclient"
 	"github.com/Iori372552686/GoOne/lib/api/logger"
 	"github.com/Iori372552686/GoOne/lib/util/convert"
-	http_client "github.com/Iori372552686/GoOne/lib/api/httpclient"
-	"math/rand"
 )
 
 /**
@@ -109,6 +110,35 @@ func (self *RestApi) SignGet(uin int64, uriMap *map[string]string) ([]byte, erro
 	rspBody, err := http_client.HttpGetRequest(url, "")
 	if err != nil {
 		logger.Errorf("SignGet Request err | %v", err.Error())
+		return nil, err
+	}
+
+	return rspBody, nil
+}
+
+/**
+* @Description: 带签名的get,v2新规范
+* @param: uin
+* @param: uriMap
+* @return: map[string]interface{}
+* @return: error
+* @Author: Iori
+* @Date: 2025-03-15 17:11:32
+**/
+func (self *RestApi) SignGetV2(headMap, uriMap *map[string]string) ([]byte, error) {
+	if self == nil || self.signImpl == nil {
+		return nil, errors.New("SignImpl or actions  is nil ,not signReq !")
+	}
+
+	uid := int64(0)
+	if uriMap != nil && (*uriMap)["uid"] != "" {
+		uid = int64(convert.StrToInt((*uriMap)["uid"]))
+	}
+
+	rspBody, err := http_client.HeaderHttpPostRequest(self.urlAddr.GetHashUrl(uid)+http_sign.Map2uri(self.signImpl.PushSign(uriMap, nil, http_sign.Sign_Md5), "", true, false), "GET",
+		"", headMap)
+	if err != nil {
+		logger.Errorf("SignPost Request err | %v", err.Error())
 		return nil, err
 	}
 
@@ -223,7 +253,7 @@ func (self *RestApi) SignPostV2(headMap, uriMap *map[string]string, actions *map
 
 	//gen body
 	bodystr := convert.StructToJson(actions)
-	rspBody, err := http_client.HeaderHttpPostRequest(self.urlAddr.GetHashUrl(uid)+http_sign.Map2uri(self.signImpl.PushSign(uriMap, bodystr, http_sign.Sign_Md5), "", true, false),
+	rspBody, err := http_client.HeaderHttpPostRequest(self.urlAddr.GetHashUrl(uid)+http_sign.Map2uri(self.signImpl.PushSign(uriMap, bodystr, http_sign.Sign_Md5), "", true, false), "POST",
 		convert.Bytes2str(bodystr), headMap)
 	if err != nil {
 		logger.Errorf("SignPost Request err | %v", err.Error())
