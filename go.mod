@@ -23,7 +23,6 @@ require (
 	github.com/jhump/protoreflect v1.18.0
 	github.com/json-iterator/go v1.1.12
 	github.com/mediocregopher/radix/v3 v3.8.1
-	github.com/nacos-group/nacos-sdk-go v1.1.6
 	github.com/nacos-group/nacos-sdk-go/v2 v2.3.5
 	github.com/nats-io/nats.go v1.51.0
 	github.com/nsqio/go-nsq v1.1.0
@@ -94,7 +93,6 @@ require (
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
-	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
