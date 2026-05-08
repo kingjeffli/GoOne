@@ -74,7 +74,7 @@ func (t *ConnWsTcpSvr) SendByUid(uid uint64, data1 []byte, data2 []byte) error {
 		return err
 	}
 
-	logger.Debugf("Send to client {uid: %v, len: %v}", uid, len(data1)+len(data2))
+	//logger.Debugf("Send to client {uid: %v, len: %v}", uid, len(data1)+len(data2))
 	return nil
 }
 
